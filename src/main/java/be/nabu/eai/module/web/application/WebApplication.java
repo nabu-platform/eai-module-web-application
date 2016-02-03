@@ -15,12 +15,12 @@ import org.slf4j.LoggerFactory;
 
 import be.nabu.eai.authentication.api.PasswordAuthenticator;
 import be.nabu.eai.authentication.api.SecretAuthenticator;
+import be.nabu.eai.module.http.server.RepositoryExceptionFormatter;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.MetricsLevelProvider;
 import be.nabu.eai.repository.api.AuthenticatorProvider;
 import be.nabu.eai.repository.api.Repository;
 import be.nabu.eai.repository.api.UserLanguageProvider;
-import be.nabu.eai.repository.artifacts.http.RepositoryExceptionFormatter;
 import be.nabu.eai.repository.artifacts.jaxb.JAXBArtifact;
 import be.nabu.eai.repository.impl.CacheSessionProvider;
 import be.nabu.eai.repository.util.CombinedAuthenticator;

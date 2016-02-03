@@ -8,8 +8,8 @@ import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 
 import be.nabu.eai.api.EnvironmentSpecific;
 import be.nabu.eai.api.InterfaceFilter;
+import be.nabu.eai.module.http.virtual.VirtualHostArtifact;
 import be.nabu.eai.repository.api.CacheProviderArtifact;
-import be.nabu.eai.repository.artifacts.http.virtual.VirtualHostArtifact;
 import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
