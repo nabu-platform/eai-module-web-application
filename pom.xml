@@ -65,6 +65,11 @@
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
+			<groupId>be.nabu.libs.http</groupId>
+			<artifactId>http-glue</artifactId>
+			<version>1.1-SNAPSHOT</version>
+		</dependency>
+		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
 			<version>4.11</version>
