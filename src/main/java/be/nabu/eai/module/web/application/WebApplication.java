@@ -239,16 +239,6 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				subscriptions.add(subscription);
 			}
 			
-			WebApplicationDebugger debugger = null;
-			if (isDevelopment) {
-				debugger = new WebApplicationDebugger(serverPath, sessionProvider);
-				// the request listener
-				EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, debugger.getRequestListener());
-				subscription.filter(HTTPServerUtils.limitToPath(serverPath));
-				subscriptions.add(subscription);
-				// the response listener
-				subscriptions.add(dispatcher.subscribe(HTTPResponse.class, debugger.getResponseListener()));
-			}
 			ResourceContainer<?> resources = null;
 			if (publicDirectory != null) {
 				// check if there is a resource directory
