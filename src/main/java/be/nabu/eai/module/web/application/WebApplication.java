@@ -361,7 +361,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							}
 						}
 						try {
-							return new be.nabu.glue.impl.ImperativeSubstitutor("%", "string(" + getConfiguration().getTranslationService().getId() + "('page:" + ScriptUtils.getFullName(runtime.getScript()) + "', '${value}', " + (language == null ? "null" : "'" + language + "'") + ")/translation)");
+							return new be.nabu.glue.impl.ImperativeSubstitutor("%", "string(" + getConfiguration().getTranslationService().getId() + "(\"page:" + ScriptUtils.getFullName(runtime.getScript()) + "\", \"${value}\", " + (language == null ? "null" : "\"" + language + "\"") + ")/translation)");
 						}
 						catch (IOException e) {
 							throw new RuntimeException("Could not get translation service", e);
