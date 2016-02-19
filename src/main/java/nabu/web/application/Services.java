@@ -72,7 +72,7 @@ public class Services {
 	}
 	
 	@WebResult(name = "information")
-	public WebApplicationInformation information(@NotNull @WebParam(name = "artifactId") String id) throws IOException {
+	public WebApplicationInformation information(@NotNull @WebParam(name = "webApplicationId") String id) throws IOException {
 		if (id != null) {
 			WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
 			if (resolved != null) {
