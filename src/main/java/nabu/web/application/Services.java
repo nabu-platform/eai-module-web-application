@@ -6,8 +6,6 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javax.jws.WebParam;
 import javax.jws.WebResult;
@@ -23,6 +21,7 @@ import org.slf4j.LoggerFactory;
 import be.nabu.eai.module.web.application.WebApplication;
 import be.nabu.glue.ScriptUtils;
 import be.nabu.glue.api.Script;
+import be.nabu.glue.impl.ImperativeSubstitutor;
 import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.resources.api.ResourceFilter;
@@ -41,7 +40,6 @@ public class Services {
 		if (id != null) {
 			WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
 			if (resolved != null) {
-				Pattern pattern = Pattern.compile("%\\{([^}]+)\\}");
 				for (Script script : resolved.getListener().getRepository()) {
 					String fullName = ScriptUtils.getFullName(script);
 					try {
@@ -49,9 +47,7 @@ public class Services {
 						try {
 							byte[] bytes = IOUtils.toBytes(IOUtils.wrap(input));
 							String source = new String(bytes, script.getCharset());
-							Matcher matcher = pattern.matcher(source);
-							while(matcher.find()) {
-								String key = matcher.group(1);
+							for (String key : ImperativeSubstitutor.getValues("%", source)) {
 								properties.add(new PropertyImpl("page:" + fullName, key));
 							}
 						}
