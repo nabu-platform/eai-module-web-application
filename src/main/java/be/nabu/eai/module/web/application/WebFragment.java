@@ -23,4 +23,11 @@ public interface WebFragment extends Artifact {
 	 * Is it running on this web artifact?
 	 */
 	public boolean isStarted(WebApplication artifact, String path);
+	
+	/**
+	 * The priority for this listener
+	 */
+	public default WebFragmentPriority getPriority() {
+		return WebFragmentPriority.NORMAL;
+	}
 }

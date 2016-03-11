@@ -5,6 +5,8 @@ import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -119,6 +121,14 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		}
 		List<WebFragment> webFragments = getConfiguration().getWebFragments();
 		if (webFragments != null) {
+			// new list so we don't affect the original order
+			webFragments = new ArrayList<WebFragment>(webFragments);
+			Collections.sort(webFragments, new Comparator<WebFragment>() {
+				@Override
+				public int compare(WebFragment o1, WebFragment o2) {
+					return o1.getPriority().compareTo(o2.getPriority());
+				}
+			});
 			for (WebFragment fragment : webFragments) {
 				if (fragment != null) {
 					fragment.stop(this, null);
