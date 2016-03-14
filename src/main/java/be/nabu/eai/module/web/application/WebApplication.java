@@ -121,14 +121,6 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		}
 		List<WebFragment> webFragments = getConfiguration().getWebFragments();
 		if (webFragments != null) {
-			// new list so we don't affect the original order
-			webFragments = new ArrayList<WebFragment>(webFragments);
-			Collections.sort(webFragments, new Comparator<WebFragment>() {
-				@Override
-				public int compare(WebFragment o1, WebFragment o2) {
-					return o1.getPriority().compareTo(o2.getPriority());
-				}
-			});
 			for (WebFragment fragment : webFragments) {
 				if (fragment != null) {
 					fragment.stop(this, null);
@@ -389,15 +381,42 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			listener.setRealm(realm);
 			// always creating a session can create other issues
 //			listener.setAlwaysCreateSession(true);
+			List<WebFragment> webFragments = getConfiguration().getWebFragments();
+			// new list so we don't affect the original order
+			webFragments = webFragments == null ? new ArrayList<WebFragment>() : new ArrayList<WebFragment>(webFragments);
+			Collections.sort(webFragments, new Comparator<WebFragment>() {
+				@Override
+				public int compare(WebFragment o1, WebFragment o2) {
+					if (o1 == null) {
+						return 1;
+					}
+					else if (o2 == null) {
+						return -1;
+					}
+					else {
+						return o1.getPriority().compareTo(o2.getPriority());
+					}
+				}
+			});
+			// first start everything above normal priority
+			for (WebFragment fragment : webFragments) {
+				if (fragment != null) {
+					if (fragment.getPriority().compareTo(WebFragmentPriority.NORMAL) < 0) {
+						fragment.start(this, null);
+					}
+					else {
+						break;
+					}
+				}
+			}
+			// start the glue listener
 			EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, listener);
 			subscription.filter(HTTPServerUtils.limitToPath(serverPath));
 			subscriptions.add(subscription);
-			List<WebFragment> webFragments = getConfiguration().getWebFragments();
-			if (webFragments != null) {
-				for (WebFragment fragment : webFragments) {
-					if (fragment != null) {
-						fragment.start(this, null);
-					}
+			// start remaining fragments
+			for (WebFragment fragment : webFragments) {
+				if (fragment != null && fragment.getPriority().compareTo(WebFragmentPriority.NORMAL) >= 0) {
+					fragment.start(this, null);
 				}
 			}
 			started = true;
