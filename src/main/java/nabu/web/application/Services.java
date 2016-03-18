@@ -82,6 +82,9 @@ public class Services {
 					information.setSecure(resolved.getConfiguration().getVirtualHost().getConfiguration().getServer() == null ? null : resolved.getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getKeystore() != null);
 				}
 				information.setPath(resolved.getConfiguration().getPath());
+				if (resolved.getConfiguration().getTranslationService() != null) {
+					information.setTranslationService(resolved.getConfiguration().getTranslationService().getId());
+				}
 				Map<String, String> properties = resolved.getProperties();
 				for (String key : properties.keySet()) {
 					information.getProperties().add(new PropertyImpl(key, properties.get(key)));

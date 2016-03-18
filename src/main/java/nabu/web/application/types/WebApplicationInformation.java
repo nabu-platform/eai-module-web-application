@@ -10,7 +10,7 @@ import javax.xml.bind.annotation.XmlType;
 import be.nabu.libs.types.api.KeyValuePair;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "realm", "path", "charset", "host", "aliases", "port", "secure", "properties" })
+@XmlType(propOrder = { "realm", "path", "charset", "host", "aliases", "port", "secure", "translationService", "properties" })
 public class WebApplicationInformation {
 	private String realm, path;
 	private Charset charset;
@@ -18,6 +18,7 @@ public class WebApplicationInformation {
 	private List<String> aliases;
 	private Integer port;
 	private Boolean secure;
+	private String translationService;
 	private List<KeyValuePair> properties;
 
 	public String getRealm() {
@@ -71,4 +72,11 @@ public class WebApplicationInformation {
 	public void setAliases(List<String> aliases) {
 		this.aliases = aliases;
 	}
+	public String getTranslationService() {
+		return translationService;
+	}
+	public void setTranslationService(String translationService) {
+		this.translationService = translationService;
+	}
+	
 }
