@@ -181,7 +181,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				environment.put("development", "true");
 			}
 			// always set the id of the web artifact (need it to introspect artifact)
-			environment.put("webArtifactId", getId());
+			environment.put("webApplicationId", getId());
 			
 			String environmentName = serverPath;
 			if (environmentName.startsWith("/")) {

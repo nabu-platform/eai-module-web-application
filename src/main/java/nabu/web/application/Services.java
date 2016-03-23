@@ -35,7 +35,7 @@ public class Services {
 	private ExecutionContext executionContext;
 	
 	@WebResult(name = "translationKeys")
-	public List<KeyValuePair> translationKeys(@NotNull @WebParam(name = "artifactId") String id) {
+	public List<KeyValuePair> translationKeys(@NotNull @WebParam(name = "webApplicationId") String id) {
 		List<KeyValuePair> properties = new ArrayList<KeyValuePair>();
 		if (id != null) {
 			WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
@@ -85,7 +85,7 @@ public class Services {
 				if (resolved.getConfiguration().getTranslationService() != null) {
 					information.setTranslationService(resolved.getConfiguration().getTranslationService().getId());
 				}
-				Map<String, String> properties = resolved.getProperties();
+				Map<String, String> properties = resolved.getListener().getEnvironment().getParameters();
 				for (String key : properties.keySet()) {
 					information.getProperties().add(new PropertyImpl(key, properties.get(key)));
 				}
@@ -94,23 +94,33 @@ public class Services {
 		}
 		return null;
 	}
+	
+	public void set(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "properties") List<KeyValuePair> properties) {
+		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+		if (resolved == null) {
+			throw new IllegalArgumentException("Can not find web application with id: " + id);
+		}
+		if (properties != null) {
+			for (KeyValuePair property : properties) {
+				resolved.getListener().getEnvironment().getParameters().put(property.getKey(), property.getValue());
+			}
+		}
+	}
 
 	@WebResult(name = "resources")
-	public List<String> resources(@NotNull @WebParam(name = "artifactId") String id, @WebParam(name = "regex") final String regex) {
+	public List<String> resources(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "regex") final String regex) {
 		List<String> resources = new ArrayList<String>();
-		if (id != null) {
-			WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
-			if (resolved != null) {
-				for (ResourceContainer<?> root : resolved.getResourceHandler().getRoots()) {
-					List<String> find = find(root, new ResourceFilter() {
-						@Override
-						public boolean accept(Resource resource) {
-							return !(resource instanceof ResourceContainer) && (regex == null || resource.getName().matches(regex));
-						}
-					}, true, null);
-					for (String resource : find) {
-						resources.add("resources/" + resource);
+		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+		if (resolved != null) {
+			for (ResourceContainer<?> root : resolved.getResourceHandler().getRoots()) {
+				List<String> find = find(root, new ResourceFilter() {
+					@Override
+					public boolean accept(Resource resource) {
+						return !(resource instanceof ResourceContainer) && (regex == null || resource.getName().matches(regex));
 					}
+				}, true, null);
+				for (String resource : find) {
+					resources.add("resources/" + resource);
 				}
 			}
 		}
