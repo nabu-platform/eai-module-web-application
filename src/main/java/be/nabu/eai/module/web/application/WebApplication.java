@@ -182,6 +182,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 			// always set the id of the web artifact (need it to introspect artifact)
 			environment.put("webApplicationId", getId());
+			environment.put("secure", Boolean.toString(getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getKeystore() != null));
 			
 			String environmentName = serverPath;
 			if (environmentName.startsWith("/")) {
