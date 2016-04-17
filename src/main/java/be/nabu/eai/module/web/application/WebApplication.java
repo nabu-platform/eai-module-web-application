@@ -181,8 +181,25 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				environment.put("development", "true");
 			}
 			// always set the id of the web artifact (need it to introspect artifact)
+			String hostName = getConfiguration().getVirtualHost().getConfiguration().getHost();
+			Integer port = getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getPort();
+			boolean secure = getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getKeystore() != null;
+
+			String host = null;
+			if (hostName != null) {
+				if (port != null) {
+					hostName += ":" + port;
+				}
+				host = secure ? "https://" : "http://";
+				host += hostName;
+			}
+			
+			environment.put("mobile", "false");
+			environment.put("web", "true");
 			environment.put("webApplicationId", getId());
-			environment.put("secure", Boolean.toString(getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getKeystore() != null));
+			environment.put("secure", Boolean.toString(secure));
+			environment.put("url", host);
+			environment.put("host", hostName);
 			
 			String environmentName = serverPath;
 			if (environmentName.startsWith("/")) {
