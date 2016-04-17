@@ -200,6 +200,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			environment.put("secure", Boolean.toString(secure));
 			environment.put("url", host);
 			environment.put("host", hostName);
+			environment.put("hostName", getConfiguration().getVirtualHost().getConfiguration().getHost());
 			
 			String environmentName = serverPath;
 			if (environmentName.startsWith("/")) {
