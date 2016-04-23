@@ -1,6 +1,7 @@
 package be.nabu.eai.module.web.application;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import be.nabu.libs.artifacts.api.Artifact;
@@ -29,5 +30,11 @@ public interface WebFragment extends Artifact {
 	 */
 	public default WebFragmentPriority getPriority() {
 		return WebFragmentPriority.NORMAL;
+	}
+	/**
+	 * Configurations for a web fragment
+	 */
+	public default List<WebFragmentConfiguration> getFragmentConfiguration() {
+		return new ArrayList<WebFragmentConfiguration>();
 	}
 }

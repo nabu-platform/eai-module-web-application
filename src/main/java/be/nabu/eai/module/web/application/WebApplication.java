@@ -8,9 +8,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +50,7 @@ import be.nabu.libs.cache.api.Cache;
 import be.nabu.libs.cache.impl.AccessBasedTimeoutManager;
 import be.nabu.libs.cache.impl.SerializableSerializer;
 import be.nabu.libs.cache.impl.StringSerializer;
+import be.nabu.libs.converter.ConverterFactory;
 import be.nabu.libs.events.api.EventDispatcher;
 import be.nabu.libs.events.api.EventHandler;
 import be.nabu.libs.events.api.EventSubscription;
@@ -73,13 +76,23 @@ import be.nabu.libs.metrics.api.MetricInstance;
 import be.nabu.libs.metrics.core.api.SinkEvent;
 import be.nabu.libs.metrics.core.filters.ThresholdOverTimeFilter;
 import be.nabu.libs.metrics.impl.MetricGrouper;
+import be.nabu.libs.property.api.Property;
+import be.nabu.libs.property.api.Value;
 import be.nabu.libs.resources.CombinedContainer;
 import be.nabu.libs.resources.ResourceReadableContainer;
+import be.nabu.libs.resources.api.ManageableContainer;
 import be.nabu.libs.resources.api.ReadableResource;
 import be.nabu.libs.resources.api.Resource;
+import be.nabu.libs.resources.api.WritableResource;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.services.pojo.POJOUtils;
+import be.nabu.libs.types.api.ComplexContent;
+import be.nabu.libs.types.api.ComplexType;
+import be.nabu.libs.types.base.ValueImpl;
 import be.nabu.utils.io.IOUtils;
+import be.nabu.utils.io.api.ByteBuffer;
+import be.nabu.utils.io.api.ReadableContainer;
+import be.nabu.utils.io.api.WritableContainer;
 import be.nabu.utils.mime.impl.MimeUtils;
 
 /**
@@ -97,6 +110,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private MultipleRepository repository;
 	private ServiceMethodProvider serviceMethodProvider;
 	private ResourceHandler resourceHandler;
+	private Map<String, Map<String, String>> fragmentConfigurations;
 	
 	public WebApplication(String id, ResourceContainer<?> directory, Repository repository) {
 		super(id, directory, repository, "webartifact.xml", WebApplicationConfiguration.class);
@@ -588,4 +602,117 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	public ResourceHandler getResourceHandler() {
 		return resourceHandler;
 	}
+
+	private Map<String, Map<String, String>> getFragmentConfiguration() throws IOException {
+		if (fragmentConfigurations == null) {
+			synchronized(this) {
+				if (fragmentConfigurations == null) {
+					Map<String, Map<String, String>> configuration = new HashMap<String, Map<String, String>>();
+					Resource child = getDirectory().getChild("fragments.cfg");
+					if (child != null) {
+						ReadableContainer<ByteBuffer> readable = ((ReadableResource) child).getReadable();
+						try {
+							byte[] bytes = IOUtils.toBytes(readable);
+							String content = new String(bytes, "UTF-8");
+							// one line is key=value@path
+							for (String line : content.split("\n")) {
+								int indexOfEquals = line.indexOf('=');
+								int indexOfAt = line.indexOf('@');
+								if (indexOfEquals > 0 && indexOfAt > 0) {
+									String key = line.substring(0, indexOfEquals);
+									String value = line.substring(indexOfEquals + 1, indexOfAt);
+									String path = line.substring(indexOfAt + 1, line.length());
+									if (!configuration.containsKey(path)) {
+										configuration.put(path, new HashMap<String, String>());
+									}
+									configuration.get(path).put(key, value);
+								}
+							}
+						}
+						finally {
+							readable.close();
+						}
+					}
+					this.fragmentConfigurations = configuration;
+				}
+			}
+		}
+		return fragmentConfigurations;
+	}
+	
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	List<Value<?>> getValuesFor(String path, List<Property<?>> properties) throws IOException {
+		List<Value<?>> values = new ArrayList<Value<?>>();
+		Map<String, String> map = getFragmentConfiguration().get(path);
+		if (map != null && !map.isEmpty()) {
+			for (Property<?> property : properties) {
+				if (map.containsKey(property.getName())) {
+					values.add(new ValueImpl(property, ConverterFactory.getInstance().getConverter().convert(map.get(property.getName()), property.getValueClass())));
+				}
+			}
+		}
+		return values;
+	}
+	
+	public ComplexContent getConfigurationFor(String path, ComplexType type) throws IOException {
+		ComplexContent newInstance = type.newInstance();
+		Map<String, String> map = getFragmentConfiguration().get(path);
+		if (map != null && !map.isEmpty()) {
+			Set<String> keySet = map.keySet();
+			Iterator<String> iterator = keySet.iterator();
+			while(iterator.hasNext()) {
+				String key = iterator.next();
+				try {
+					newInstance.set(key.replace('.', '/'), map.get(key));
+				}
+				catch (Exception e) {
+					logger.warn("Removing " + path + ", " + key + " = " + map.get(key), e);
+					iterator.remove();
+				}
+			}
+		}
+		return newInstance;
+	}
+	
+	public void setConfigurationFor(String path, String key, String value) throws IOException {
+		Map<String, Map<String, String>> fragmentConfiguration = getFragmentConfiguration();
+		if (!fragmentConfiguration.containsKey(path)) {
+			fragmentConfiguration.put(path, new HashMap<String, String>());
+		}
+		if (value == null) {
+			fragmentConfiguration.get(path).remove(key);
+		}
+		else {
+			fragmentConfiguration.get(path).put(key, value);
+		}
+	}
+
+	@Override
+	public void save(ResourceContainer<?> directory) throws IOException {
+		// save properties
+		if (fragmentConfigurations != null && !fragmentConfigurations.isEmpty()) {
+			StringBuilder builder = new StringBuilder();
+			for (String path : fragmentConfigurations.keySet()) {
+				for (String key : fragmentConfigurations.get(path).keySet()) {
+					builder.append(key + "=" + fragmentConfigurations.get(path).get(key) + "@" + path + "\n");
+				}
+			}
+			String string = builder.toString().trim();
+			if (!string.isEmpty()) {
+				Resource resource = directory.getChild("fragments.cfg");
+				if (resource == null) {
+					resource = ((ManageableContainer<?>) directory).create("fragments.cfg", "text/plain");
+				}
+				WritableContainer<ByteBuffer> writable = ((WritableResource) resource).getWritable();
+				try {
+					writable.write(IOUtils.wrap(string.getBytes("UTF-8"), true));
+				}
+				finally {
+					writable.close();
+				}
+			}
+		}
+		super.save(directory);
+	}
+	
 }
