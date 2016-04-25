@@ -649,13 +649,14 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	@Override
 	public void save(ResourceContainer<?> directory) throws IOException {
 		// save properties
+		WebConfiguration fragmentConfiguration2 = getFragmentConfiguration();
 		Resource resource = directory.getChild("fragments.xml");
 		if (resource == null) {
 			resource = ((ManageableContainer<?>) directory).create("fragments.xml", "application/xml");
 		}
 		WritableContainer<ByteBuffer> writable = ((WritableResource) resource).getWritable();
 		try {
-			getFragmentConfiguration().marshal(IOUtils.toOutputStream(writable));
+			fragmentConfiguration2.marshal(IOUtils.toOutputStream(writable));
 		}
 		finally {
 			writable.close();
