@@ -162,9 +162,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			
 			repository = new MultipleRepository(null);
 			List<ContentRewriter> rewriters = new ArrayList<ContentRewriter>();
-			HTTPServer server = getConfiguration().getVirtualHost().getConfiguration().getServer().getServer();
-			if (server.getExceptionFormatter() instanceof RepositoryExceptionFormatter && getConfiguration().getWhitelistedCodes() != null) {
-				((RepositoryExceptionFormatter) server.getExceptionFormatter()).register(getId(), Arrays.asList(getConfiguration().getWhitelistedCodes().split("[\\s]*,[\\s]*")));
+			
+			// add whitelisted codes to the server exception formatter
+			if (getConfiguration().getVirtualHost().getConfiguration().getServer() != null) {
+				HTTPServer server = getConfiguration().getVirtualHost().getConfiguration().getServer().getServer();
+				if (server.getExceptionFormatter() instanceof RepositoryExceptionFormatter && getConfiguration().getWhitelistedCodes() != null) {
+					((RepositoryExceptionFormatter) server.getExceptionFormatter()).register(getId(), Arrays.asList(getConfiguration().getWhitelistedCodes().split("[\\s]*,[\\s]*")));
+				}
 			}
 
 			// create session provider
