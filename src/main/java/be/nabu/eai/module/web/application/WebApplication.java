@@ -65,6 +65,7 @@ import be.nabu.libs.http.glue.GlueListener;
 import be.nabu.libs.http.glue.GluePostProcessListener;
 import be.nabu.libs.http.glue.GluePreprocessListener;
 import be.nabu.libs.http.glue.GlueSessionResolver;
+import be.nabu.libs.http.glue.GlueWebParserProvider;
 import be.nabu.libs.http.glue.impl.RequestMethods;
 import be.nabu.libs.http.glue.impl.UserMethods;
 import be.nabu.libs.http.server.BasicAuthenticationHandler;
@@ -309,7 +310,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				if (pages != null) {
 					logger.debug("Adding public scripts found in: " + pages);
 					// the configured charset is for the end user, NOT for the local glue scripts, that should be the system default
-					ScannableScriptRepository scannableScriptRepository = new ScannableScriptRepository(repository, pages, new GlueParserProvider(serviceMethodProvider), Charset.defaultCharset());
+					ScannableScriptRepository scannableScriptRepository = new ScannableScriptRepository(repository, pages, new GlueWebParserProvider(serviceMethodProvider), Charset.defaultCharset());
 					scannableScriptRepository.setGroup(GlueListener.PUBLIC);
 					repository.add(scannableScriptRepository);
 				}
@@ -327,7 +328,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				ResourceContainer<?> scripts = (ResourceContainer<?>) privateDirectory.getChild("scripts");
 				if (scripts != null) {
 					logger.debug("Adding private scripts found in: " + scripts);
-					repository.add(new ScannableScriptRepository(repository, scripts, new GlueParserProvider(serviceMethodProvider), Charset.defaultCharset()));
+					repository.add(new ScannableScriptRepository(repository, scripts, new GlueWebParserProvider(serviceMethodProvider), Charset.defaultCharset()));
 				}
 			}
 			listener = new GlueListener(
@@ -575,7 +576,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 
 	public void addGlueScripts(ResourceContainer<?> parent, boolean isPublic) throws IOException {
 		if (repository != null) {
-			ScannableScriptRepository scannableScriptRepository = new ScannableScriptRepository(repository, parent, new GlueParserProvider(serviceMethodProvider), Charset.defaultCharset());
+			ScannableScriptRepository scannableScriptRepository = new ScannableScriptRepository(repository, parent, new GlueWebParserProvider(serviceMethodProvider), Charset.defaultCharset());
 			if (isPublic) {
 				scannableScriptRepository.setGroup(GlueListener.PUBLIC);
 			}
