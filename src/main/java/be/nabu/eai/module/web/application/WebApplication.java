@@ -43,6 +43,7 @@ import be.nabu.glue.services.ServiceMethodProvider;
 import be.nabu.libs.artifacts.api.StartableArtifact;
 import be.nabu.libs.artifacts.api.StoppableArtifact;
 import be.nabu.libs.authentication.api.Authenticator;
+import be.nabu.libs.authentication.api.DeviceValidator;
 import be.nabu.libs.authentication.api.PermissionHandler;
 import be.nabu.libs.authentication.api.RoleHandler;
 import be.nabu.libs.authentication.api.Token;
@@ -414,6 +415,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			listener.setTokenValidator(getTokenValidator());
 			listener.setPermissionHandler(getPermissionHandler());
 			listener.setRoleHandler(getRoleHandler());
+			listener.setDeviceValidator(getDeviceValidator());
 			listener.setRealm(realm);
 			// always creating a session can create other issues
 //			listener.setAlwaysCreateSession(true);
@@ -522,6 +524,20 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		catch(IOException e) {
 			throw new RuntimeException(e);
 		}
+	}
+	public DeviceValidator getDeviceValidator() throws IOException {
+		final DeviceValidator validatorService = getConfiguration().getDeviceValidatorService() != null ? POJOUtils.newProxy(DeviceValidator.class, getConfiguration().getDeviceValidatorService(), getRepository(), SystemPrincipal.ROOT) : null;
+		final DeviceValidator creatorService = getConfiguration().getDeviceCreatorService() != null ? POJOUtils.newProxy(DeviceValidator.class, getConfiguration().getDeviceCreatorService(), getRepository(), SystemPrincipal.ROOT) : null;
+		return validatorService == null && creatorService == null ? null : new DeviceValidator() {
+			@Override
+			public String newDeviceId(Token token, String remoteIp, String deviceDescription) {
+				return creatorService == null ? null : creatorService.newDeviceId(token, remoteIp, deviceDescription);
+			}
+			@Override
+			public boolean isAllowed(Token token, String remoteIp, String deviceId) {
+				return validatorService == null ? true : validatorService.isAllowed(token, remoteIp, deviceId);
+			}
+		};
 	}
 	public RoleHandler getRoleHandler() throws IOException {
 		if (getConfiguration().getRoleService() != null) {

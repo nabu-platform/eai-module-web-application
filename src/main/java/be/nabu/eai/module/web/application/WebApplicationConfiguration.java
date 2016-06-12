@@ -14,7 +14,7 @@ import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "trackerService", "translationService", "languageProviderService", "whitelistedCodes", "cacheProvider", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "webFragments" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "deviceCreatorService", "trackerService", "translationService", "languageProviderService", "whitelistedCodes", "cacheProvider", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "webFragments" })
 public class WebApplicationConfiguration {
 
 	private CacheProviderArtifact cacheProvider;
@@ -33,6 +33,7 @@ public class WebApplicationConfiguration {
 	private DefinedService trackerService;
 	private DefinedService translationService;
 	private DefinedService languageProviderService;
+	private DefinedService deviceValidatorService, deviceCreatorService;
 	private Boolean allowBasicAuthentication;
 	private List<WebFragment> webFragments;
 	
@@ -123,7 +124,24 @@ public class WebApplicationConfiguration {
 	public void setTrackerService(DefinedService serviceTrackerService) {
 		this.trackerService = serviceTrackerService;
 	}
-
+	
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	@InterfaceFilter(implement = "be.nabu.libs.authentication.api.DeviceValidator.isAllowed")	
+	public DefinedService getDeviceValidatorService() {
+		return deviceValidatorService;
+	}
+	public void setDeviceValidatorService(DefinedService deviceValidatorService) {
+		this.deviceValidatorService = deviceValidatorService;
+	}
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	@InterfaceFilter(implement = "be.nabu.libs.authentication.api.DeviceValidator.newDeviceId")	
+	public DefinedService getDeviceCreatorService() {
+		return deviceCreatorService;
+	}
+	public void setDeviceCreatorService(DefinedService deviceCreatorService) {
+		this.deviceCreatorService = deviceCreatorService;
+	}
+	
 	@EnvironmentSpecific
 	public Boolean getAllowBasicAuthentication() {
 		return allowBasicAuthentication;
