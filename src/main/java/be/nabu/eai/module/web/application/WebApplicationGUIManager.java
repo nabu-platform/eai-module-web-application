@@ -1,6 +1,8 @@
 package be.nabu.eai.module.web.application;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -20,6 +22,9 @@ import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
+import javafx.event.ActionEvent;
+import javafx.event.Event;
+import javafx.event.EventHandler;
 import javafx.geometry.Orientation;
 import javafx.geometry.Side;
 import javafx.scene.Node;
@@ -39,8 +44,12 @@ import be.nabu.eai.developer.MainController;
 import be.nabu.eai.developer.managers.base.BaseConfigurationGUIManager;
 import be.nabu.eai.developer.managers.base.BaseJAXBGUIManager;
 import be.nabu.eai.developer.managers.util.SimplePropertyUpdater;
+import be.nabu.eai.developer.util.Confirm;
+import be.nabu.eai.developer.util.Confirm.ConfirmType;
 import be.nabu.eai.developer.util.ElementTreeItem;
+import be.nabu.eai.module.web.application.AceEditor.Action;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
+import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.resources.RepositoryEntry;
 import be.nabu.jfx.control.tree.Tree;
 import be.nabu.jfx.control.tree.TreeCell;
@@ -50,10 +59,12 @@ import be.nabu.jfx.control.tree.TreeUtils.TreeItemCreator;
 import be.nabu.libs.converter.ConverterFactory;
 import be.nabu.libs.property.api.Property;
 import be.nabu.libs.property.api.Value;
+import be.nabu.libs.resources.VirtualContainer;
 import be.nabu.libs.resources.api.ManageableContainer;
 import be.nabu.libs.resources.api.ReadableResource;
 import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
+import be.nabu.libs.resources.api.WritableResource;
 import be.nabu.libs.types.TypeUtils;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
@@ -63,6 +74,7 @@ import be.nabu.libs.types.base.ValueImpl;
 import be.nabu.utils.io.IOUtils;
 import be.nabu.utils.io.api.ByteBuffer;
 import be.nabu.utils.io.api.ReadableContainer;
+import be.nabu.utils.io.api.WritableContainer;
 
 public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationConfiguration, WebApplication> {
 
@@ -222,7 +234,12 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		tab.setContent(scroll);
 		tab.setClosable(false);
 		tabs.getTabs().add(tab);
-		tabs.getTabs().add(buildEditingTab(artifact));
+		try {
+			tabs.getTabs().add(buildEditingTab(artifact));
+		}
+		catch (Exception e) {
+			throw new RuntimeException(e);
+		}
 		
 		AnchorPane.setLeftAnchor(tabs, 0d);
 		AnchorPane.setRightAnchor(tabs, 0d);
@@ -232,31 +249,117 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		pane.getChildren().add(tabs);
 	}
 	
-	private Tab buildEditingTab(final WebApplication artifact) {
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	private Tab buildEditingTab(final WebApplication artifact) throws URISyntaxException, IOException {
 		Tab tab = new Tab("Resources");
 		Tree<Resource> tree = new Tree<Resource>();
-		tree.rootProperty().set(new ResourceTreeItem(null, artifact.getDirectory()));
-		final AceEditor aceEditor = new AceEditor(MainController.getInstance().getStage());
+		
+		ResourceContainer<?> publicDirectory = (ResourceContainer<?>) artifact.getDirectory().getChild(EAIResourceRepository.PUBLIC);
+		if (publicDirectory == null && artifact.getDirectory() instanceof ManageableContainer) {
+			publicDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) artifact.getDirectory()).create(EAIResourceRepository.PUBLIC, Resource.CONTENT_TYPE_DIRECTORY);
+		}
+		ResourceContainer<?> privateDirectory = (ResourceContainer<?>) artifact.getDirectory().getChild(EAIResourceRepository.PRIVATE);
+		if (privateDirectory == null && artifact.getDirectory() instanceof ManageableContainer) {
+			privateDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) artifact.getDirectory()).create(EAIResourceRepository.PRIVATE, Resource.CONTENT_TYPE_DIRECTORY);
+		}
+		
+		VirtualContainer container = new VirtualContainer(null, "web");
+		if (publicDirectory != null) {
+			container.addChild(publicDirectory.getName(), publicDirectory);
+		}
+		if (privateDirectory != null) {
+			container.addChild(privateDirectory.getName(), privateDirectory);
+		}
+		
+		tree.rootProperty().set(new ResourceTreeItem(null, container));
 
+		final TabPane editors = new TabPane();
+		editors.setTabClosingPolicy(TabClosingPolicy.ALL_TABS);
+		editors.setSide(Side.BOTTOM);
+		
 		tree.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<TreeCell<Resource>>() {
 			@Override
 			public void changed(ObservableValue<? extends TreeCell<Resource>> observable, TreeCell<Resource> oldValue, TreeCell<Resource> newValue) {
 				// TODO: load data from resource
 				if (newValue != null) {
-					Resource resource = newValue.getItem().itemProperty().get();
-					if (resource instanceof ReadableResource) {
-						try {
-							ReadableContainer<ByteBuffer> readable = ((ReadableResource) resource).getReadable();
-							try {
-								byte[] bytes = IOUtils.toBytes(readable);
-								aceEditor.setContent(resource.getContentType(), new String(bytes, "UTF-8"));
-							}
-							finally {
-								readable.close();
-							}
+					String path = TreeUtils.getPath(newValue.getItem());
+					boolean found = false;
+					for (Tab tab : editors.getTabs()) {
+						if (tab.getId().equals(path)) {
+							editors.getSelectionModel().select(tab);
+							found = true;
+							break;
 						}
-						catch (IOException e) {
-							e.printStackTrace();
+					}
+					if (!found) {
+						final Resource resource = newValue.getItem().itemProperty().get();
+						if (resource instanceof ReadableResource) {
+							final Tab tab = new Tab(path);
+							tab.setId(path);
+							editors.getTabs().add(tab);
+							final AceEditor aceEditor = new AceEditor(MainController.getInstance().getStage());
+							try {
+								ReadableContainer<ByteBuffer> readable = ((ReadableResource) resource).getReadable();
+								try {
+									byte[] bytes = IOUtils.toBytes(readable);
+									aceEditor.setContent(resource.getContentType(), new String(bytes, "UTF-8"));
+								}
+								finally {
+									readable.close();
+								}
+							}
+							catch (IOException e) {
+								e.printStackTrace();
+							}
+							tab.setContent(aceEditor.getWebView());
+							editors.getSelectionModel().select(tab);
+							aceEditor.subscribe(Action.CLOSE, new EventHandler<Event>() {
+								@Override
+								public void handle(Event event) {
+									if (tab.getText().endsWith("*")) {
+										Confirm.confirm(ConfirmType.QUESTION, "Unsaved Changes", "Do you want to discard all pending changes?", new EventHandler<ActionEvent>() {
+											@Override
+											public void handle(ActionEvent arg0) {
+												editors.getTabs().remove(tab);
+											}
+										});
+									}
+									else {
+										editors.getTabs().remove(tab);
+									}
+								}
+							});
+							aceEditor.subscribe(Action.CHANGE, new EventHandler<Event>() {
+								@Override
+								public void handle(Event arg0) {
+									if (!tab.getText().endsWith("*")) {
+										tab.setText(tab.getText() + " *");
+									}
+								}
+							});
+							aceEditor.subscribe(Action.SAVE, new EventHandler<Event>() {
+								@Override
+								public void handle(Event arg0) {
+									if (resource instanceof WritableResource) {
+										try {
+											WritableContainer<ByteBuffer> writable = ((WritableResource) resource).getWritable();
+											try {
+												writable.write(IOUtils.wrap(aceEditor.getContent().getBytes("UTF-8"), true));
+											}
+											finally {
+												writable.close();
+											}
+										}
+										catch (IOException e) {
+											throw new RuntimeException(e);
+										}
+										// remove trailing *
+										if (tab.getText().endsWith("*")) {
+											tab.setText(tab.getText().replace("[\\s]*\\*$", ""));
+										}
+									}
+								}
+							});
 						}
 					}
 				}
@@ -266,7 +369,8 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		SplitPane split = new SplitPane();
 		split.setOrientation(Orientation.HORIZONTAL);
 		split.getItems().add(tree);
-		split.getItems().add(aceEditor.getWebView());
+		split.getItems().add(editors);
+		SplitPane.setResizableWithParent(tree, false);
 		
 		tree.setPrefWidth(250);
 		tree.maxWidthProperty().bind(split.widthProperty());
