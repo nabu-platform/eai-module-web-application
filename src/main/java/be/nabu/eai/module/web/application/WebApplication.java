@@ -534,7 +534,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				return creatorService == null ? null : creatorService.newDeviceId(token, remoteIp, deviceDescription);
 			}
 			@Override
-			public boolean isAllowed(Token token, String remoteIp, String deviceId) {
+			public Boolean isAllowed(Token token, String remoteIp, String deviceId) {
 				return validatorService == null ? true : validatorService.isAllowed(token, remoteIp, deviceId);
 			}
 		};

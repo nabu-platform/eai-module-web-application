@@ -2,6 +2,7 @@ package be.nabu.eai.module.web.application;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -10,25 +11,49 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.ObjectProperty;
+import javafx.beans.property.SimpleBooleanProperty;
+import javafx.beans.property.SimpleObjectProperty;
+import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
+import javafx.collections.ObservableList;
 import javafx.geometry.Orientation;
+import javafx.geometry.Side;
+import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
+import javafx.scene.control.SplitPane;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.Tooltip;
+import javafx.scene.control.TabPane.TabClosingPolicy;
 import javafx.scene.layout.AnchorPane;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.scene.web.WebView;
 import be.nabu.eai.developer.MainController;
 import be.nabu.eai.developer.managers.base.BaseConfigurationGUIManager;
 import be.nabu.eai.developer.managers.base.BaseJAXBGUIManager;
 import be.nabu.eai.developer.managers.util.SimplePropertyUpdater;
+import be.nabu.eai.developer.util.ElementTreeItem;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.repository.resources.RepositoryEntry;
+import be.nabu.jfx.control.tree.Tree;
+import be.nabu.jfx.control.tree.TreeItem;
+import be.nabu.jfx.control.tree.TreeUtils;
+import be.nabu.jfx.control.tree.TreeUtils.TreeItemCreator;
 import be.nabu.libs.converter.ConverterFactory;
 import be.nabu.libs.property.api.Property;
 import be.nabu.libs.property.api.Value;
+import be.nabu.libs.resources.api.ManageableContainer;
+import be.nabu.libs.resources.api.Resource;
+import be.nabu.libs.resources.api.ResourceContainer;
+import be.nabu.libs.types.TypeUtils;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
+import be.nabu.libs.types.api.Element;
 import be.nabu.libs.types.base.ComplexElementImpl;
 import be.nabu.libs.types.base.ValueImpl;
 
@@ -183,11 +208,129 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		scroll.setContent(vbox);
 		vbox.prefWidthProperty().bind(scroll.widthProperty().subtract(100));
 		
-		AnchorPane.setLeftAnchor(scroll, 0d);
-		AnchorPane.setRightAnchor(scroll, 0d);
-		AnchorPane.setTopAnchor(scroll, 0d);
-		AnchorPane.setBottomAnchor(scroll, 0d);
-		pane.getChildren().add(scroll);
+		TabPane tabs = new TabPane();
+		tabs.setTabClosingPolicy(TabClosingPolicy.UNAVAILABLE);
+		tabs.setSide(Side.RIGHT);
+		Tab tab = new Tab("Configuration");
+		tab.setContent(scroll);
+		tab.setClosable(false);
+		tabs.getTabs().add(tab);
+		tabs.getTabs().add(buildEditingTab(artifact));
+		
+		AnchorPane.setLeftAnchor(tabs, 0d);
+		AnchorPane.setRightAnchor(tabs, 0d);
+		AnchorPane.setTopAnchor(tabs, 0d);
+		AnchorPane.setBottomAnchor(tabs, 0d);
+		
+		pane.getChildren().add(tabs);
 	}
 	
+	private Tab buildEditingTab(final WebApplication artifact) {
+		Tab tab = new Tab("Resources");
+		Tree<Resource> tree = new Tree<Resource>();
+		tree.rootProperty().set(new ResourceTreeItem(null, artifact.getDirectory()));
+		
+		SplitPane split = new SplitPane();
+		split.setOrientation(Orientation.HORIZONTAL);
+		split.getItems().add(tree);
+		split.getItems().add(new AceEditor().build(MainController.getInstance().getStage(), "// this is the initial comment!"));
+		
+		tree.setPrefWidth(250);
+		tree.maxWidthProperty().bind(split.widthProperty());
+		
+		AnchorPane.setLeftAnchor(split, 0d);
+		AnchorPane.setRightAnchor(split, 0d);
+		AnchorPane.setTopAnchor(split, 0d);
+		AnchorPane.setBottomAnchor(split, 0d);
+		
+		tab.setContent(split);
+		return tab;
+	}
+	
+	public static class ResourceTreeItem implements TreeItem<Resource> {
+
+		private BooleanProperty editableProperty = new SimpleBooleanProperty(false);
+		private ObjectProperty<Resource> itemProperty = new SimpleObjectProperty<Resource>();
+		private ObjectProperty<Node> graphicProperty = new SimpleObjectProperty<Node>();
+		private BooleanProperty leafProperty = new SimpleBooleanProperty(false);
+		private ObservableList<TreeItem<Resource>> children = FXCollections.observableArrayList();
+		private TreeItem<Resource> parent;
+
+		public ResourceTreeItem(TreeItem<Resource> parent, Resource resource) {
+			this.parent = parent;
+			if (resource instanceof ResourceContainer) {
+				graphicProperty.set(MainController.loadGraphic("folder.png"));
+			}
+			else {
+				graphicProperty.set(MainController.loadGraphic(resource.getContentType() == null ? "unknown.png" : resource.getContentType().replaceAll("[^\\w]+", "") + ".png"));
+			}
+			leafProperty.set(!(resource instanceof ResourceContainer));
+			editableProperty.set(parent instanceof ManageableContainer);
+			itemProperty.set(resource);
+			refresh(true);
+		}
+		
+		@Override
+		public void refresh() {
+			refresh(true);			
+		}
+		
+		@SuppressWarnings({ "unchecked", "rawtypes" })
+		private void refresh(boolean includeChildren) {
+			if (!leafProperty.get() && includeChildren) {
+				Collection<Resource> collection = toCollection(((ResourceContainer) itemProperty.get()).iterator());
+				TreeUtils.refreshChildren(new TreeItemCreator<Resource>() {
+					@Override
+					public TreeItem<Resource> create(TreeItem<Resource> parent, Resource child) {
+						System.out.println("Creating tree item for child: " + child);
+						return new ResourceTreeItem(parent, child);
+					}
+				}, this, collection);
+			}
+		}
+		
+		public static <T> Collection<T> toCollection(Iterator<T> iterator) {
+			List<T> list = new ArrayList<T>();
+			while (iterator.hasNext()) {
+				list.add(iterator.next());
+			}
+			return list;
+		}
+
+		@Override
+		public BooleanProperty editableProperty() {
+			return editableProperty;
+		}
+
+		@Override
+		public BooleanProperty leafProperty() {
+			return leafProperty;
+		}
+
+		@Override
+		public ObjectProperty<Resource> itemProperty() {
+			return itemProperty;
+		}
+
+		@Override
+		public ObjectProperty<Node> graphicProperty() {
+			return graphicProperty;
+		}
+
+		@Override
+		public ObservableList<TreeItem<Resource>> getChildren() {
+			return children;
+		}
+
+		@Override
+		public TreeItem<Resource> getParent() {
+			return parent;
+		}
+
+		@Override
+		public String getName() {
+			return itemProperty.get().getName();
+		}
+		
+	}
 }
