@@ -15,6 +15,8 @@ import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
@@ -41,6 +43,7 @@ import be.nabu.eai.developer.util.ElementTreeItem;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.repository.resources.RepositoryEntry;
 import be.nabu.jfx.control.tree.Tree;
+import be.nabu.jfx.control.tree.TreeCell;
 import be.nabu.jfx.control.tree.TreeItem;
 import be.nabu.jfx.control.tree.TreeUtils;
 import be.nabu.jfx.control.tree.TreeUtils.TreeItemCreator;
@@ -48,6 +51,7 @@ import be.nabu.libs.converter.ConverterFactory;
 import be.nabu.libs.property.api.Property;
 import be.nabu.libs.property.api.Value;
 import be.nabu.libs.resources.api.ManageableContainer;
+import be.nabu.libs.resources.api.ReadableResource;
 import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.types.TypeUtils;
@@ -56,6 +60,9 @@ import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.Element;
 import be.nabu.libs.types.base.ComplexElementImpl;
 import be.nabu.libs.types.base.ValueImpl;
+import be.nabu.utils.io.IOUtils;
+import be.nabu.utils.io.api.ByteBuffer;
+import be.nabu.utils.io.api.ReadableContainer;
 
 public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationConfiguration, WebApplication> {
 
@@ -229,11 +236,37 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		Tab tab = new Tab("Resources");
 		Tree<Resource> tree = new Tree<Resource>();
 		tree.rootProperty().set(new ResourceTreeItem(null, artifact.getDirectory()));
+		final AceEditor aceEditor = new AceEditor(MainController.getInstance().getStage());
+
+		tree.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<TreeCell<Resource>>() {
+			@Override
+			public void changed(ObservableValue<? extends TreeCell<Resource>> observable, TreeCell<Resource> oldValue, TreeCell<Resource> newValue) {
+				// TODO: load data from resource
+				if (newValue != null) {
+					Resource resource = newValue.getItem().itemProperty().get();
+					if (resource instanceof ReadableResource) {
+						try {
+							ReadableContainer<ByteBuffer> readable = ((ReadableResource) resource).getReadable();
+							try {
+								byte[] bytes = IOUtils.toBytes(readable);
+								aceEditor.setContent(resource.getContentType(), new String(bytes, "UTF-8"));
+							}
+							finally {
+								readable.close();
+							}
+						}
+						catch (IOException e) {
+							e.printStackTrace();
+						}
+					}
+				}
+			}
+		});
 		
 		SplitPane split = new SplitPane();
 		split.setOrientation(Orientation.HORIZONTAL);
 		split.getItems().add(tree);
-		split.getItems().add(new AceEditor().build(MainController.getInstance().getStage(), "// this is the initial comment!"));
+		split.getItems().add(aceEditor.getWebView());
 		
 		tree.setPrefWidth(250);
 		tree.maxWidthProperty().bind(split.widthProperty());
@@ -262,7 +295,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 				graphicProperty.set(MainController.loadGraphic("folder.png"));
 			}
 			else {
-				graphicProperty.set(MainController.loadGraphic(resource.getContentType() == null ? "unknown.png" : resource.getContentType().replaceAll("[^\\w]+", "") + ".png"));
+				graphicProperty.set(MainController.loadGraphic(resource.getContentType() == null ? "mime/text-plain.png" : "mime/" + resource.getContentType().replaceAll("[^\\w]+", "-") + ".png"));
 			}
 			leafProperty.set(!(resource instanceof ResourceContainer));
 			editableProperty.set(parent instanceof ManageableContainer);

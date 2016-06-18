@@ -25,10 +25,13 @@ public class AceEditor {
 	private String originalContent;
 	private Stage stage;
 	private boolean loaded;
+	private String contentType;
+	private String content;
 
 	public AceEditor(Stage stage) {
 		this.stage = stage;
 	}
+	
 	public WebView getWebView() {
 		if (this.webview == null) {
 			synchronized(this) {
@@ -40,7 +43,12 @@ public class AceEditor {
 						@Override
 						public void changed(ObservableValue<? extends State> observable, State oldValue, State newValue) {
 							if (newValue == State.SUCCEEDED) {
-								initializeHTML();
+								loaded = true;
+								if (content != null) {
+									setContentInWebview(contentType, content);
+									contentType = null;
+									content = null;
+								}
 							}
 						}
 					});
@@ -70,40 +78,15 @@ public class AceEditor {
 		}
 		return webview;
 	}
-	public WebView build(Stage stage, String originalContent) {
-		this.originalContent = originalContent;
-		webview = new WebView();
-		webview.getEngine().setJavaScriptEnabled(true);
-
-		webview.getEngine().getLoadWorker().stateProperty().addListener(new ChangeListener<State>() {
-			@Override
-			public void changed(ObservableValue<? extends State> observable, State oldValue, State newValue) {
-				if (newValue == State.SUCCEEDED) {
-					initializeHTML();
-				}
-			}
-		});
-		// webview.setContextMenuEnabled(false);
-
-		String externalForm = AceEditor.class.getResource("/ace/editor.html").toExternalForm();
-		System.out.println("Found editor: " + externalForm);
-		webview.getEngine().load(externalForm);
-
-		// Copy & Paste Clipboard support
-		final KeyCombination theCombinationCopy = new KeyCodeCombination(KeyCode.C, KeyCombination.CONTROL_DOWN);
-		final KeyCombination theCombinationPaste = new KeyCodeCombination(KeyCode.V, KeyCombination.CONTROL_DOWN);
-		stage.getScene().addEventFilter(KeyEvent.KEY_PRESSED, new EventHandler<KeyEvent>() {
-			@Override
-			public void handle(KeyEvent event) {
-				if (theCombinationCopy.match(event)) {
-					onCopy();
-				}
-				if (theCombinationPaste.match(event)) {
-					onPaste();
-				}
-			}
-		});
-		return webview;
+	
+	public void setContent(String contentType, String content) {
+		if (loaded) {
+			setContentInWebview(contentType, content);
+		}
+		else {
+			this.contentType = contentType;
+			this.content = content;
+		}
 	}
 
 	private void onCopy() {
@@ -133,12 +116,29 @@ public class AceEditor {
 		}
 	}
 
-	private void initializeHTML() {
-		// Initialize the editor
-		// and fill it with the LUA script taken from our editing action
+	private void setContentInWebview(String contentType, String content) {
+		webview.getEngine().executeScript("resetDiv()");
+		// set the content
 		Document theDocument = webview.getEngine().getDocument();
 		Element theEditorElement = theDocument.getElementById("editor");
-		theEditorElement.setTextContent(originalContent);
-		webview.getEngine().executeScript("initeditor()");
+		theEditorElement.setTextContent(content);
+		// initialize editor
+		webview.getEngine().executeScript("initEditor()");
+		String mode = null;
+		if ("application/javascript".equals(contentType) || "application/x-javascript".equals(contentType)) {
+			mode = "javascript";
+		}
+		else if ("text/html".equals(contentType)) {
+			mode = "html";
+		}
+		else if ("text/xml".equals(contentType) || "application/xml".equals(contentType)) {
+			mode = "xml";
+		}
+		else if ("text/x-script.glue".equals(contentType)) {
+			mode = "python";
+		}
+		if (mode != null) {
+			webview.getEngine().executeScript("editor.getSession().setMode('ace/mode/" + mode + "');");
+		}
 	}
 }

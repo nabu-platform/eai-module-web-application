@@ -28,7 +28,17 @@
 		<script>
 			var editor;
 	
-			function initeditor() {
+			function resetDiv() {
+				// recreate editor
+				var div = document.getElementById("editor");
+				if (div) {
+					div.parentNode.removeChild(div);
+				}
+				div = document.createElement("div");
+				div.setAttribute("id", "editor");
+				document.body.appendChild(div);
+			}
+			function initEditor() {
 				ace.require("ace/ext/language_tools")
 				editor = ace.edit("editor");
 				editor.setOptions({
@@ -37,7 +47,6 @@
 					enableLiveAutocompletion : false
 				});
 				editor.setTheme("ace/theme/monokai");
-				editor.getSession().setMode("ace/mode/javascript");
 			}
 	
 			function getvalue() {
