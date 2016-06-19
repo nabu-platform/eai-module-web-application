@@ -1,10 +1,15 @@
 package be.nabu.eai.module.web.application;
 
+import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.IOException;
-import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLConnection;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -17,8 +22,6 @@ import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleObjectProperty;
-import javafx.beans.value.ChangeListener;
-import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
@@ -28,51 +31,64 @@ import javafx.event.EventHandler;
 import javafx.geometry.Orientation;
 import javafx.geometry.Side;
 import javafx.scene.Node;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
-import javafx.scene.control.Tooltip;
 import javafx.scene.control.TabPane.TabClosingPolicy;
+import javafx.scene.control.Tooltip;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.AnchorPane;
-import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
-import javafx.scene.web.WebView;
 import be.nabu.eai.developer.MainController;
 import be.nabu.eai.developer.managers.base.BaseConfigurationGUIManager;
 import be.nabu.eai.developer.managers.base.BaseJAXBGUIManager;
+import be.nabu.eai.developer.managers.util.SimpleProperty;
 import be.nabu.eai.developer.managers.util.SimplePropertyUpdater;
 import be.nabu.eai.developer.util.Confirm;
 import be.nabu.eai.developer.util.Confirm.ConfirmType;
-import be.nabu.eai.developer.util.ElementTreeItem;
-import be.nabu.eai.module.web.application.AceEditor.Action;
+import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.resources.RepositoryEntry;
+import be.nabu.jfx.control.tree.Marshallable;
+import be.nabu.jfx.control.tree.RemovableTreeItem;
 import be.nabu.jfx.control.tree.Tree;
 import be.nabu.jfx.control.tree.TreeCell;
 import be.nabu.jfx.control.tree.TreeItem;
 import be.nabu.jfx.control.tree.TreeUtils;
 import be.nabu.jfx.control.tree.TreeUtils.TreeItemCreator;
+import be.nabu.jfx.control.tree.Updateable;
 import be.nabu.libs.converter.ConverterFactory;
 import be.nabu.libs.property.api.Property;
 import be.nabu.libs.property.api.Value;
+import be.nabu.libs.resources.ResourceUtils;
 import be.nabu.libs.resources.VirtualContainer;
 import be.nabu.libs.resources.api.ManageableContainer;
 import be.nabu.libs.resources.api.ReadableResource;
 import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.resources.api.WritableResource;
-import be.nabu.libs.types.TypeUtils;
+import be.nabu.libs.resources.api.features.CacheableResource;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
-import be.nabu.libs.types.api.Element;
 import be.nabu.libs.types.base.ComplexElementImpl;
 import be.nabu.libs.types.base.ValueImpl;
+import be.nabu.libs.validator.api.ValidationMessage;
+import be.nabu.libs.validator.api.ValidationMessage.Severity;
 import be.nabu.utils.io.IOUtils;
 import be.nabu.utils.io.api.ByteBuffer;
+import be.nabu.utils.io.api.Container;
 import be.nabu.utils.io.api.ReadableContainer;
 import be.nabu.utils.io.api.WritableContainer;
 
@@ -252,8 +268,24 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 	@SuppressWarnings({ "rawtypes", "unchecked" })
 	private Tab buildEditingTab(final WebApplication artifact) throws URISyntaxException, IOException {
 		Tab tab = new Tab("Resources");
-		Tree<Resource> tree = new Tree<Resource>();
-		
+		Tree<Resource> tree = new Tree<Resource>(new Marshallable<Resource>() {
+			@Override
+			public String marshal(Resource instance) {
+				return instance == null ? null : instance.getName();
+			}
+		}, new Updateable<Resource>() {
+			@Override
+			public Resource update(TreeCell<Resource> treeCell, String text) {
+				try {
+					Resource renamed = ResourceUtils.rename(treeCell.getItem().itemProperty().get(), text);
+					treeCell.getParent().refresh();
+					return renamed;
+				}
+				catch (IOException e) {
+					throw new RuntimeException(e);
+				}
+			}
+		});
 		ResourceContainer<?> publicDirectory = (ResourceContainer<?>) artifact.getDirectory().getChild(EAIResourceRepository.PUBLIC);
 		if (publicDirectory == null && artifact.getDirectory() instanceof ManageableContainer) {
 			publicDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) artifact.getDirectory()).create(EAIResourceRepository.PUBLIC, Resource.CONTENT_TYPE_DIRECTORY);
@@ -277,87 +309,144 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		editors.setTabClosingPolicy(TabClosingPolicy.ALL_TABS);
 		editors.setSide(Side.BOTTOM);
 		
-		tree.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<TreeCell<Resource>>() {
+		tree.addEventHandler(MouseEvent.MOUSE_CLICKED, new EventHandler<MouseEvent>() {
 			@Override
-			public void changed(ObservableValue<? extends TreeCell<Resource>> observable, TreeCell<Resource> oldValue, TreeCell<Resource> newValue) {
-				// TODO: load data from resource
-				if (newValue != null) {
-					String path = TreeUtils.getPath(newValue.getItem());
-					boolean found = false;
-					for (Tab tab : editors.getTabs()) {
-						if (tab.getId().equals(path)) {
-							editors.getSelectionModel().select(tab);
-							found = true;
-							break;
-						}
+			public void handle(MouseEvent event) {
+				if (event.getClickCount() == 2) {
+					if (tree.getSelectionModel().getSelectedItem() != null) {
+						open(editors, tree.getSelectionModel().getSelectedItem());
 					}
-					if (!found) {
-						final Resource resource = newValue.getItem().itemProperty().get();
-						if (resource instanceof ReadableResource) {
-							final Tab tab = new Tab(path);
-							tab.setId(path);
-							editors.getTabs().add(tab);
-							final AceEditor aceEditor = new AceEditor(MainController.getInstance().getStage());
-							try {
-								ReadableContainer<ByteBuffer> readable = ((ReadableResource) resource).getReadable();
-								try {
-									byte[] bytes = IOUtils.toBytes(readable);
-									aceEditor.setContent(resource.getContentType(), new String(bytes, "UTF-8"));
-								}
-								finally {
-									readable.close();
-								}
-							}
-							catch (IOException e) {
-								e.printStackTrace();
-							}
-							tab.setContent(aceEditor.getWebView());
-							editors.getSelectionModel().select(tab);
-							aceEditor.subscribe(Action.CLOSE, new EventHandler<Event>() {
+				}
+				else if (event.getButton().equals(MouseButton.SECONDARY)) {
+					TreeCell<Resource> selectedItem = tree.getSelectionModel().getSelectedItem();
+					if (selectedItem != null) {
+						ContextMenu contextMenu = new ContextMenu();
+						Resource resource = selectedItem.getItem().itemProperty().get();
+						if (resource instanceof ManageableContainer) {
+							Menu menu = new Menu("Create");
+							MenuItem createDirectory = new MenuItem("Folder");
+							createDirectory.setGraphic(MainController.loadGraphic("folder.png"));
+							createDirectory.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
 								@Override
-								public void handle(Event event) {
-									if (tab.getText().endsWith("*")) {
-										Confirm.confirm(ConfirmType.QUESTION, "Unsaved Changes", "Do you want to discard all pending changes?", new EventHandler<ActionEvent>() {
-											@Override
-											public void handle(ActionEvent arg0) {
-												editors.getTabs().remove(tab);
-											}
-										});
-									}
-									else {
-										editors.getTabs().remove(tab);
-									}
-								}
-							});
-							aceEditor.subscribe(Action.CHANGE, new EventHandler<Event>() {
-								@Override
-								public void handle(Event arg0) {
-									if (!tab.getText().endsWith("*")) {
-										tab.setText(tab.getText() + " *");
-									}
-								}
-							});
-							aceEditor.subscribe(Action.SAVE, new EventHandler<Event>() {
-								@Override
-								public void handle(Event arg0) {
-									if (resource instanceof WritableResource) {
-										try {
-											WritableContainer<ByteBuffer> writable = ((WritableResource) resource).getWritable();
+								public void handle(ActionEvent arg0) {
+									SimplePropertyUpdater updater = new SimplePropertyUpdater(true, new LinkedHashSet<Property<?>>(Arrays.asList(
+											new SimpleProperty<String>("Name", String.class, true)
+											)));
+									EAIDeveloperUtils.buildPopup(MainController.getInstance(), updater, "Create New Folder", new EventHandler<ActionEvent>() {
+										@Override
+										public void handle(ActionEvent arg0) {
+											String name = updater.getValue("Name");
 											try {
-												writable.write(IOUtils.wrap(aceEditor.getContent().getBytes("UTF-8"), true));
+												((ManageableContainer) resource).create(name, Resource.CONTENT_TYPE_DIRECTORY);
+												selectedItem.getParent().refresh();
 											}
-											finally {
-												writable.close();
+											catch (IOException e) {
+												MainController.getInstance().notify(new ValidationMessage(Severity.ERROR, "Cannot create a directory by the name of '" + name + "': " + e.getMessage()));
 											}
 										}
-										catch (IOException e) {
-											throw new RuntimeException(e);
+									});
+								}
+							});
+							menu.getItems().addAll(createDirectory);
+							
+							MenuItem createFile = new MenuItem("File");
+							createFile.setGraphic(MainController.loadGraphic("mime/text-plain.png"));
+							createFile.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
+								@Override
+								public void handle(ActionEvent arg0) {
+									SimplePropertyUpdater updater = new SimplePropertyUpdater(true, new LinkedHashSet<Property<?>>(Arrays.asList(
+										new SimpleProperty<String>("Name", String.class, true)
+									)));
+									EAIDeveloperUtils.buildPopup(MainController.getInstance(), updater, "Create New File", new EventHandler<ActionEvent>() {
+										@Override
+										public void handle(ActionEvent arg0) {
+											String name = updater.getValue("Name");
+											try {
+												((ManageableContainer) resource).create(name, URLConnection.guessContentTypeFromName(name));
+												selectedItem.getParent().refresh();
+											}
+											catch (IOException e) {
+												MainController.getInstance().notify(new ValidationMessage(Severity.ERROR, "Cannot create a file by the name of '" + name + "': " + e.getMessage()));
+											}
 										}
-										// remove trailing *
-										if (tab.getText().endsWith("*")) {
-											tab.setText(tab.getText().replace("[\\s]*\\*$", ""));
+									});
+								}
+							});
+							
+							MenuItem addFile = new MenuItem("Add File");
+							addFile.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
+								@Override
+								public void handle(ActionEvent arg0) {
+									SimpleProperty<File> fileProperty = new SimpleProperty<File>("File", File.class, true);
+									fileProperty.setInput(true);
+									SimplePropertyUpdater updater = new SimplePropertyUpdater(true, new LinkedHashSet<Property<?>>(Arrays.asList(
+										fileProperty,
+										new SimpleProperty<String>("Name", String.class, false)
+									)));
+									EAIDeveloperUtils.buildPopup(MainController.getInstance(), updater, "Create New File", new EventHandler<ActionEvent>() {
+										@Override
+										public void handle(ActionEvent arg0) {
+											File file = updater.getValue("File");
+											if (file != null) {
+												String name = updater.getValue("Name");
+												if (name == null) {
+													name = file.getName();
+												}
+												try {
+													Resource create = ((ManageableContainer) resource).create(name, URLConnection.guessContentTypeFromName(name));
+													WritableContainer<ByteBuffer> writable = ((WritableResource) create).getWritable();
+													try {
+														Container<ByteBuffer> wrap = IOUtils.wrap(file);
+														try {
+															IOUtils.copyBytes(wrap, writable);
+														}
+														finally {
+															wrap.close();
+														}
+													}
+													finally {
+														writable.close();
+													}
+													selectedItem.getParent().refresh();
+												}
+												catch (IOException e) {
+													MainController.getInstance().notify(new ValidationMessage(Severity.ERROR, "Cannot create a file by the name of '" + name + "': " + e.getMessage()));
+												}
+												
+											}
 										}
+									});
+								}
+							});
+							menu.getItems().addAll(createDirectory, createFile, addFile);
+							contextMenu.getItems().add(menu);
+						}
+						if (selectedItem.getItem().editableProperty().get()) {
+							MenuItem item = new MenuItem("Delete");
+							item.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
+								@Override
+								public void handle(ActionEvent arg0) {
+									try {
+										((ManageableContainer) resource.getParent()).delete(resource.getName());
+										selectedItem.getParent().refresh();
 									}
+									catch (IOException e) {
+										MainController.getInstance().notify(new ValidationMessage(Severity.ERROR, "Cannot delete resource '" + resource.getName() + "': " + e.getMessage()));
+									}
+								}
+							});
+							contextMenu.getItems().add(item);
+						}
+						if (!contextMenu.getItems().isEmpty()) {
+							tree.setContextMenu(contextMenu);
+							tree.getContextMenu().show(MainController.getInstance().getStage(), event.getScreenX(), event.getScreenY());
+							// need to actually _remove_ the context menu on action
+							// otherwise by default (even if not in this if), the context menu will be shown if you right click
+							// this means if you select a folder, right click, you get this menu, you then select a non-folder and right click, you don't enter this code but still see the context menu!
+							tree.getContextMenu().addEventHandler(ActionEvent.ACTION, new EventHandler<ActionEvent>() {
+								@Override
+								public void handle(ActionEvent arg0) {
+									tree.setContextMenu(null);
 								}
 							});
 						}
@@ -365,15 +454,37 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 				}
 			}
 		});
+		tree.addEventHandler(KeyEvent.KEY_PRESSED, new EventHandler<KeyEvent>() {
+			@Override
+			public void handle(KeyEvent event) {
+				if (event.getCode() == KeyCode.ENTER) {
+					if (tree.getSelectionModel().getSelectedItem() != null) {
+						open(editors, tree.getSelectionModel().getSelectedItem());
+					}
+				}
+			}
+		});
 		
 		SplitPane split = new SplitPane();
 		split.setOrientation(Orientation.HORIZONTAL);
-		split.getItems().add(tree);
-		split.getItems().add(editors);
-		SplitPane.setResizableWithParent(tree, false);
 		
-		tree.setPrefWidth(250);
+		ScrollPane scroll = new ScrollPane();
+		AnchorPane anchorPane = new AnchorPane();
+		scroll.setContent(anchorPane);
+		anchorPane.getChildren().add(tree);
+		
+		anchorPane.prefWidthProperty().bind(split.widthProperty());
+		AnchorPane.setLeftAnchor(tree, 0d);
+		AnchorPane.setRightAnchor(tree, 0d);
+		AnchorPane.setTopAnchor(tree, 0d);
+		AnchorPane.setBottomAnchor(tree, 0d);
+		
+		SplitPane.setResizableWithParent(scroll, false);
+		tree.setPrefWidth(100);
 		tree.maxWidthProperty().bind(split.widthProperty());
+		
+		split.getItems().add(scroll);
+		split.getItems().add(editors);
 		
 		AnchorPane.setLeftAnchor(split, 0d);
 		AnchorPane.setRightAnchor(split, 0d);
@@ -384,7 +495,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		return tab;
 	}
 	
-	public static class ResourceTreeItem implements TreeItem<Resource> {
+	public static class ResourceTreeItem implements TreeItem<Resource>, RemovableTreeItem<Resource> {
 
 		private BooleanProperty editableProperty = new SimpleBooleanProperty(false);
 		private ObjectProperty<Resource> itemProperty = new SimpleObjectProperty<Resource>();
@@ -402,7 +513,8 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 				graphicProperty.set(MainController.loadGraphic(resource.getContentType() == null ? "mime/text-plain.png" : "mime/" + resource.getContentType().replaceAll("[^\\w]+", "-") + ".png"));
 			}
 			leafProperty.set(!(resource instanceof ResourceContainer));
-			editableProperty.set(parent instanceof ManageableContainer);
+			String parentPath = TreeUtils.getPath(parent);
+			editableProperty.set(parent != null && parent.itemProperty().get() instanceof ManageableContainer && !"web".equals(parentPath));
 			itemProperty.set(resource);
 			refresh(true);
 		}
@@ -414,19 +526,45 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		
 		@SuppressWarnings({ "unchecked", "rawtypes" })
 		private void refresh(boolean includeChildren) {
+			if (itemProperty.get() instanceof CacheableResource) {
+				try {
+					((CacheableResource) itemProperty.get()).resetCache();
+				}
+				catch (IOException e) {
+					// best effort
+				}
+			}
 			if (!leafProperty.get() && includeChildren) {
-				Collection<Resource> collection = toCollection(((ResourceContainer) itemProperty.get()).iterator());
+				List<Resource> collection = toList(((ResourceContainer) itemProperty.get()).iterator());
+				Collections.sort(collection, new Comparator<Resource>() {
+					@Override
+					public int compare(Resource o1, Resource o2) {
+						if (o1 instanceof ResourceContainer) {
+							if (o2 instanceof ResourceContainer) {
+								return o1.getName().compareTo(o2.getName());
+							}
+							else {
+								return -1;
+							}
+						}
+						else if (o2 instanceof ResourceContainer) {
+							return 1;
+						}
+						else {
+							return o1.getName().compareTo(o2.getName());
+						}
+					}
+				});
 				TreeUtils.refreshChildren(new TreeItemCreator<Resource>() {
 					@Override
 					public TreeItem<Resource> create(TreeItem<Resource> parent, Resource child) {
-						System.out.println("Creating tree item for child: " + child);
 						return new ResourceTreeItem(parent, child);
 					}
 				}, this, collection);
 			}
 		}
 		
-		public static <T> Collection<T> toCollection(Iterator<T> iterator) {
+		public static <T> List<T> toList(Iterator<T> iterator) {
 			List<T> list = new ArrayList<T>();
 			while (iterator.hasNext()) {
 				list.add(iterator.next());
@@ -468,6 +606,155 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		public String getName() {
 			return itemProperty.get().getName();
 		}
+
+		@Override
+		public boolean remove() {
+			if (editableProperty.get()) {
+				try {
+					((ManageableContainer<?>) parent.itemProperty().get()).delete(getName());
+					return true;
+				}
+				catch (IOException e) {
+					return false;
+				}
+			}
+			return false;
+		}
 		
+	}
+	
+	private void open(final TabPane editors, TreeCell<Resource> newValue) {
+		String path = TreeUtils.getPath(newValue.getItem());
+		boolean found = false;
+		for (Tab tab : editors.getTabs()) {
+			if (tab.getId().equals(path)) {
+				editors.getSelectionModel().select(tab);
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			final Resource resource = newValue.getItem().itemProperty().get();
+			if (resource instanceof ReadableResource) {
+				final Tab tab = new Tab(path);
+				tab.setId(path);
+				editors.getTabs().add(tab);
+				byte[] bytes;
+				try {
+					ReadableContainer<ByteBuffer> readable = ((ReadableResource) resource).getReadable();
+					try {
+						bytes = IOUtils.toBytes(readable);
+					}
+					finally {
+						readable.close();
+					}
+				}
+				catch (IOException e) {
+					throw new RuntimeException(e);
+				}
+				if (resource.getContentType() != null && resource.getContentType().startsWith("image")) {
+					ImageView image = new ImageView(new Image(new ByteArrayInputStream(bytes)));
+					ScrollPane scroll = new ScrollPane();
+					scroll.setContent(image);
+					tab.setContent(scroll);
+					// intercept close for these tabs as well
+					scroll.addEventHandler(KeyEvent.KEY_PRESSED, new EventHandler<KeyEvent>() {
+						@Override
+						public void handle(KeyEvent event) {
+							if (!event.isConsumed() && event.getCode() == KeyCode.W && event.isControlDown()) {
+								editors.getTabs().remove(tab);
+								// put focus on remaining tab (if any)
+								if (editors.getSelectionModel().getSelectedItem() != null) {
+									editors.getSelectionModel().getSelectedItem().getContent().requestFocus();
+								}
+								event.consume();
+							}
+						}
+					});
+				}
+				else {
+					final AceEditor aceEditor = new AceEditor();
+					aceEditor.setContent(resource.getContentType(), new String(bytes, Charset.forName("UTF-8")));
+					tab.setContent(aceEditor.getWebView());
+					aceEditor.subscribe(AceEditor.CLOSE_ALL, new EventHandler<Event>() {
+						@Override
+						public void handle(Event arg0) {
+							final Iterator<Tab> iterator = editors.getTabs().iterator();
+							while(iterator.hasNext()) {
+								Tab child = iterator.next();
+								if (child.getText().endsWith("*")) {
+									Confirm.confirm(ConfirmType.QUESTION, "Unsaved Changes", "Do you want to discard all pending changes?", new EventHandler<ActionEvent>() {
+										@Override
+										public void handle(ActionEvent arg0) {
+											iterator.remove();
+										}
+									});
+								}
+								else {
+									iterator.remove();
+								}
+							}
+						}
+					});
+					aceEditor.subscribe(AceEditor.CLOSE, new EventHandler<Event>() {
+						@Override
+						public void handle(Event event) {
+							if (tab.getText().endsWith("*")) {
+								Confirm.confirm(ConfirmType.QUESTION, "Unsaved Changes", "Do you want to discard all pending changes?", new EventHandler<ActionEvent>() {
+									@Override
+									public void handle(ActionEvent arg0) {
+										editors.getTabs().remove(tab);
+										// put focus on remaining tab (if any)
+										if (editors.getSelectionModel().getSelectedItem() != null) {
+											editors.getSelectionModel().getSelectedItem().getContent().requestFocus();
+										}
+									}
+								});
+							}
+							else {
+								editors.getTabs().remove(tab);
+								// put focus on remaining tab (if any)
+								if (editors.getSelectionModel().getSelectedItem() != null) {
+									editors.getSelectionModel().getSelectedItem().getContent().requestFocus();
+								}
+							}
+						}
+					});
+					aceEditor.subscribe(AceEditor.CHANGE, new EventHandler<Event>() {
+						@Override
+						public void handle(Event arg0) {
+							if (!tab.getText().endsWith("*")) {
+								tab.setText(tab.getText() + " *");
+							}
+						}
+					});
+					aceEditor.subscribe(AceEditor.SAVE, new EventHandler<Event>() {
+						@Override
+						public void handle(Event arg0) {
+							if (resource instanceof WritableResource) {
+								try {
+									WritableContainer<ByteBuffer> writable = ((WritableResource) resource).getWritable();
+									try {
+										writable.write(IOUtils.wrap(aceEditor.getContent().getBytes("UTF-8"), true));
+									}
+									finally {
+										writable.close();
+									}
+								}
+								catch (IOException e) {
+									throw new RuntimeException(e);
+								}
+								// remove trailing *
+								if (tab.getText().endsWith("*")) {
+									tab.setText(tab.getText().replace(" *", ""));
+								}
+							}
+						}
+					});
+				}
+				editors.getSelectionModel().select(tab);
+				tab.getContent().requestFocus();
+			}
+		}
 	}
 }

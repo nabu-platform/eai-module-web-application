@@ -2,6 +2,7 @@ package be.nabu.eai.module.web.application;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,63 +24,78 @@ import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.input.KeyCombination;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.web.WebView;
-import javafx.stage.Stage;
 
 // http://blog.mirkosertic.de/javastuff/javafxluaeditor
+// https://github.com/ajaxorg/ace-builds
 public class AceEditor {
 	
-	public enum Action {
-		COPY,
-		PASTE,
-		SAVE,
-		CLOSE,
-		CHANGE
-	}
+	public static final String COPY = "copy";
+	public static final String PASTE = "paste";
+	public static final String SAVE = "save";
+	public static final String CLOSE = "close";
+	public static final String CLOSE_ALL = "closeAll";
+	public static final String CHANGE = "CHANGE";
 	
 	private WebView webview;
-	private Stage stage;
 	private boolean loaded;
 	private String contentType;
 	private String content;
-	private Map<Action, KeyCombination> keys = new HashMap<Action, KeyCombination>();
-	private Map<Action, List<EventHandler<Event>>> handlers = new HashMap<Action, List<EventHandler<Event>>>();
+	private Map<String, KeyCombination> keys = new LinkedHashMap<String, KeyCombination>();
+	private Map<String, List<EventHandler<Event>>> handlers = new HashMap<String, List<EventHandler<Event>>>();
+	private Map<String, String> modes = new HashMap<String, String>();
 	
-	public AceEditor(Stage stage) {
-		this.stage = stage;
-		setKeyCombination(Action.COPY, new KeyCodeCombination(KeyCode.C, KeyCombination.CONTROL_DOWN));
-		setKeyCombination(Action.PASTE, new KeyCodeCombination(KeyCode.V, KeyCombination.CONTROL_DOWN));
-		setKeyCombination(Action.SAVE, new KeyCodeCombination(KeyCode.S, KeyCombination.CONTROL_DOWN));
-		setKeyCombination(Action.CLOSE, new KeyCodeCombination(KeyCode.W, KeyCombination.CONTROL_DOWN));
-		subscribe(Action.COPY, new CopyHandler(this));
-		subscribe(Action.PASTE, new PasteHandler(this));
+	public AceEditor() {
+		setKeyCombination(COPY, new KeyCodeCombination(KeyCode.C, KeyCombination.CONTROL_DOWN));
+		setKeyCombination(PASTE, new KeyCodeCombination(KeyCode.V, KeyCombination.CONTROL_DOWN));
+		setKeyCombination(SAVE, new KeyCodeCombination(KeyCode.S, KeyCombination.CONTROL_DOWN));
+		setKeyCombination(CLOSE_ALL, new KeyCodeCombination(KeyCode.W, KeyCombination.CONTROL_DOWN, KeyCombination.SHIFT_DOWN));
+		setKeyCombination(CLOSE, new KeyCodeCombination(KeyCode.W, KeyCombination.CONTROL_DOWN));
+		subscribe(COPY, new CopyHandler(this));
+		subscribe(PASTE, new PasteHandler(this));
 		// make sure it doesn't bubble up to the parent
-		subscribe(Action.SAVE, new ConsumeHandler());
-		subscribe(Action.CLOSE, new ConsumeHandler());
+		subscribe(SAVE, new ConsumeHandler());
+		subscribe(CLOSE, new ConsumeHandler());
+		// set the modes
+		setMode("application/javascript", "javascript");
+		setMode("application/x-javascript", "javascript");
+		setMode("text/html", "html");
+		setMode("text/xml", "xml");
+		setMode("application/xml", "xml");
+		setMode("text/x-glue", "python");
+		setMode("text/x-eglue", "python");
+		setMode("text/x-gcss", "css");
+		setMode("text/css", "css");
+		setMode("text/x-markdown", "markdown");
+		setMode("application/x-sql", "sql");
+		setMode("text/sql", "sql");
+		setMode("text/x-template", "html");
 	}
-	
-	public void setKeyCombination(Action action, KeyCombination combination) {
-		if (action == Action.CHANGE) {
+	public void setMode(String contentType, String mode) {
+		modes.put(contentType, mode);
+	}
+	public void setKeyCombination(String String, KeyCombination combination) {
+		if (String == CHANGE) {
 			throw new IllegalArgumentException("Can not set a key combination on change, it is the absence of a key combination");
 		}
 		if (combination == null) {
-			this.keys.remove(action);
+			this.keys.remove(String);
 		}
 		else {
-			this.keys.put(action, combination);
+			this.keys.put(String, combination);
 		}
 	}
 	
-	public void subscribe(Action action, EventHandler<Event> handler) {
-		if (!handlers.containsKey(action)) {
-			handlers.put(action, new ArrayList<EventHandler<Event>>());
+	public void subscribe(String String, EventHandler<Event> handler) {
+		if (!handlers.containsKey(String)) {
+			handlers.put(String, new ArrayList<EventHandler<Event>>());
 		}
-		handlers.get(action).add(0, handler);
+		handlers.get(String).add(0, handler);
 	}
 	
-	private Action getMatch(KeyEvent event) {
-		for (Action action : this.keys.keySet()) {
-			if (this.keys.get(action).match(event)) {
-				return action;
+	private String getMatch(KeyEvent event) {
+		for (String String : this.keys.keySet()) {
+			if (this.keys.get(String).match(event)) {
+				return String;
 			}
 		}
 		return null;
@@ -115,8 +131,8 @@ public class AceEditor {
 					webview.addEventFilter(KeyEvent.KEY_PRESSED, new EventHandler<KeyEvent>() {
 						@Override
 						public void handle(KeyEvent event) {
-							Action match = getMatch(event);
-							// if no predefined elements were found, use the change action
+							String match = getMatch(event);
+							// if no predefined elements were found, use the change String
 							if (match != null) {
 								List<EventHandler<Event>> list = handlers.get(match);
 								if (list != null && !list.isEmpty()) {
@@ -133,8 +149,8 @@ public class AceEditor {
 					webview.addEventFilter(KeyEvent.KEY_TYPED, new EventHandler<KeyEvent>() {
 						@Override
 						public void handle(KeyEvent event) {
-							if (event.getCharacter() != null && !event.getCharacter().isEmpty()) {
-								List<EventHandler<Event>> list = handlers.get(Action.CHANGE);
+							if (event.getCharacter() != null && !event.getCharacter().isEmpty() && !event.isControlDown()) {
+								List<EventHandler<Event>> list = handlers.get(CHANGE);
 								if (list != null && !list.isEmpty()) {
 									for (EventHandler<Event> handler : list) {
 										handler.handle(event);
@@ -221,19 +237,7 @@ public class AceEditor {
 		editor.setTextContent(content);
 		// initialize editor
 		webview.getEngine().executeScript("initEditor()");
-		String mode = null;
-		if ("application/javascript".equals(contentType) || "application/x-javascript".equals(contentType)) {
-			mode = "javascript";
-		}
-		else if ("text/html".equals(contentType)) {
-			mode = "html";
-		}
-		else if ("text/xml".equals(contentType) || "application/xml".equals(contentType)) {
-			mode = "xml";
-		}
-		else if ("text/x-script.glue".equals(contentType)) {
-			mode = "python";
-		}
+		String mode = modes.get(contentType);
 		if (mode != null) {
 			webview.getEngine().executeScript("editor.getSession().setMode('ace/mode/" + mode + "');");
 		}
