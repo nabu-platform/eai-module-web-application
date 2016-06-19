@@ -43,6 +43,7 @@ public class AceEditor {
 	private Map<String, KeyCombination> keys = new LinkedHashMap<String, KeyCombination>();
 	private Map<String, List<EventHandler<Event>>> handlers = new HashMap<String, List<EventHandler<Event>>>();
 	private Map<String, String> modes = new HashMap<String, String>();
+	private boolean keyPressed = false;
 	
 	public AceEditor() {
 		setKeyCombination(COPY, new KeyCodeCombination(KeyCode.C, KeyCombination.CONTROL_DOWN));
@@ -146,9 +147,10 @@ public class AceEditor {
 					System.out.println("Found editor: " + externalForm);
 					webview.getEngine().load(externalForm);
 
-					webview.addEventFilter(KeyEvent.KEY_PRESSED, new EventHandler<KeyEvent>() {
+					webview.addEventHandler(KeyEvent.KEY_PRESSED, new EventHandler<KeyEvent>() {
 						@Override
 						public void handle(KeyEvent event) {
+							keyPressed = true;
 							String match = getMatch(event);
 							// if no predefined elements were found, use the change String
 							if (match != null) {
@@ -164,10 +166,16 @@ public class AceEditor {
 							}
 						}
 					});
-					webview.addEventFilter(KeyEvent.KEY_TYPED, new EventHandler<KeyEvent>() {
+					webview.addEventHandler(KeyEvent.KEY_RELEASED, new EventHandler<KeyEvent>() {
+						@Override
+						public void handle(KeyEvent arg0) {
+							keyPressed = false;							
+						}
+					});
+					webview.addEventHandler(KeyEvent.KEY_TYPED, new EventHandler<KeyEvent>() {
 						@Override
 						public void handle(KeyEvent event) {
-							if (event.getCharacter() != null && !event.getCharacter().isEmpty() && !event.isControlDown()) {
+							if (keyPressed && event.getCharacter() != null && !event.getCharacter().isEmpty() && !event.isControlDown()) {
 								List<EventHandler<Event>> list = handlers.get(CHANGE);
 								if (list != null && !list.isEmpty()) {
 									for (EventHandler<Event> handler : list) {

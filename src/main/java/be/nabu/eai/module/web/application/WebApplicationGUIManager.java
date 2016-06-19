@@ -8,6 +8,7 @@ import java.net.URLConnection;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -22,6 +23,8 @@ import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
@@ -60,6 +63,7 @@ import be.nabu.eai.developer.managers.util.SimplePropertyUpdater;
 import be.nabu.eai.developer.util.Confirm;
 import be.nabu.eai.developer.util.Confirm.ConfirmType;
 import be.nabu.eai.developer.util.EAIDeveloperUtils;
+import be.nabu.eai.developer.util.Find;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.resources.RepositoryEntry;
@@ -267,8 +271,28 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		pane.getChildren().add(tabs);
 	}
 	
-	@SuppressWarnings({ "rawtypes", "unchecked" })
-	private Tab buildEditingTab(final WebApplication artifact) throws URISyntaxException, IOException {
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private Tab buildEditingTab(final WebApplication artifact) throws IOException, URISyntaxException {
+		ResourceContainer<?> publicDirectory = (ResourceContainer<?>) artifact.getDirectory().getChild(EAIResourceRepository.PUBLIC);
+		if (publicDirectory == null && artifact.getDirectory() instanceof ManageableContainer) {
+			publicDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) artifact.getDirectory()).create(EAIResourceRepository.PUBLIC, Resource.CONTENT_TYPE_DIRECTORY);
+		}
+		ResourceContainer<?> privateDirectory = (ResourceContainer<?>) artifact.getDirectory().getChild(EAIResourceRepository.PRIVATE);
+		if (privateDirectory == null && artifact.getDirectory() instanceof ManageableContainer) {
+			privateDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) artifact.getDirectory()).create(EAIResourceRepository.PRIVATE, Resource.CONTENT_TYPE_DIRECTORY);
+		}
+		VirtualContainer container = new VirtualContainer(null, "web");
+		if (publicDirectory != null) {
+			container.addChild(publicDirectory.getName(), publicDirectory);
+		}
+		if (privateDirectory != null) {
+			container.addChild(privateDirectory.getName(), privateDirectory);
+		}
+		return buildEditingTab(container);
+	}
+	
+	@SuppressWarnings({ "rawtypes" })
+	public static Tab buildEditingTab(ResourceContainer<?> container) throws URISyntaxException, IOException {
 		Tab tab = new Tab("Resources");
 		Tree<Resource> tree = new Tree<Resource>(new Marshallable<Resource>() {
 			@Override
@@ -288,23 +312,6 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 				}
 			}
 		});
-		ResourceContainer<?> publicDirectory = (ResourceContainer<?>) artifact.getDirectory().getChild(EAIResourceRepository.PUBLIC);
-		if (publicDirectory == null && artifact.getDirectory() instanceof ManageableContainer) {
-			publicDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) artifact.getDirectory()).create(EAIResourceRepository.PUBLIC, Resource.CONTENT_TYPE_DIRECTORY);
-		}
-		ResourceContainer<?> privateDirectory = (ResourceContainer<?>) artifact.getDirectory().getChild(EAIResourceRepository.PRIVATE);
-		if (privateDirectory == null && artifact.getDirectory() instanceof ManageableContainer) {
-			privateDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) artifact.getDirectory()).create(EAIResourceRepository.PRIVATE, Resource.CONTENT_TYPE_DIRECTORY);
-		}
-		
-		VirtualContainer container = new VirtualContainer(null, "web");
-		if (publicDirectory != null) {
-			container.addChild(publicDirectory.getName(), publicDirectory);
-		}
-		if (privateDirectory != null) {
-			container.addChild(privateDirectory.getName(), privateDirectory);
-		}
-		
 		tree.rootProperty().set(new ResourceTreeItem(null, container));
 
 		final TabPane editors = new TabPane();
@@ -464,6 +471,24 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 						open(editors, tree.getSelectionModel().getSelectedItem());
 					}
 				}
+				else if (event.getCode() == KeyCode.F && event.isControlDown()) {
+					Find<TreeItem<Resource>> find = new Find<TreeItem<Resource>>(new Marshallable<TreeItem<Resource>>() {
+						@Override
+						public String marshal(TreeItem<Resource> instance) {
+							return TreeUtils.getPath(instance).replaceFirst("^[/]+", "").replace("/", ".");
+						}
+					});
+					find.selectedItemProperty().addListener(new ChangeListener<TreeItem<Resource>>() {
+						@Override
+						public void changed(ObservableValue<? extends TreeItem<Resource>> observable, TreeItem<Resource> oldValue, TreeItem<Resource> newValue) {
+							TreeCell<Resource> treeCell = tree.getTreeCell(newValue);
+							treeCell.select();
+						}
+					});
+					TreeCell<Resource> selectedItem = tree.getSelectionModel().getSelectedItem();
+					find.show(selectedItem == null ? getResources(tree.rootProperty().get()) : getResources(selectedItem.getItem()));
+					event.consume();
+				}
 			}
 		});
 		
@@ -497,6 +522,15 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		
 		tab.setContent(split);
 		return tab;
+	}
+	
+	private static Collection<TreeItem<Resource>> getResources(TreeItem<Resource> resource) {
+		List<TreeItem<Resource>> resources = new ArrayList<TreeItem<Resource>>();
+		resources.add(resource);
+		for (TreeItem<Resource> child : resource.getChildren()) {
+			resources.addAll(getResources(child));
+		}
+		return resources;
 	}
 	
 	public static class ResourceTreeItem implements TreeItem<Resource>, RemovableTreeItem<Resource> {
@@ -633,7 +667,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		
 	}
 	
-	private void open(final TabPane editors, TreeCell<Resource> newValue) {
+	private static void open(final TabPane editors, TreeCell<Resource> newValue) {
 		String path = TreeUtils.getPath(newValue.getItem());
 		boolean found = false;
 		for (Tab tab : editors.getTabs()) {
