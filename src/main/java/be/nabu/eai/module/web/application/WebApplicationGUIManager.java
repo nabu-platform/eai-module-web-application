@@ -29,6 +29,7 @@ import javafx.event.ActionEvent;
 import javafx.event.Event;
 import javafx.event.EventHandler;
 import javafx.geometry.Orientation;
+import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.Node;
 import javafx.scene.control.ContextMenu;
@@ -49,6 +50,7 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.AnchorPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import be.nabu.eai.developer.MainController;
 import be.nabu.eai.developer.managers.base.BaseConfigurationGUIManager;
@@ -482,7 +484,9 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		SplitPane.setResizableWithParent(scroll, false);
 		tree.setPrefWidth(100);
 		tree.maxWidthProperty().bind(split.widthProperty());
-		
+
+		scroll.minWidthProperty().set(0);
+		editors.minWidthProperty().set(0);
 		split.getItems().add(scroll);
 		split.getItems().add(editors);
 		
@@ -510,7 +514,13 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 				graphicProperty.set(MainController.loadGraphic("folder.png"));
 			}
 			else {
-				graphicProperty.set(MainController.loadGraphic(resource.getContentType() == null ? "mime/text-plain.png" : "mime/" + resource.getContentType().replaceAll("[^\\w]+", "-") + ".png"));
+				HBox box = new HBox();
+				box.setAlignment(Pos.CENTER);
+				box.setMinWidth(25);
+				box.setMaxWidth(25);
+				box.setPrefWidth(25);
+				box.getChildren().add(MainController.loadGraphic(resource.getContentType() == null ? "mime/text-plain.png" : "mime/" + resource.getContentType().replaceAll("[^\\w]+", "-") + ".png"));
+				graphicProperty.set(box);
 			}
 			leafProperty.set(!(resource instanceof ResourceContainer));
 			String parentPath = TreeUtils.getPath(parent);
