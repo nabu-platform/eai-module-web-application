@@ -70,6 +70,24 @@ public class AceEditor {
 		setMode("text/sql", "sql");
 		setMode("text/x-template", "html");
 	}
+	public void setShowWhitespace(boolean showWhitespace) {
+		setOption("showInvisibles", showWhitespace);
+	}
+	public void setEmmet(boolean enableEmmet) {
+		setOption("enableEmmet", enableEmmet);
+	}
+	public void setLiveAutocompletion(boolean autocompletion) {
+		setOption("enableLiveAutocompletion", autocompletion);
+	}
+	public void setTabSize(int tabSize) {
+		setOption("tabSize", tabSize);
+	}
+	public void setSoftTabs(boolean softTabs) {
+		setOption("useSoftTabs", softTabs);
+	}
+	private void setOption(String key, Object value) {
+		webview.getEngine().executeScript("setOption('" + key + "', " + value + ")");
+	}
 	public void setMode(String contentType, String mode) {
 		modes.put(contentType, mode);
 	}

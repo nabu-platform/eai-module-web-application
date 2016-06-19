@@ -17,6 +17,7 @@
 	
 		<script src="ace.js" type="text/javascript" charset="utf-8"></script>
 		<script src="ext-language_tools.js" type="text/javascript" charset="utf-8"></script>
+		<script src="ext-emmet.js" type="text/javascript" charset="utf-8"></script>
 		
 		<!-- supported modes -->
 		<script src="mode-javascript.js" type="text/javascript" charset="utf-8"></script>
@@ -44,11 +45,19 @@
 				ace.require("ace/ext/language_tools")
 				editor = ace.edit("editor");
 				editor.setOptions({
-					enableBasicAutocompletion : true,
-					enableSnippets : true,
-					enableLiveAutocompletion : false
+					enableBasicAutocompletion: true,
+					enableSnippets: true,
+					enableLiveAutocompletion: true,
+					useSoftTabs: false,
+					showInvisibles: false,
+					scrollPastEnd: true,
+					tabSize: 4
 				});
 				editor.setTheme("ace/theme/monokai");
+			}
+			
+			function setOption(key, value) {
+				editor.setOption(key, value);
 			}
 	
 			function getValue() {
