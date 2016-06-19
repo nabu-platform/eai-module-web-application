@@ -316,7 +316,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 
 		final TabPane editors = new TabPane();
 		editors.setTabClosingPolicy(TabClosingPolicy.ALL_TABS);
-		editors.setSide(Side.BOTTOM);
+		editors.setSide(Side.TOP);
 		
 		tree.addEventHandler(MouseEvent.MOUSE_CLICKED, new EventHandler<MouseEvent>() {
 			@Override
