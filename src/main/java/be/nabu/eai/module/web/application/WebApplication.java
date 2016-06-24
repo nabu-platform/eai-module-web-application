@@ -24,6 +24,7 @@ import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.MetricsLevelProvider;
 import be.nabu.eai.repository.api.AuthenticatorProvider;
+import be.nabu.eai.repository.api.CacheProviderArtifact;
 import be.nabu.eai.repository.api.Repository;
 import be.nabu.eai.repository.api.UserLanguageProvider;
 import be.nabu.eai.repository.artifacts.jaxb.JAXBArtifact;
@@ -33,6 +34,7 @@ import be.nabu.eai.repository.util.SystemPrincipal;
 import be.nabu.glue.MultipleRepository;
 import be.nabu.glue.ScriptRuntime;
 import be.nabu.glue.ScriptUtils;
+import be.nabu.glue.api.Script;
 import be.nabu.glue.api.ScriptRepository;
 import be.nabu.glue.api.StringSubstituter;
 import be.nabu.glue.api.StringSubstituterProvider;
@@ -49,6 +51,7 @@ import be.nabu.libs.authentication.api.RoleHandler;
 import be.nabu.libs.authentication.api.Token;
 import be.nabu.libs.authentication.api.TokenValidator;
 import be.nabu.libs.cache.api.Cache;
+import be.nabu.libs.cache.api.CacheProvider;
 import be.nabu.libs.cache.impl.AccessBasedTimeoutManager;
 import be.nabu.libs.cache.impl.SerializableSerializer;
 import be.nabu.libs.cache.impl.StringSerializer;
@@ -67,6 +70,8 @@ import be.nabu.libs.http.glue.GluePostProcessListener;
 import be.nabu.libs.http.glue.GluePreprocessListener;
 import be.nabu.libs.http.glue.GlueSessionResolver;
 import be.nabu.libs.http.glue.GlueWebParserProvider;
+import be.nabu.libs.http.glue.HTTPResponseDataSerializer;
+import be.nabu.libs.http.glue.api.CacheKeyProvider;
 import be.nabu.libs.http.glue.impl.RequestMethods;
 import be.nabu.libs.http.glue.impl.UserMethods;
 import be.nabu.libs.http.server.BasicAuthenticationHandler;
@@ -130,8 +135,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		if (server != null && server.getExceptionFormatter() instanceof RepositoryExceptionFormatter) {
 			((RepositoryExceptionFormatter) server.getExceptionFormatter()).unregister(getId());
 		}
-		if (getConfiguration().getCacheProvider() != null) {
-			getConfiguration().getCacheProvider().remove(getId());
+		if (getConfiguration().getSessionCacheProvider() != null) {
+			getConfiguration().getSessionCacheProvider().remove(getId() + "-session");
 		}
 		List<WebFragment> webFragments = getConfiguration().getWebFragments();
 		if (webFragments != null) {
@@ -174,9 +179,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 
 			// create session provider
-			if (getConfiguration().getCacheProvider() != null) {
-				Cache sessionCache = getConfiguration().getCacheProvider().create(
-					getId(),
+			if (getConfiguration().getSessionCacheProvider() != null) {
+				Cache sessionCache = getConfiguration().getSessionCacheProvider().create(
+					getId() + "-session",
 					// defaults to unlimited
 					getConfiguration().getMaxTotalSessionSize() == null ? 0 : getConfiguration().getMaxTotalSessionSize(),
 					// defaults to unlimited
@@ -339,6 +344,39 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				serverPath
 			);
 			
+			final CacheProviderArtifact cacheProvider = getConfiguration().getScriptCacheProvider();
+			if (cacheProvider != null) {
+				listener.setCacheProvider(new CacheProvider() {
+					@Override
+					public Cache get(String name) throws IOException {
+						Cache cache = cacheProvider.get(getId() + "-script-" + name);
+						if (cache == null) {
+							synchronized(cacheProvider) {
+								cache = cacheProvider.get(getId() + "-script-" + name);
+								if (cache == null) {
+									cache = cacheProvider.create(getId() + "-script-" + name, 
+										// defaults to unlimited
+										getConfiguration().getMaxTotalScriptCacheSize() == null ? 0 : getConfiguration().getMaxTotalScriptCacheSize(),
+										// defaults to unlimited
+										getConfiguration().getMaxScriptCacheSize() == null ? 0 : getConfiguration().getMaxScriptCacheSize(),
+										new StringSerializer(Charset.forName("UTF-8")), 
+										new HTTPResponseDataSerializer(), 
+										null, 
+										// defaults to 1 hour
+										new AccessBasedTimeoutManager(getConfiguration().getScriptCacheTimeout() == null ? 1000l*60*60 : getConfiguration().getScriptCacheTimeout())
+									);
+								}
+							}
+						}
+						return cache;
+					}
+					@Override
+					public void remove(String name) throws IOException {
+						cacheProvider.remove(getId() + "-script-" + name);
+					}
+				});
+			}
+			
 			if (getConfiguration().getFailedLoginThreshold() != null) {
 				MetricInstance metricInstance = getRepository().getMetricInstance(getId());
 				// we need to up the grouping level of the login failed, otherwise we never get to the ip level
@@ -378,8 +416,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				listener.setMetrics(metricInstance);
 			}
 			
+			final UserLanguageProvider languageProvider = getLanguageProvider();
 			if (getConfiguration().getTranslationService() != null) {
-				final UserLanguageProvider languageProvider = getLanguageProvider();
 				listener.getSubstituterProviders().add(new StringSubstituterProvider() {
 					@Override
 					public StringSubstituter getSubstituter(ScriptRuntime runtime) {
@@ -408,6 +446,16 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					}
 				});
 			}
+			// set an additional cache key provider that can choose the user language
+			if (languageProvider != null) {
+				listener.addCacheKeyProvider(new CacheKeyProvider() {
+					@Override
+					public String getAdditionalCacheKey(HTTPRequest request, Token token, Script script) {
+						return languageProvider.getLanguage(token);
+					}
+				});
+			}
+			
 			listener.getContentRewriters().addAll(rewriters);
 			listener.setRefreshScripts(isDevelopment);
 			listener.setAllowEncoding(!isDevelopment);

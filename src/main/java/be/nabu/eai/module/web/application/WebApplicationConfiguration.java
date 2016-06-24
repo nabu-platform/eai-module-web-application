@@ -14,11 +14,11 @@ import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "deviceCreatorService", "trackerService", "translationService", "languageProviderService", "whitelistedCodes", "cacheProvider", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "webFragments" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "deviceCreatorService", "trackerService", "translationService", "languageProviderService", "whitelistedCodes", "sessionCacheProvider", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "webFragments" })
 public class WebApplicationConfiguration {
 
-	private CacheProviderArtifact cacheProvider;
-	private Long maxTotalSessionSize, maxSessionSize, sessionTimeout;
+	private CacheProviderArtifact sessionCacheProvider, scriptCacheProvider;
+	private Long maxTotalSessionSize, maxSessionSize, sessionTimeout, maxTotalScriptCacheSize, maxScriptCacheSize, scriptCacheTimeout;
 	private VirtualHostArtifact virtualHost;
 	private String path;
 	private String charset;
@@ -166,13 +166,22 @@ public class WebApplicationConfiguration {
 
 	@EnvironmentSpecific
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
-	public CacheProviderArtifact getCacheProvider() {
-		return cacheProvider;
+	public CacheProviderArtifact getSessionCacheProvider() {
+		return sessionCacheProvider;
 	}
-	public void setCacheProvider(CacheProviderArtifact cacheProvider) {
-		this.cacheProvider = cacheProvider;
+	public void setSessionCacheProvider(CacheProviderArtifact sessionCacheProvider) {
+		this.sessionCacheProvider = sessionCacheProvider;
 	}
-
+	
+	@EnvironmentSpecific
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	public CacheProviderArtifact getScriptCacheProvider() {
+		return scriptCacheProvider;
+	}
+	public void setScriptCacheProvider(CacheProviderArtifact scriptCacheProvider) {
+		this.scriptCacheProvider = scriptCacheProvider;
+	}
+	
 	@EnvironmentSpecific
 	public Long getMaxTotalSessionSize() {
 		return maxTotalSessionSize;
@@ -230,5 +239,23 @@ public class WebApplicationConfiguration {
 	}
 	public void setFailedLoginBlacklistDuration(Long failedLoginBlacklistDuration) {
 		this.failedLoginBlacklistDuration = failedLoginBlacklistDuration;
+	}
+	public Long getMaxTotalScriptCacheSize() {
+		return maxTotalScriptCacheSize;
+	}
+	public void setMaxTotalScriptCacheSize(Long maxTotalScriptCacheSize) {
+		this.maxTotalScriptCacheSize = maxTotalScriptCacheSize;
+	}
+	public Long getMaxScriptCacheSize() {
+		return maxScriptCacheSize;
+	}
+	public void setMaxScriptCacheSize(Long maxScriptCacheSize) {
+		this.maxScriptCacheSize = maxScriptCacheSize;
+	}
+	public Long getScriptCacheTimeout() {
+		return scriptCacheTimeout;
+	}
+	public void setScriptCacheTimeout(Long scriptCacheTimeout) {
+		this.scriptCacheTimeout = scriptCacheTimeout;
 	}
 }
