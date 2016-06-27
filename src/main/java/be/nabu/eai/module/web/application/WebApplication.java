@@ -451,7 +451,15 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				listener.addCacheKeyProvider(new CacheKeyProvider() {
 					@Override
 					public String getAdditionalCacheKey(HTTPRequest request, Token token, Script script) {
-						return languageProvider.getLanguage(token);
+						// make sure we mirror the logic above for the substitution cause that will be the actual language in the returned content
+						String language = languageProvider.getLanguage(token);
+						if (language == null) {
+							List<String> acceptedLanguages = MimeUtils.getAcceptedLanguages(request.getContent().getHeaders());
+							if (!acceptedLanguages.isEmpty()) {
+								language = acceptedLanguages.get(0).replaceAll("-.*$", "");
+							}
+						}
+						return language;
 					}
 				});
 			}
