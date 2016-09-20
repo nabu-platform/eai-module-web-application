@@ -32,7 +32,6 @@ import javafx.event.ActionEvent;
 import javafx.event.Event;
 import javafx.event.EventHandler;
 import javafx.geometry.Orientation;
-import javafx.geometry.Pos;
 import javafx.geometry.Side;
 import javafx.scene.Node;
 import javafx.scene.control.ContextMenu;
@@ -53,7 +52,6 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.AnchorPane;
-import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import be.nabu.eai.developer.MainController;
 import be.nabu.eai.developer.managers.base.BaseConfigurationGUIManager;
@@ -334,7 +332,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 						if (resource instanceof ManageableContainer) {
 							Menu menu = new Menu("Create");
 							MenuItem createDirectory = new MenuItem("Folder");
-							createDirectory.setGraphic(MainController.loadGraphic("folder.png"));
+							createDirectory.setGraphic(MainController.loadFixedSizeGraphic("folder.png"));
 							createDirectory.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
 								@Override
 								public void handle(ActionEvent arg0) {
@@ -359,7 +357,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 							menu.getItems().addAll(createDirectory);
 							
 							MenuItem createFile = new MenuItem("File");
-							createFile.setGraphic(MainController.loadGraphic("mime/text-plain.png"));
+							createFile.setGraphic(MainController.loadFixedSizeGraphic("mime/text-plain.png"));
 							createFile.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
 								@Override
 								public void handle(ActionEvent arg0) {
@@ -382,8 +380,8 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 								}
 							});
 							
-							MenuItem addFile = new MenuItem("Add File");
-							addFile.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
+							MenuItem uploadFile = new MenuItem("Upload File");
+							uploadFile.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
 								@Override
 								public void handle(ActionEvent arg0) {
 									SimpleProperty<File> fileProperty = new SimpleProperty<File>("File", File.class, true);
@@ -427,8 +425,8 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 									});
 								}
 							});
-							menu.getItems().addAll(createDirectory, createFile, addFile);
-							contextMenu.getItems().add(menu);
+							menu.getItems().addAll(createDirectory, createFile);
+							contextMenu.getItems().addAll(menu, uploadFile);
 						}
 						if (selectedItem.getItem().editableProperty().get()) {
 							MenuItem item = new MenuItem("Delete");
@@ -545,16 +543,10 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		public ResourceTreeItem(TreeItem<Resource> parent, Resource resource) {
 			this.parent = parent;
 			if (resource instanceof ResourceContainer) {
-				graphicProperty.set(MainController.loadGraphic("folder.png"));
+				graphicProperty.set(MainController.loadFixedSizeGraphic("folder.png"));
 			}
 			else {
-				HBox box = new HBox();
-				box.setAlignment(Pos.CENTER);
-				box.setMinWidth(25);
-				box.setMaxWidth(25);
-				box.setPrefWidth(25);
-				box.getChildren().add(MainController.loadGraphic(resource.getContentType() == null ? "mime/text-plain.png" : "mime/" + resource.getContentType().replaceAll("[^\\w]+", "-") + ".png"));
-				graphicProperty.set(box);
+				graphicProperty.set(MainController.loadFixedSizeGraphic(resource.getContentType() == null ? "mime/text-plain.png" : "mime/" + resource.getContentType().replaceAll("[^\\w]+", "-") + ".png"));
 			}
 			leafProperty.set(!(resource instanceof ResourceContainer));
 			String parentPath = TreeUtils.getPath(parent);

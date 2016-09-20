@@ -181,7 +181,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			// create session provider
 			if (getConfiguration().getSessionCacheProvider() != null) {
 				Cache sessionCache = getConfiguration().getSessionCacheProvider().create(
-					getId() + "-session",
+					getConfig().getSessionCacheId() == null ? getId() + "-session" : getConfig().getSessionCacheId(),
 					// defaults to unlimited
 					getConfiguration().getMaxTotalSessionSize() == null ? 0 : getConfiguration().getMaxTotalSessionSize(),
 					// defaults to unlimited
@@ -345,7 +345,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			);
 			
 			final CacheProviderArtifact cacheProvider = getConfiguration().getScriptCacheProvider();
-			if (cacheProvider != null) {
+			if (cacheProvider != null && !isDevelopment) {
 				listener.setCacheProvider(new CacheProvider() {
 					@Override
 					public Cache get(String name) throws IOException {

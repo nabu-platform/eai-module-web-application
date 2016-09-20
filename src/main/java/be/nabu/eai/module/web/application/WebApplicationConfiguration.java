@@ -14,9 +14,11 @@ import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "deviceCreatorService", "trackerService", "translationService", "languageProviderService", "whitelistedCodes", "sessionCacheProvider", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "webFragments" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "deviceCreatorService", "trackerService", "translationService", "languageProviderService", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "webFragments" })
 public class WebApplicationConfiguration {
 
+	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
+	private String sessionCacheId;
 	private CacheProviderArtifact sessionCacheProvider, scriptCacheProvider;
 	private Long maxTotalSessionSize, maxSessionSize, sessionTimeout, maxTotalScriptCacheSize, maxScriptCacheSize, scriptCacheTimeout;
 	private VirtualHostArtifact virtualHost;
@@ -258,4 +260,11 @@ public class WebApplicationConfiguration {
 	public void setScriptCacheTimeout(Long scriptCacheTimeout) {
 		this.scriptCacheTimeout = scriptCacheTimeout;
 	}
+	public String getSessionCacheId() {
+		return sessionCacheId;
+	}
+	public void setSessionCacheId(String sessionCacheId) {
+		this.sessionCacheId = sessionCacheId;
+	}
+	
 }
