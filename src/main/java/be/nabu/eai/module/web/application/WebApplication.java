@@ -25,6 +25,8 @@ import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.MetricsLevelProvider;
 import be.nabu.eai.repository.api.AuthenticatorProvider;
 import be.nabu.eai.repository.api.CacheProviderArtifact;
+import be.nabu.eai.repository.api.LicenseManager;
+import be.nabu.eai.repository.api.LicensedRepository;
 import be.nabu.eai.repository.api.Repository;
 import be.nabu.eai.repository.api.UserLanguageProvider;
 import be.nabu.eai.repository.artifacts.jaxb.JAXBArtifact;
@@ -106,6 +108,7 @@ import be.nabu.utils.mime.impl.MimeUtils;
  */
 public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> implements StartableArtifact, StoppableArtifact, AuthenticatorProvider {
 
+	public static final String MODULE = "nabu.web.application";
 	private Map<ResourceContainer<?>, ScriptRepository> additionalRepositories = new HashMap<ResourceContainer<?>, ScriptRepository>();
 	private List<EventSubscription<?, ?>> subscriptions = new ArrayList<EventSubscription<?, ?>>();
 	private GlueListener listener;
@@ -151,6 +154,14 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	public void start() throws IOException {
+		boolean licensed = true;
+		if (getRepository() instanceof LicensedRepository) {
+			LicenseManager licenseManager = ((LicensedRepository) getRepository()).getLicenseManager();
+			licensed = licenseManager != null && licenseManager.isLicensed(MODULE);
+			if (!licensed) {
+				logger.warn("No license found for the web application module, script caches are disabled");
+			}
+		}
 		boolean isDevelopment = EAIResourceRepository.isDevelopment();
 		if (!started && getConfiguration().getVirtualHost() != null) {
 			String realm = getRealm();
@@ -179,7 +190,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 
 			// create session provider
-			if (getConfiguration().getSessionCacheProvider() != null) {
+			if (licensed && getConfiguration().getSessionCacheProvider() != null) {
 				Cache sessionCache = getConfiguration().getSessionCacheProvider().create(
 					getConfig().getSessionCacheId() == null ? getId() + "-session" : getConfig().getSessionCacheId(),
 					// defaults to unlimited
@@ -345,7 +356,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			);
 			
 			final CacheProviderArtifact cacheProvider = getConfiguration().getScriptCacheProvider();
-			if (cacheProvider != null && !isDevelopment) {
+			if (licensed && cacheProvider != null && !isDevelopment) {
 				listener.setCacheProvider(new CacheProvider() {
 					@Override
 					public Cache get(String name) throws IOException {
