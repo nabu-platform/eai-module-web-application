@@ -19,9 +19,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import be.nabu.eai.module.web.application.WebApplication;
-import be.nabu.glue.ScriptUtils;
 import be.nabu.glue.api.Script;
 import be.nabu.glue.impl.ImperativeSubstitutor;
+import be.nabu.glue.utils.ScriptUtils;
 import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.resources.api.ResourceFilter;

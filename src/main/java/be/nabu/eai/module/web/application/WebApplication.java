@@ -2,6 +2,7 @@ package be.nabu.eai.module.web.application;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Method;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -33,17 +34,17 @@ import be.nabu.eai.repository.artifacts.jaxb.JAXBArtifact;
 import be.nabu.eai.repository.impl.CacheSessionProvider;
 import be.nabu.eai.repository.util.CombinedAuthenticator;
 import be.nabu.eai.repository.util.SystemPrincipal;
-import be.nabu.glue.MultipleRepository;
-import be.nabu.glue.ScriptRuntime;
-import be.nabu.glue.ScriptUtils;
 import be.nabu.glue.api.Script;
 import be.nabu.glue.api.ScriptRepository;
 import be.nabu.glue.api.StringSubstituter;
 import be.nabu.glue.api.StringSubstituterProvider;
+import be.nabu.glue.core.impl.parsers.GlueParserProvider;
+import be.nabu.glue.core.repositories.ScannableScriptRepository;
 import be.nabu.glue.impl.SimpleExecutionEnvironment;
-import be.nabu.glue.impl.parsers.GlueParserProvider;
-import be.nabu.glue.repositories.ScannableScriptRepository;
 import be.nabu.glue.services.ServiceMethodProvider;
+import be.nabu.glue.utils.MultipleRepository;
+import be.nabu.glue.utils.ScriptRuntime;
+import be.nabu.glue.utils.ScriptUtils;
 import be.nabu.libs.artifacts.api.StartableArtifact;
 import be.nabu.libs.artifacts.api.StoppableArtifact;
 import be.nabu.libs.authentication.api.Authenticator;
@@ -92,10 +93,15 @@ import be.nabu.libs.resources.api.ReadableResource;
 import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.resources.api.WritableResource;
+import be.nabu.libs.services.api.Service;
+import be.nabu.libs.services.api.ServiceInterface;
+import be.nabu.libs.services.fixed.FixedInputService;
+import be.nabu.libs.services.pojo.MethodServiceInterface;
 import be.nabu.libs.services.pojo.POJOUtils;
 import be.nabu.libs.types.api.ComplexContent;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
+import be.nabu.libs.types.api.Element;
 import be.nabu.utils.io.IOUtils;
 import be.nabu.utils.io.api.ByteBuffer;
 import be.nabu.utils.io.api.ReadableContainer;
@@ -119,6 +125,14 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private ServiceMethodProvider serviceMethodProvider;
 	private ResourceHandler resourceHandler;
 	private WebConfiguration fragmentConfiguration;
+	private CombinedAuthenticator authenticator;
+	private RoleHandler roleHandler;
+	
+	private boolean authenticatorResolved, roleHandlerResolved, permissionHandlerResolved, tokenValidatorResolved, languageProviderResolved, deviceValidatorResolved;
+	private PermissionHandler permissionHandler;
+	private TokenValidator tokenValidator;
+	private UserLanguageProvider userLanguageProvider;
+	private DeviceValidator deviceValidator;
 	
 	public WebApplication(String id, ResourceContainer<?> directory, Repository repository) {
 		super(id, directory, repository, "webartifact.xml", WebApplicationConfiguration.class);
@@ -577,58 +591,181 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	
 	@Override
 	public Authenticator getAuthenticator() {
-		PasswordAuthenticator passwordAuthenticator = null;
-		try {
-			if (getConfiguration().getPasswordAuthenticationService() != null) {
-				passwordAuthenticator = POJOUtils.newProxy(PasswordAuthenticator.class, getConfiguration().getPasswordAuthenticationService(), getRepository(), SystemPrincipal.ROOT);
+		if (!authenticatorResolved) {
+			synchronized(this) {
+				if (!authenticatorResolved) {
+					authenticatorResolved = true;
+					try {
+						PasswordAuthenticator passwordAuthenticator = null;
+						if (getConfiguration().getPasswordAuthenticationService() != null) {
+							passwordAuthenticator = POJOUtils.newProxy(PasswordAuthenticator.class, wrap(getConfiguration().getPasswordAuthenticationService(), getMethod(PasswordAuthenticator.class, "authenticate")), getRepository(), SystemPrincipal.ROOT);
+						}
+						SecretAuthenticator sharedSecretAuthenticator = null;
+						if (getConfiguration().getSecretAuthenticationService() != null) {
+							sharedSecretAuthenticator = POJOUtils.newProxy(SecretAuthenticator.class, wrap(getConfiguration().getSecretAuthenticationService(), getMethod(SecretAuthenticator.class, "authenticate")), getRepository(), SystemPrincipal.ROOT);
+						}
+						if (passwordAuthenticator != null || sharedSecretAuthenticator != null) {
+							authenticator = new CombinedAuthenticator(passwordAuthenticator, sharedSecretAuthenticator);
+						}
+					}
+					catch(IOException e) {
+						throw new RuntimeException(e);
+					}
+				}
 			}
-			SecretAuthenticator sharedSecretAuthenticator = null;
-			if (getConfiguration().getSecretAuthenticationService() != null) {
-				sharedSecretAuthenticator = POJOUtils.newProxy(SecretAuthenticator.class, getConfiguration().getSecretAuthenticationService(), getRepository(), SystemPrincipal.ROOT);
-			}
-			return new CombinedAuthenticator(passwordAuthenticator, sharedSecretAuthenticator);
 		}
-		catch(IOException e) {
-			throw new RuntimeException(e);
+		return authenticator;
+	}
+	
+	public static Method getMethod(Class<?> clazz, String name) {
+		for (Method method : clazz.getMethods()) {
+			if (method.getName().equals(name)) {
+				return method;
+			}
+		}
+		throw new IllegalArgumentException("Can not find method '" + name + "' in class: " + clazz);
+	}
+	
+	public Service wrap(Service service, Method method) throws IOException {
+		List<Element<?>> inputExtensions = getInputExtensions(service, method);
+		Map<String, ComplexContent> inputs = new HashMap<String, ComplexContent>();
+		for (Element<?> inputExtension : inputExtensions) {
+			if (inputExtension.getType() instanceof ComplexType && inputExtension.getType() instanceof DefinedType) {
+				for (WebConfigurationPart fragmentConfiguration : getFragmentConfiguration().getParts()) {
+					if (((DefinedType) inputExtension.getType()).getId().equals(fragmentConfiguration.getType())) {
+						ComplexContent instance = ((ComplexType) inputExtension.getType()).newInstance();
+						for (String key : fragmentConfiguration.getConfiguration().keySet()) {
+							instance.set(key, fragmentConfiguration.getConfiguration().get(key));
+						}
+						inputs.put(inputExtension.getName(), instance);
+					}
+				}
+			}
+		}
+		if (inputs.isEmpty()) {
+			return service;
+		}
+		else {
+			FixedInputService fixed = new FixedInputService(service);
+			for (String name : inputs.keySet()) {
+				fixed.setInput(name, inputs.get(name));
+			}
+			return fixed;
 		}
 	}
+	
+	public static List<Element<?>> getInputExtensions(Service service, Class<?> iface) {
+		Method[] methods = iface.getMethods();
+		if (methods.length != 1) {
+			throw new IllegalArgumentException("More than 1 method found in: " + iface);
+		}
+		return getInputExtensions(service, methods[0]);
+	}
+	
+	public static List<Element<?>> getInputExtensions(Service service, Method method) {
+		List<Element<?>> elements = new ArrayList<Element<?>>();
+		ServiceInterface serviceInterface = service.getServiceInterface();
+		MethodServiceInterface iface = MethodServiceInterface.wrap(method);
+		while (serviceInterface != null && serviceInterface.equals(iface)) {
+			for (Element<?> child : serviceInterface.getInputDefinition()) {
+				elements.add(child);
+			}
+			serviceInterface = serviceInterface.getParent();
+		}
+		return elements;
+	}
+	
 	public DeviceValidator getDeviceValidator() throws IOException {
-		final DeviceValidator validatorService = getConfiguration().getDeviceValidatorService() != null ? POJOUtils.newProxy(DeviceValidator.class, getConfiguration().getDeviceValidatorService(), getRepository(), SystemPrincipal.ROOT) : null;
-		final DeviceValidator creatorService = getConfiguration().getDeviceCreatorService() != null ? POJOUtils.newProxy(DeviceValidator.class, getConfiguration().getDeviceCreatorService(), getRepository(), SystemPrincipal.ROOT) : null;
-		return validatorService == null && creatorService == null ? null : new DeviceValidator() {
-			@Override
-			public String newDeviceId(Token token, String remoteIp, String deviceDescription) {
-				return creatorService == null ? null : creatorService.newDeviceId(token, remoteIp, deviceDescription);
+		if (!deviceValidatorResolved) {
+			synchronized(this) {
+				if (!deviceValidatorResolved) {
+					deviceValidatorResolved = true;
+					final DeviceValidator validatorService = getConfiguration().getDeviceValidatorService() != null 
+						? POJOUtils.newProxy(
+							DeviceValidator.class, 
+							wrap(getConfiguration().getDeviceValidatorService(), getMethod(DeviceValidator.class, "isAllowed")), 
+							getRepository(), 
+							SystemPrincipal.ROOT
+						) : null;
+							
+					final DeviceValidator creatorService = getConfiguration().getDeviceCreatorService() != null
+						? POJOUtils.newProxy(
+							DeviceValidator.class, 
+							wrap(getConfiguration().getDeviceCreatorService(), getMethod(DeviceValidator.class, "newDeviceId")), 
+							getRepository(), 
+							SystemPrincipal.ROOT
+						) : null;
+							
+					deviceValidator = validatorService == null && creatorService == null ? null : new DeviceValidator() {
+						@Override
+						public String newDeviceId(Token token, String remoteIp, String deviceDescription) {
+							return creatorService == null ? null : creatorService.newDeviceId(token, remoteIp, deviceDescription);
+						}
+						@Override
+						public Boolean isAllowed(Token token, String remoteIp, String deviceId) {
+							return validatorService == null ? true : validatorService.isAllowed(token, remoteIp, deviceId);
+						}
+					};
+				}
 			}
-			@Override
-			public Boolean isAllowed(Token token, String remoteIp, String deviceId) {
-				return validatorService == null ? true : validatorService.isAllowed(token, remoteIp, deviceId);
-			}
-		};
+		}
+		return deviceValidator;
 	}
+	
 	public RoleHandler getRoleHandler() throws IOException {
-		if (getConfiguration().getRoleService() != null) {
-			return POJOUtils.newProxy(RoleHandler.class, getConfiguration().getRoleService(), getRepository(), SystemPrincipal.ROOT);
+		if (!roleHandlerResolved) {
+			synchronized(this) {
+				if (!roleHandlerResolved) {
+					roleHandlerResolved = true;
+					if (getConfiguration().getRoleService() != null) {
+						roleHandler = POJOUtils.newProxy(RoleHandler.class, wrap(getConfiguration().getRoleService(), getMethod(RoleHandler.class, "hasRole")), getRepository(), SystemPrincipal.ROOT);
+					}
+				}
+			}
 		}
-		return null;
+		return roleHandler;
 	}
+	
 	public PermissionHandler getPermissionHandler() throws IOException {
-		if (getConfiguration().getPermissionService() != null) {
-			return POJOUtils.newProxy(PermissionHandler.class, getConfiguration().getPermissionService(), getRepository(), SystemPrincipal.ROOT);
+		if (!permissionHandlerResolved) {
+			synchronized(this) {
+				if (!permissionHandlerResolved) {
+					permissionHandlerResolved = true;
+					if (getConfiguration().getPermissionService() != null) {
+						permissionHandler = POJOUtils.newProxy(PermissionHandler.class, wrap(getConfiguration().getPermissionService(), getMethod(PermissionHandler.class, "hasPermission")), getRepository(), SystemPrincipal.ROOT);
+					}
+				}
+			}
 		}
-		return null;
+		return permissionHandler;
 	}
+	
 	public TokenValidator getTokenValidator() throws IOException {
-		if (getConfiguration().getTokenValidatorService() != null) {
-			return POJOUtils.newProxy(TokenValidator.class, getConfiguration().getTokenValidatorService(), getRepository(), SystemPrincipal.ROOT);
+		if (!tokenValidatorResolved) {
+			synchronized(this) {
+				if (!tokenValidatorResolved) {
+					tokenValidatorResolved = true;
+					if (getConfiguration().getTokenValidatorService() != null) {
+						tokenValidator = POJOUtils.newProxy(TokenValidator.class, wrap(getConfiguration().getTokenValidatorService(), getMethod(TokenValidator.class, "isValid")), getRepository(), SystemPrincipal.ROOT);
+					}
+				}
+			}
 		}
-		return null;
+		return tokenValidator;
 	}
+	
 	public UserLanguageProvider getLanguageProvider() throws IOException {
-		if (getConfiguration().getLanguageProviderService() != null) {
-			return POJOUtils.newProxy(UserLanguageProvider.class, getConfiguration().getLanguageProviderService(), getRepository(), SystemPrincipal.ROOT);
+		if (!languageProviderResolved) {
+			synchronized(this) {
+				if (!languageProviderResolved) {
+					languageProviderResolved = true;
+					if (getConfiguration().getLanguageProviderService() != null) {
+						userLanguageProvider = POJOUtils.newProxy(UserLanguageProvider.class, wrap(getConfiguration().getLanguageProviderService(), getMethod(UserLanguageProvider.class, "getLanguage")), getRepository(), SystemPrincipal.ROOT);
+					}
+				}
+			}
 		}
-		return null;
+		return userLanguageProvider;
 	}
 	
 	public GlueListener getListener() {

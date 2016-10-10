@@ -3,6 +3,7 @@ package be.nabu.eai.module.web.application;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.net.URLConnection;
 import java.nio.charset.Charset;
@@ -53,6 +54,8 @@ import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.VBox;
+import be.nabu.eai.authentication.api.PasswordAuthenticator;
+import be.nabu.eai.authentication.api.SecretAuthenticator;
 import be.nabu.eai.developer.MainController;
 import be.nabu.eai.developer.managers.base.BaseConfigurationGUIManager;
 import be.nabu.eai.developer.managers.base.BaseJAXBGUIManager;
@@ -64,6 +67,7 @@ import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.developer.util.Find;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.repository.EAIResourceRepository;
+import be.nabu.eai.repository.api.UserLanguageProvider;
 import be.nabu.eai.repository.resources.RepositoryEntry;
 import be.nabu.jfx.control.tree.Marshallable;
 import be.nabu.jfx.control.tree.RemovableTreeItem;
@@ -73,6 +77,10 @@ import be.nabu.jfx.control.tree.TreeItem;
 import be.nabu.jfx.control.tree.TreeUtils;
 import be.nabu.jfx.control.tree.TreeUtils.TreeItemCreator;
 import be.nabu.jfx.control.tree.Updateable;
+import be.nabu.libs.authentication.api.DeviceValidator;
+import be.nabu.libs.authentication.api.PermissionHandler;
+import be.nabu.libs.authentication.api.RoleHandler;
+import be.nabu.libs.authentication.api.TokenValidator;
 import be.nabu.libs.converter.ConverterFactory;
 import be.nabu.libs.property.api.Property;
 import be.nabu.libs.property.api.Value;
@@ -86,6 +94,7 @@ import be.nabu.libs.resources.api.WritableResource;
 import be.nabu.libs.resources.api.features.CacheableResource;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
+import be.nabu.libs.types.api.Element;
 import be.nabu.libs.types.base.ComplexElementImpl;
 import be.nabu.libs.types.base.ValueImpl;
 import be.nabu.libs.validator.api.ValidationMessage;
@@ -173,70 +182,110 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 						}
 					}
 				}
-				// remove unused paths and/or types
-				Iterator<WebConfigurationPart> iterator = webConfiguration.getParts().iterator();
-				while (iterator.hasNext()) {
-					WebConfigurationPart next = iterator.next();
-					if (!allTypes.contains(next.getType())) {
-						iterator.remove();
-					}
-					else {
-						next.getPaths().retainAll(allPaths);
-					}
-				}
-				
-				for (final WebConfigurationPart configuration : webConfiguration.getParts()) {
-					VBox box = new VBox();
-					Label label = new Label(configuration.getType());
-					StringBuilder pathBuilder = new StringBuilder();
-					for (String path : configuration.getPaths()) {
-						if (!pathBuilder.toString().isEmpty()) {
-							pathBuilder.append(", ");
-						}
-						pathBuilder.append(path);
-					}
-					label.setTooltip(new Tooltip(pathBuilder.toString()));
-					box.getChildren().addAll(new Separator(Orientation.HORIZONTAL), label);
-					List<Property<?>> properties = BaseConfigurationGUIManager.createProperty(new ComplexElementImpl(typeDefinitions.get(configuration.getType()), null));
-					List<Value<?>> values = new ArrayList<Value<?>>();
-					for (Property<?> property : properties) {
-						if (configuration.getConfiguration().containsKey(property.getName())) {
-							values.add(new ValueImpl(property, ConverterFactory.getInstance().getConverter().convert(configuration.getConfiguration().get(property.getName()), property.getValueClass())));
-						}
-					}
-					AnchorPane childPane = new AnchorPane();
-					SimplePropertyUpdater updater = new SimplePropertyUpdater(true, new LinkedHashSet<Property<?>>(properties), values.toArray(new Value[values.size()]));
-					updater.valuesProperty().addListener(new ListChangeListener<Value<?>>() {
-						@Override
-						public void onChanged(ListChangeListener.Change<? extends Value<?>> change) {
-							while (change.next()) {
-								if (change.wasRemoved()) {
-									for (Value<?> value : change.getRemoved()) {
-										configuration.getConfiguration().remove(value.getProperty().getName());
-									}
-								}
-								if (change.wasAdded()) {
-									for (Value value : change.getAddedSubList()) {
-										configuration.getConfiguration().put(value.getProperty().getName(), ConverterFactory.getInstance().getConverter().convert(value.getValue(), String.class));
-									}
-								}
-								if (change.wasUpdated() || change.wasReplaced()) {
-									for (Value value : change.getList()) {
-										configuration.getConfiguration().put(value.getProperty().getName(), ConverterFactory.getInstance().getConverter().convert(value.getValue(), String.class));
+			}
+			
+			if (artifact.getConfig().getPasswordAuthenticationService() != null) {
+				Map<Method, List<Element<?>>> extensions = getExtensions(artifact);
+				for (Method method : extensions.keySet()) {
+					for (Element<?> element : extensions.get(method)) {
+						if (element.getType() instanceof ComplexType && element.getType() instanceof DefinedType) {
+							String typeId = ((DefinedType) element.getType()).getId();
+							String path = "$" + method.toString();
+							allPaths.add(path);
+							allTypes.add(typeId);
+							boolean found = false;
+							WebConfigurationPart typeMatch = null;
+							for (WebConfigurationPart configuration : webConfiguration.getParts()) {
+								if (configuration.getType().equals(typeId)) {
+									typeMatch = configuration;
+									if (configuration.getPaths().contains(path)) {
+										found = true;
+										break;
 									}
 								}
 							}
+							// did not find configuration for this fragment
+							if (!found) {
+								// found a similar type configuration, use that
+								if (typeMatch != null) {
+									typeMatch.getPaths().add(path);
+								}
+								// add a new one
+								else {
+									WebConfigurationPart newPart = new WebConfigurationPart();
+									newPart.setType(typeId);
+									newPart.getPaths().add(path);
+									webConfiguration.getParts().add(newPart);
+								}
+							}
 						}
-					});
-					MainController.getInstance().showProperties(
-						updater, 
-						childPane, 
-						true, 
-						artifact.getRepository()
-					);
-					box.getChildren().add(childPane);
-					vbox.getChildren().add(box);
+					}
 				}
+			}
+			
+			// remove unused paths and/or types
+			Iterator<WebConfigurationPart> iterator = webConfiguration.getParts().iterator();
+			while (iterator.hasNext()) {
+				WebConfigurationPart next = iterator.next();
+				if (!allTypes.contains(next.getType())) {
+					iterator.remove();
+				}
+				else {
+					next.getPaths().retainAll(allPaths);
+				}
+			}
+			
+			for (final WebConfigurationPart configuration : webConfiguration.getParts()) {
+				VBox box = new VBox();
+				Label label = new Label(configuration.getType());
+				StringBuilder pathBuilder = new StringBuilder();
+				for (String path : configuration.getPaths()) {
+					if (!pathBuilder.toString().isEmpty()) {
+						pathBuilder.append(", ");
+					}
+					pathBuilder.append(path);
+				}
+				label.setTooltip(new Tooltip(pathBuilder.toString()));
+				box.getChildren().addAll(new Separator(Orientation.HORIZONTAL), label);
+				List<Property<?>> properties = BaseConfigurationGUIManager.createProperty(new ComplexElementImpl(typeDefinitions.get(configuration.getType()), null));
+				List<Value<?>> values = new ArrayList<Value<?>>();
+				for (Property<?> property : properties) {
+					if (configuration.getConfiguration().containsKey(property.getName())) {
+						values.add(new ValueImpl(property, ConverterFactory.getInstance().getConverter().convert(configuration.getConfiguration().get(property.getName()), property.getValueClass())));
+					}
+				}
+				AnchorPane childPane = new AnchorPane();
+				SimplePropertyUpdater updater = new SimplePropertyUpdater(true, new LinkedHashSet<Property<?>>(properties), values.toArray(new Value[values.size()]));
+				updater.valuesProperty().addListener(new ListChangeListener<Value<?>>() {
+					@Override
+					public void onChanged(ListChangeListener.Change<? extends Value<?>> change) {
+						while (change.next()) {
+							if (change.wasRemoved()) {
+								for (Value<?> value : change.getRemoved()) {
+									configuration.getConfiguration().remove(value.getProperty().getName());
+								}
+							}
+							if (change.wasAdded()) {
+								for (Value value : change.getAddedSubList()) {
+									configuration.getConfiguration().put(value.getProperty().getName(), ConverterFactory.getInstance().getConverter().convert(value.getValue(), String.class));
+								}
+							}
+							if (change.wasUpdated() || change.wasReplaced()) {
+								for (Value value : change.getList()) {
+									configuration.getConfiguration().put(value.getProperty().getName(), ConverterFactory.getInstance().getConverter().convert(value.getValue(), String.class));
+								}
+							}
+						}
+					}
+				});
+				MainController.getInstance().showProperties(
+					updater, 
+					childPane, 
+					true, 
+					artifact.getRepository()
+				);
+				box.getChildren().add(childPane);
+				vbox.getChildren().add(box);
 			}
 		}
 		catch (IOException e) {
@@ -267,6 +316,44 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		AnchorPane.setBottomAnchor(tabs, 0d);
 		
 		pane.getChildren().add(tabs);
+	}
+	
+	private Map<Method, List<Element<?>>> getExtensions(WebApplication artifact) {
+		Map<Method, List<Element<?>>> extensions = new HashMap<Method, List<Element<?>>>();
+		
+		// password authenticator
+		Method method = WebApplication.getMethod(PasswordAuthenticator.class, "authenticate");
+		extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getPasswordAuthenticationService(), method));
+		
+		// secret authenticator
+		method = WebApplication.getMethod(SecretAuthenticator.class, "authenticate");
+		extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getSecretAuthenticationService(), method));
+		
+		// token validator
+		method = WebApplication.getMethod(TokenValidator.class, "isValid");
+		extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getTokenValidatorService(), method));
+		
+		// language provider
+		method = WebApplication.getMethod(UserLanguageProvider.class, "getLanguage");
+		extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getLanguageProviderService(), method));
+		
+		// role handler
+		method = WebApplication.getMethod(RoleHandler.class, "hasRole");
+		extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getRoleService(), method));
+		
+		// permission handler
+		method = WebApplication.getMethod(PermissionHandler.class, "hasPermission");
+		extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getPermissionService(), method));
+		
+		// device creator
+		method = WebApplication.getMethod(DeviceValidator.class, "newDeviceId");
+		extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getDeviceCreatorService(), method));
+		
+		// device validator
+		method = WebApplication.getMethod(DeviceValidator.class, "isAllowed");
+		extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getDeviceValidatorService(), method));
+		
+		return extensions;
 	}
 	
 	@SuppressWarnings({ "unchecked", "rawtypes" })
