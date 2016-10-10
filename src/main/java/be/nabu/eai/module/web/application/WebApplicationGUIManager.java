@@ -184,39 +184,38 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 				}
 			}
 			
-			if (artifact.getConfig().getPasswordAuthenticationService() != null) {
-				Map<Method, List<Element<?>>> extensions = getExtensions(artifact);
-				for (Method method : extensions.keySet()) {
-					for (Element<?> element : extensions.get(method)) {
-						if (element.getType() instanceof ComplexType && element.getType() instanceof DefinedType) {
-							String typeId = ((DefinedType) element.getType()).getId();
-							String path = "$" + method.toString();
-							allPaths.add(path);
-							allTypes.add(typeId);
-							boolean found = false;
-							WebConfigurationPart typeMatch = null;
-							for (WebConfigurationPart configuration : webConfiguration.getParts()) {
-								if (configuration.getType().equals(typeId)) {
-									typeMatch = configuration;
-									if (configuration.getPaths().contains(path)) {
-										found = true;
-										break;
-									}
+			Map<Method, List<Element<?>>> extensions = getExtensions(artifact);
+			for (Method method : extensions.keySet()) {
+				for (Element<?> element : extensions.get(method)) {
+					if (element.getType() instanceof ComplexType && element.getType() instanceof DefinedType) {
+						String typeId = ((DefinedType) element.getType()).getId();
+						typeDefinitions.put(typeId, (ComplexType) element.getType());
+						String path = "$" + method.toString();
+						allPaths.add(path);
+						allTypes.add(typeId);
+						boolean found = false;
+						WebConfigurationPart typeMatch = null;
+						for (WebConfigurationPart configuration : webConfiguration.getParts()) {
+							if (configuration.getType().equals(typeId)) {
+								typeMatch = configuration;
+								if (configuration.getPaths().contains(path)) {
+									found = true;
+									break;
 								}
 							}
-							// did not find configuration for this fragment
-							if (!found) {
-								// found a similar type configuration, use that
-								if (typeMatch != null) {
-									typeMatch.getPaths().add(path);
-								}
-								// add a new one
-								else {
-									WebConfigurationPart newPart = new WebConfigurationPart();
-									newPart.setType(typeId);
-									newPart.getPaths().add(path);
-									webConfiguration.getParts().add(newPart);
-								}
+						}
+						// did not find configuration for this fragment
+						if (!found) {
+							// found a similar type configuration, use that
+							if (typeMatch != null) {
+								typeMatch.getPaths().add(path);
+							}
+							// add a new one
+							else {
+								WebConfigurationPart newPart = new WebConfigurationPart();
+								newPart.setType(typeId);
+								newPart.getPaths().add(path);
+								webConfiguration.getParts().add(newPart);
 							}
 						}
 					}
@@ -322,36 +321,52 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		Map<Method, List<Element<?>>> extensions = new HashMap<Method, List<Element<?>>>();
 		
 		// password authenticator
-		Method method = WebApplication.getMethod(PasswordAuthenticator.class, "authenticate");
-		extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getPasswordAuthenticationService(), method));
+		if (artifact.getConfig().getPasswordAuthenticationService() != null) {
+			Method method = WebApplication.getMethod(PasswordAuthenticator.class, "authenticate");
+			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getPasswordAuthenticationService(), method));
+		}
 		
 		// secret authenticator
-		method = WebApplication.getMethod(SecretAuthenticator.class, "authenticate");
-		extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getSecretAuthenticationService(), method));
+		if (artifact.getConfig().getSecretAuthenticationService() != null) {
+			Method method = WebApplication.getMethod(SecretAuthenticator.class, "authenticate");
+			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getSecretAuthenticationService(), method));
+		}
 		
 		// token validator
-		method = WebApplication.getMethod(TokenValidator.class, "isValid");
-		extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getTokenValidatorService(), method));
+		if (artifact.getConfig().getTokenValidatorService() != null) {
+			Method method = WebApplication.getMethod(TokenValidator.class, "isValid");
+			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getTokenValidatorService(), method));
+		}
 		
 		// language provider
-		method = WebApplication.getMethod(UserLanguageProvider.class, "getLanguage");
-		extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getLanguageProviderService(), method));
+		if (artifact.getConfig().getLanguageProviderService() != null) {
+			Method method = WebApplication.getMethod(UserLanguageProvider.class, "getLanguage");
+			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getLanguageProviderService(), method));
+		}
 		
 		// role handler
-		method = WebApplication.getMethod(RoleHandler.class, "hasRole");
-		extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getRoleService(), method));
+		if (artifact.getConfig().getRoleService() != null) {
+			Method method = WebApplication.getMethod(RoleHandler.class, "hasRole");
+			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getRoleService(), method));
+		}
 		
 		// permission handler
-		method = WebApplication.getMethod(PermissionHandler.class, "hasPermission");
-		extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getPermissionService(), method));
+		if (artifact.getConfig().getPermissionService() != null) {
+			Method method = WebApplication.getMethod(PermissionHandler.class, "hasPermission");
+			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getPermissionService(), method));
+		}
 		
 		// device creator
-		method = WebApplication.getMethod(DeviceValidator.class, "newDeviceId");
-		extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getDeviceCreatorService(), method));
+		if (artifact.getConfig().getDeviceCreatorService() != null) {
+			Method method = WebApplication.getMethod(DeviceValidator.class, "newDeviceId");
+			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getDeviceCreatorService(), method));
+		}
 		
 		// device validator
-		method = WebApplication.getMethod(DeviceValidator.class, "isAllowed");
-		extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getDeviceValidatorService(), method));
+		if (artifact.getConfig().getDeviceValidatorService() != null) {
+			Method method = WebApplication.getMethod(DeviceValidator.class, "isAllowed");
+			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getDeviceValidatorService(), method));
+		}
 		
 		return extensions;
 	}

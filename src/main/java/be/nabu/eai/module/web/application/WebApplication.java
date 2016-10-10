@@ -666,7 +666,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		List<Element<?>> elements = new ArrayList<Element<?>>();
 		ServiceInterface serviceInterface = service.getServiceInterface();
 		MethodServiceInterface iface = MethodServiceInterface.wrap(method);
-		while (serviceInterface != null && serviceInterface.equals(iface)) {
+		while (serviceInterface != null && !serviceInterface.equals(iface)) {
 			for (Element<?> child : serviceInterface.getInputDefinition()) {
 				elements.add(child);
 			}
