@@ -64,6 +64,76 @@
 		</dependency>
 		<dependency>
 			<groupId>be.nabu.libs.http</groupId>
+			<artifactId>http-server</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>be.nabu.libs.types</groupId>
+			<artifactId>types-java</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>be.nabu.libs.types</groupId>
+			<artifactId>types-map</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>be.nabu.libs.types</groupId>
+			<artifactId>types-binding-xml</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>be.nabu.libs.types</groupId>
+			<artifactId>types-binding-json</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>javax.ws.rs</groupId>
+			<artifactId>javax.ws.rs-api</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>be.nabu.glue</groupId>
+			<artifactId>glue-types</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>be.nabu.glue</groupId>
+			<artifactId>glue</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>be.nabu.glue</groupId>
+			<artifactId>glue-xml</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>be.nabu.glue</groupId>
+			<artifactId>glue-json</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>be.nabu.glue</groupId>
+			<artifactId>glue-services</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>be.nabu.libs.events</groupId>
+			<artifactId>events-impl</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>be.nabu.libs.metrics</groupId>
+			<artifactId>metrics-api</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>be.nabu.libs.http</groupId>
 			<artifactId>http-glue</artifactId>
 		</dependency>
 	</dependencies>
