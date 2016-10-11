@@ -111,6 +111,13 @@ import be.nabu.utils.mime.impl.MimeUtils;
 /**
  * TODO: integrate session provider to use same cache as service cache
  * Maybe re-add "AnyThreadTracker" to the context?
+ * 
+ * TODO: the configuration for the webfragments is absolutely necessary but it does not work well with the paths
+ * The only reason the paths were added was so you could mount the same fragment twice and configure it differently (e.g. two wiki endpoints)
+ * However with the method extension logic introduced later on, the paths lose relevance quickly
+ * An alternative approach could be to remove paths alltogether and match everything on type
+ * We could still support the (very rare) occassion when you want to mount something twice by allowing webcomponent-level configuration
+ * This would require you to add the fragment the second time to a web component, configure it there and add the web component to the application
  */
 public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> implements StartableArtifact, StoppableArtifact, AuthenticatorProvider {
 
