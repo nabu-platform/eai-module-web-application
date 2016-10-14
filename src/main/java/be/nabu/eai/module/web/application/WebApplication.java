@@ -456,6 +456,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				final Map<String, ComplexContent> translatorValues = getInputValues(getConfig().getTranslationService(), getMethod(Translator.class, "translate"));
 				final String additional;
 				final String key;
+				// the translator is a special case (compared with the other services) because it is not used as an object, so we can't wrap it
+				// instead the id of the service is injected into glue to be called
+				// currently the way to solve it is to detect these "additional" parameters, json stringify them and inject them as json
+				// classic type masking in glue will make sure the unmarshalled version is "transformed" to the correct type
 				if (translatorValues != null && translatorValues.size() > 0) {
 					if (translatorValues.size() > 1) {
 						throw new RuntimeException("Translation services can only have one extended field");
