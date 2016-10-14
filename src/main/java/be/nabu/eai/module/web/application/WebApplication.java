@@ -1,5 +1,6 @@
 package be.nabu.eai.module.web.application;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
@@ -29,6 +30,7 @@ import be.nabu.eai.repository.api.CacheProviderArtifact;
 import be.nabu.eai.repository.api.LicenseManager;
 import be.nabu.eai.repository.api.LicensedRepository;
 import be.nabu.eai.repository.api.Repository;
+import be.nabu.eai.repository.api.Translator;
 import be.nabu.eai.repository.api.UserLanguageProvider;
 import be.nabu.eai.repository.artifacts.jaxb.JAXBArtifact;
 import be.nabu.eai.repository.impl.CacheSessionProvider;
@@ -102,6 +104,7 @@ import be.nabu.libs.types.api.ComplexContent;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.Element;
+import be.nabu.libs.types.binding.json.JSONBinding;
 import be.nabu.utils.io.IOUtils;
 import be.nabu.utils.io.api.ByteBuffer;
 import be.nabu.utils.io.api.ReadableContainer;
@@ -450,6 +453,23 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			
 			final UserLanguageProvider languageProvider = getLanguageProvider();
 			if (getConfiguration().getTranslationService() != null) {
+				final Map<String, ComplexContent> translatorValues = getInputValues(getConfig().getTranslationService(), getMethod(Translator.class, "translate"));
+				final String additional;
+				final String key;
+				if (translatorValues != null && translatorValues.size() > 0) {
+					if (translatorValues.size() > 1) {
+						throw new RuntimeException("Translation services can only have one extended field");
+					}
+					key = translatorValues.keySet().iterator().next();
+					JSONBinding binding = new JSONBinding(translatorValues.get(key).getType());
+					ByteArrayOutputStream output = new ByteArrayOutputStream();
+					binding.marshal(output, translatorValues.get(key));
+					additional = new String(output.toByteArray(), Charset.forName("UTF-8")).replace("'", "\\'");
+				}
+				else {
+					additional = null;
+					key = null;
+				}
 				listener.getSubstituterProviders().add(new StringSubstituterProvider() {
 					@Override
 					public StringSubstituter getSubstituter(ScriptRuntime runtime) {
@@ -470,7 +490,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							}
 						}
 						try {
-							return new be.nabu.glue.impl.ImperativeSubstitutor("%", "template(" + getConfiguration().getTranslationService().getId() + "(\"page:" + ScriptUtils.getFullName(runtime.getScript()) + "\", \"${value}\", " + (language == null ? "null" : "\"" + language + "\"") + ")/translation)");
+							if (additional != null) {
+								return new be.nabu.glue.impl.ImperativeSubstitutor("%", "template(" + getConfiguration().getTranslationService().getId() + "(\"page:" + ScriptUtils.getFullName(runtime.getScript()) + "\", \"${value}\", " + (language == null ? "null" : "\"" + language + "\"")
+										+ ", " + key + ": json.objectify('" + additional + "'))/translation)");
+							}
+							else {
+								return new be.nabu.glue.impl.ImperativeSubstitutor("%", "template(" + getConfiguration().getTranslationService().getId() + "(\"page:" + ScriptUtils.getFullName(runtime.getScript()) + "\", \"${value}\", " + (language == null ? "null" : "\"" + language + "\"") + ")/translation)");
+							}
 						}
 						catch (IOException e) {
 							throw new RuntimeException("Could not get translation service", e);
@@ -634,6 +660,20 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	}
 	
 	public Service wrap(Service service, Method method) throws IOException {
+		Map<String, ComplexContent> inputs = getInputValues(service, method);
+		if (inputs.isEmpty()) {
+			return service;
+		}
+		else {
+			FixedInputService fixed = new FixedInputService(service);
+			for (String name : inputs.keySet()) {
+				fixed.setInput(name, inputs.get(name));
+			}
+			return fixed;
+		}
+	}
+
+	private Map<String, ComplexContent> getInputValues(Service service, Method method) throws IOException {
 		List<Element<?>> inputExtensions = getInputExtensions(service, method);
 		Map<String, ComplexContent> inputs = new HashMap<String, ComplexContent>();
 		for (Element<?> inputExtension : inputExtensions) {
@@ -649,16 +689,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				}
 			}
 		}
-		if (inputs.isEmpty()) {
-			return service;
-		}
-		else {
-			FixedInputService fixed = new FixedInputService(service);
-			for (String name : inputs.keySet()) {
-				fixed.setInput(name, inputs.get(name));
-			}
-			return fixed;
-		}
+		return inputs;
 	}
 	
 	public static List<Element<?>> getInputExtensions(Service service, Class<?> iface) {

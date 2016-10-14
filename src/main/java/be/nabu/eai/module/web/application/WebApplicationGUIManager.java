@@ -67,6 +67,7 @@ import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.developer.util.Find;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.repository.EAIResourceRepository;
+import be.nabu.eai.repository.api.Translator;
 import be.nabu.eai.repository.api.UserLanguageProvider;
 import be.nabu.eai.repository.resources.RepositoryEntry;
 import be.nabu.jfx.control.tree.Marshallable;
@@ -366,6 +367,12 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		if (artifact.getConfig().getDeviceValidatorService() != null) {
 			Method method = WebApplication.getMethod(DeviceValidator.class, "isAllowed");
 			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getDeviceValidatorService(), method));
+		}
+		
+		// translator
+		if (artifact.getConfig().getTranslationService() != null) {
+			Method method = WebApplication.getMethod(Translator.class, "translate");
+			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getTranslationService(), method));
 		}
 		
 		return extensions;
