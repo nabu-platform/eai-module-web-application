@@ -357,12 +357,6 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getPermissionService(), method));
 		}
 		
-		// device creator
-		if (artifact.getConfig().getDeviceCreatorService() != null) {
-			Method method = WebApplication.getMethod(DeviceValidator.class, "newDeviceId");
-			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getDeviceCreatorService(), method));
-		}
-		
 		// device validator
 		if (artifact.getConfig().getDeviceValidatorService() != null) {
 			Method method = WebApplication.getMethod(DeviceValidator.class, "isAllowed");

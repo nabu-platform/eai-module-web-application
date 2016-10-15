@@ -22,7 +22,6 @@ public class WebApplicationInterfaceLister implements InterfaceLister {
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Role Handler", "be.nabu.libs.authentication.api.RoleHandler.hasRole"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Permission Handler", "be.nabu.libs.authentication.api.PermissionHandler.hasPermission"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Device Validator", "be.nabu.libs.authentication.api.DeviceValidator.isAllowed"));
-					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Device Creator", "be.nabu.libs.authentication.api.DeviceValidator.newDeviceId"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Translator", "be.nabu.eai.repository.api.Translator.translate"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Language Provider", "be.nabu.eai.repository.api.UserLanguageProvider.getLanguage"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Token Validator", "be.nabu.libs.authentication.api.TokenValidator.isValid"));

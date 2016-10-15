@@ -722,32 +722,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			synchronized(this) {
 				if (!deviceValidatorResolved) {
 					deviceValidatorResolved = true;
-					final DeviceValidator validatorService = getConfiguration().getDeviceValidatorService() != null 
+					deviceValidator = getConfiguration().getDeviceValidatorService() != null 
 						? POJOUtils.newProxy(
 							DeviceValidator.class, 
 							wrap(getConfiguration().getDeviceValidatorService(), getMethod(DeviceValidator.class, "isAllowed")), 
 							getRepository(), 
 							SystemPrincipal.ROOT
 						) : null;
-							
-					final DeviceValidator creatorService = getConfiguration().getDeviceCreatorService() != null
-						? POJOUtils.newProxy(
-							DeviceValidator.class, 
-							wrap(getConfiguration().getDeviceCreatorService(), getMethod(DeviceValidator.class, "newDeviceId")), 
-							getRepository(), 
-							SystemPrincipal.ROOT
-						) : null;
-							
-					deviceValidator = validatorService == null && creatorService == null ? null : new DeviceValidator() {
-						@Override
-						public String newDeviceId(Token token, String remoteIp, String deviceDescription) {
-							return creatorService == null ? null : creatorService.newDeviceId(token, remoteIp, deviceDescription);
-						}
-						@Override
-						public Boolean isAllowed(Token token, String remoteIp, String deviceId) {
-							return validatorService == null ? true : validatorService.isAllowed(token, remoteIp, deviceId);
-						}
-					};
 				}
 			}
 		}
