@@ -912,4 +912,24 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		super.save(directory);
 	}
 	
+	public String getCookiePath() {
+		if (getConfig().getCookiePath() != null) {
+			String path = getConfig().getCookiePath();
+			if (path == null) {
+				path = "/";
+			}
+			else if (!path.startsWith("/")) {
+				path = "/" + path;
+			}
+			return path;
+		}
+		else {
+			try {
+				return getServerPath();
+			}
+			catch (IOException e) {
+				throw new RuntimeException(e);
+			}
+		}
+	}
 }
