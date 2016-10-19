@@ -66,6 +66,7 @@ import be.nabu.eai.developer.util.Confirm.ConfirmType;
 import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.developer.util.Find;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
+import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Translator;
 import be.nabu.eai.repository.api.UserLanguageProvider;
@@ -144,41 +145,43 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			Map<String, ComplexType> typeDefinitions = new HashMap<String, ComplexType>();
 			if (artifact.getConfiguration().getWebFragments() != null) {
 				for (WebFragment fragment : artifact.getConfiguration().getWebFragments()) {
-					for (final WebFragmentConfiguration fragmentConfiguration : fragment.getFragmentConfiguration()) {
-						String typeId = ((DefinedType) fragmentConfiguration.getType()).getId();
-						typeDefinitions.put(typeId, fragmentConfiguration.getType());
-						String path = fragmentConfiguration.getPath();
-						if (artifact.getConfiguration().getPath() != null && !artifact.getConfiguration().getPath().isEmpty() && !"/".equals(artifact.getConfiguration().getPath())) {
-							path = artifact.getConfiguration().getPath().replaceFirst("[/]+$", "") + "/" + path.replaceFirst("^[/]+", "");
-							if (!path.startsWith("/")) {
-								path = "/" + path;
-							}
-						}
-						allPaths.add(path);
-						allTypes.add(typeId);
-						boolean found = false;
-						WebConfigurationPart typeMatch = null;
-						for (WebConfigurationPart configuration : webConfiguration.getParts()) {
-							if (configuration.getType().equals(typeId)) {
-								typeMatch = configuration;
-								if (configuration.getPaths().contains(path)) {
-									found = true;
-									break;
+					if (fragment != null) {
+						for (final WebFragmentConfiguration fragmentConfiguration : fragment.getFragmentConfiguration()) {
+							String typeId = ((DefinedType) fragmentConfiguration.getType()).getId();
+							typeDefinitions.put(typeId, fragmentConfiguration.getType());
+							String path = fragmentConfiguration.getPath();
+							if (artifact.getConfiguration().getPath() != null && !artifact.getConfiguration().getPath().isEmpty() && !"/".equals(artifact.getConfiguration().getPath())) {
+								path = artifact.getConfiguration().getPath().replaceFirst("[/]+$", "") + "/" + path.replaceFirst("^[/]+", "");
+								if (!path.startsWith("/")) {
+									path = "/" + path;
 								}
 							}
-						}
-						// did not find configuration for this fragment
-						if (!found) {
-							// found a similar type configuration, use that
-							if (typeMatch != null) {
-								typeMatch.getPaths().add(path);
+							allPaths.add(path);
+							allTypes.add(typeId);
+							boolean found = false;
+							WebConfigurationPart typeMatch = null;
+							for (WebConfigurationPart configuration : webConfiguration.getParts()) {
+								if (configuration.getType().equals(typeId)) {
+									typeMatch = configuration;
+									if (configuration.getPaths().contains(path)) {
+										found = true;
+										break;
+									}
+								}
 							}
-							// add a new one
-							else {
-								WebConfigurationPart newPart = new WebConfigurationPart();
-								newPart.setType(typeId);
-								newPart.getPaths().add(path);
-								webConfiguration.getParts().add(newPart);
+							// did not find configuration for this fragment
+							if (!found) {
+								// found a similar type configuration, use that
+								if (typeMatch != null) {
+									typeMatch.getPaths().add(path);
+								}
+								// add a new one
+								else {
+									WebConfigurationPart newPart = new WebConfigurationPart();
+									newPart.setType(typeId);
+									newPart.getPaths().add(path);
+									webConfiguration.getParts().add(newPart);
+								}
 							}
 						}
 					}
@@ -324,49 +327,49 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		// password authenticator
 		if (artifact.getConfig().getPasswordAuthenticationService() != null) {
 			Method method = WebApplication.getMethod(PasswordAuthenticator.class, "authenticate");
-			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getPasswordAuthenticationService(), method));
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getPasswordAuthenticationService(), method));
 		}
 		
 		// secret authenticator
 		if (artifact.getConfig().getSecretAuthenticationService() != null) {
 			Method method = WebApplication.getMethod(SecretAuthenticator.class, "authenticate");
-			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getSecretAuthenticationService(), method));
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getSecretAuthenticationService(), method));
 		}
 		
 		// token validator
 		if (artifact.getConfig().getTokenValidatorService() != null) {
 			Method method = WebApplication.getMethod(TokenValidator.class, "isValid");
-			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getTokenValidatorService(), method));
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getTokenValidatorService(), method));
 		}
 		
 		// language provider
 		if (artifact.getConfig().getLanguageProviderService() != null) {
 			Method method = WebApplication.getMethod(UserLanguageProvider.class, "getLanguage");
-			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getLanguageProviderService(), method));
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getLanguageProviderService(), method));
 		}
 		
 		// role handler
 		if (artifact.getConfig().getRoleService() != null) {
 			Method method = WebApplication.getMethod(RoleHandler.class, "hasRole");
-			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getRoleService(), method));
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getRoleService(), method));
 		}
 		
 		// permission handler
 		if (artifact.getConfig().getPermissionService() != null) {
 			Method method = WebApplication.getMethod(PermissionHandler.class, "hasPermission");
-			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getPermissionService(), method));
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getPermissionService(), method));
 		}
 		
 		// device validator
 		if (artifact.getConfig().getDeviceValidatorService() != null) {
 			Method method = WebApplication.getMethod(DeviceValidator.class, "isAllowed");
-			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getDeviceValidatorService(), method));
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getDeviceValidatorService(), method));
 		}
 		
 		// translator
 		if (artifact.getConfig().getTranslationService() != null) {
 			Method method = WebApplication.getMethod(Translator.class, "translate");
-			extensions.put(method, WebApplication.getInputExtensions(artifact.getConfig().getTranslationService(), method));
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getTranslationService(), method));
 		}
 		
 		return extensions;

@@ -23,6 +23,7 @@ import be.nabu.eai.authentication.api.PasswordAuthenticator;
 import be.nabu.eai.authentication.api.SecretAuthenticator;
 import be.nabu.eai.module.http.server.RepositoryExceptionFormatter;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
+import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.MetricsLevelProvider;
 import be.nabu.eai.repository.api.AuthenticatorProvider;
@@ -96,9 +97,7 @@ import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.resources.api.WritableResource;
 import be.nabu.libs.services.api.Service;
-import be.nabu.libs.services.api.ServiceInterface;
 import be.nabu.libs.services.fixed.FixedInputService;
-import be.nabu.libs.services.pojo.MethodServiceInterface;
 import be.nabu.libs.services.pojo.POJOUtils;
 import be.nabu.libs.types.api.ComplexContent;
 import be.nabu.libs.types.api.ComplexType;
@@ -678,7 +677,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	}
 
 	private Map<String, ComplexContent> getInputValues(Service service, Method method) throws IOException {
-		List<Element<?>> inputExtensions = getInputExtensions(service, method);
+		List<Element<?>> inputExtensions = EAIRepositoryUtils.getInputExtensions(service, method);
 		Map<String, ComplexContent> inputs = new HashMap<String, ComplexContent>();
 		for (Element<?> inputExtension : inputExtensions) {
 			if (inputExtension.getType() instanceof ComplexType && inputExtension.getType() instanceof DefinedType) {
@@ -694,27 +693,6 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 		}
 		return inputs;
-	}
-	
-	public static List<Element<?>> getInputExtensions(Service service, Class<?> iface) {
-		Method[] methods = iface.getMethods();
-		if (methods.length != 1) {
-			throw new IllegalArgumentException("More than 1 method found in: " + iface);
-		}
-		return getInputExtensions(service, methods[0]);
-	}
-	
-	public static List<Element<?>> getInputExtensions(Service service, Method method) {
-		List<Element<?>> elements = new ArrayList<Element<?>>();
-		ServiceInterface serviceInterface = service.getServiceInterface();
-		MethodServiceInterface iface = MethodServiceInterface.wrap(method);
-		while (serviceInterface != null && !serviceInterface.equals(iface)) {
-			for (Element<?> child : serviceInterface.getInputDefinition()) {
-				elements.add(child);
-			}
-			serviceInterface = serviceInterface.getParent();
-		}
-		return elements;
 	}
 	
 	public DeviceValidator getDeviceValidator() throws IOException {
