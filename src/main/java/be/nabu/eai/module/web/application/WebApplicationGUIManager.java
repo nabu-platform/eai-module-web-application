@@ -71,6 +71,7 @@ import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Translator;
 import be.nabu.eai.repository.api.UserLanguageProvider;
 import be.nabu.eai.repository.resources.RepositoryEntry;
+import be.nabu.jfx.control.ace.AceEditor;
 import be.nabu.jfx.control.tree.Marshallable;
 import be.nabu.jfx.control.tree.RemovableTreeItem;
 import be.nabu.jfx.control.tree.Tree;
