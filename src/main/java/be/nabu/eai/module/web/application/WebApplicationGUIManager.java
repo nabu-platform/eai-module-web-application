@@ -35,6 +35,7 @@ import javafx.event.EventHandler;
 import javafx.geometry.Orientation;
 import javafx.geometry.Side;
 import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
@@ -53,6 +54,7 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.AnchorPane;
+import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import be.nabu.eai.authentication.api.PasswordAuthenticator;
 import be.nabu.eai.authentication.api.SecretAuthenticator;
@@ -894,10 +896,48 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 							}
 						}
 					});
+					aceEditor.subscribe(AceEditor.FULL_SCREEN, new EventHandler<Event>() {
+						@Override
+						public void handle(Event arg0) {
+							toggleFullScreen(editors);
+						}
+					});
 				}
 				editors.getSelectionModel().select(tab);
 				tab.getContent().requestFocus();
 			}
+		}
+	}
+	
+	private static List<Node> content;
+	private static Scene scene;
+	private static void toggleFullScreen(TabPane contentToShow) {
+		if (content == null) {
+			int index = contentToShow.getTabs().indexOf(contentToShow.getSelectionModel().getSelectedItem());
+			content = new ArrayList<Node>(contentToShow.getScene().getRoot().getChildrenUnmodifiable());
+			scene = contentToShow.getScene();
+			TabPane pane = new TabPane();
+			((Pane) scene.getRoot()).getChildren().clear();
+			pane.getTabs().addAll(contentToShow.getTabs());
+			contentToShow.getTabs().clear();
+			pane.getSelectionModel().select(index);
+			((Pane) scene.getRoot()).getChildren().add(pane);
+			AnchorPane.setBottomAnchor(pane, 0d);
+			AnchorPane.setTopAnchor(pane, 0d);
+			AnchorPane.setLeftAnchor(pane, 0d);
+			AnchorPane.setRightAnchor(pane, 0d);
+			pane.prefWidthProperty().bind(scene.widthProperty());
+			pane.prefHeightProperty().bind(scene.heightProperty());
+		}
+		else {
+			TabPane pane = (TabPane) ((Pane) scene.getRoot()).getChildren().get(0);
+			int index = pane.getTabs().indexOf(pane.getSelectionModel().getSelectedItem());
+			((Pane) scene.getRoot()).getChildren().clear();
+			((Pane) scene.getRoot()).getChildren().addAll(content);
+			content = null;
+			contentToShow.getTabs().addAll(pane.getTabs());
+			pane.getTabs().clear();
+			contentToShow.getSelectionModel().select(index);
 		}
 	}
 }
