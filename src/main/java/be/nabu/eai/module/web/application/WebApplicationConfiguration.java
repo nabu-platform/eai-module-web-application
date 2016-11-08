@@ -14,7 +14,7 @@ import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "trackerService", "translationService", "languageProviderService", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "webFragments" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "trackerService", "translationService", "languageProviderService", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "webFragments" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -36,6 +36,7 @@ public class WebApplicationConfiguration {
 	private DefinedService translationService;
 	private DefinedService languageProviderService;
 	private DefinedService deviceValidatorService;
+	private DefinedService requestSubscriber;
 	private Boolean allowBasicAuthentication;
 	private List<WebFragment> webFragments;
 	
@@ -263,5 +264,15 @@ public class WebApplicationConfiguration {
 	}
 	public void setCookiePath(String cookiePath) {
 		this.cookiePath = cookiePath;
+	}
+	
+	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.RequestSubscriber.handle")	
+	@EnvironmentSpecific
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	public DefinedService getRequestSubscriber() {
+		return requestSubscriber;
+	}
+	public void setRequestSubscriber(DefinedService requestSubscriber) {
+		this.requestSubscriber = requestSubscriber;
 	}
 }

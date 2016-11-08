@@ -67,6 +67,7 @@ import be.nabu.eai.developer.util.Confirm;
 import be.nabu.eai.developer.util.Confirm.ConfirmType;
 import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.developer.util.Find;
+import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
@@ -373,6 +374,12 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		if (artifact.getConfig().getTranslationService() != null) {
 			Method method = WebApplication.getMethod(Translator.class, "translate");
 			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getTranslationService(), method));
+		}
+		
+		// request subscriber
+		if (artifact.getConfig().getRequestSubscriber() != null) {
+			Method method = WebApplication.getMethod(RequestSubscriber.class, "handle");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getRequestSubscriber(), method));
 		}
 		
 		return extensions;

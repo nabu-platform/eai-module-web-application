@@ -25,6 +25,7 @@ public class WebApplicationInterfaceLister implements InterfaceLister {
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Translator", "be.nabu.eai.repository.api.Translator.translate"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Language Provider", "be.nabu.eai.repository.api.UserLanguageProvider.getLanguage"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Token Validator", "be.nabu.libs.authentication.api.TokenValidator.isValid"));
+					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Request Subscriber", "be.nabu.eai.module.web.application.api.RequestSubscriber.handle"));
 					WebApplicationInterfaceLister.descriptions = descriptions;
 				}
 			}

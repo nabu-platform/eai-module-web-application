@@ -22,6 +22,8 @@ import org.slf4j.LoggerFactory;
 import be.nabu.eai.authentication.api.PasswordAuthenticator;
 import be.nabu.eai.authentication.api.SecretAuthenticator;
 import be.nabu.eai.module.http.server.RepositoryExceptionFormatter;
+import be.nabu.eai.module.web.application.api.RequestSubscriber;
+import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
@@ -89,6 +91,8 @@ import be.nabu.libs.metrics.api.MetricInstance;
 import be.nabu.libs.metrics.core.api.SinkEvent;
 import be.nabu.libs.metrics.core.filters.ThresholdOverTimeFilter;
 import be.nabu.libs.metrics.impl.MetricGrouper;
+import be.nabu.libs.nio.PipelineUtils;
+import be.nabu.libs.nio.api.SourceContext;
 import be.nabu.libs.resources.CombinedContainer;
 import be.nabu.libs.resources.ResourceReadableContainer;
 import be.nabu.libs.resources.api.ManageableContainer;
@@ -268,6 +272,20 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 			
 			EventDispatcher dispatcher = getConfiguration().getVirtualHost().getDispatcher();
+			
+			// allow custom request handlers, request rewriting & response rewriting are the domain of the glue pre & post processors
+			if (getConfiguration().getRequestSubscriber() != null) {
+				final RequestSubscriber requestSubscriber = POJOUtils.newProxy(RequestSubscriber.class, wrap(getConfiguration().getRequestSubscriber(), getMethod(RequestSubscriber.class, "handle")), getRepository(), SystemPrincipal.ROOT);
+				EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, new EventHandler<HTTPRequest, HTTPResponse>() {
+					@Override
+					public HTTPResponse handle(HTTPRequest event) {
+						SourceContext sourceContext = PipelineUtils.getPipeline().getSourceContext();
+						return requestSubscriber.handle(getId(), getRealm(), new SourceImpl(sourceContext), event);
+					}
+				});
+				subscription.filter(HTTPServerUtils.limitToPath(serverPath));
+			}
+			
 			// before the base authentication required authenticate header rewriter, add a rewriter for the response (if applicable)
 			if (metaRepository != null) {
 				GluePostProcessListener postprocessListener = new GluePostProcessListener(
