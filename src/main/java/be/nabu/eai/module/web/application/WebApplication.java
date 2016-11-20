@@ -125,7 +125,7 @@ import be.nabu.utils.mime.impl.MimeUtils;
  * We could still support the (very rare) occassion when you want to mount something twice by allowing webcomponent-level configuration
  * This would require you to add the fragment the second time to a web component, configure it there and add the web component to the application
  */
-public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> implements StartableArtifact, StoppableArtifact, AuthenticatorProvider {
+public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> implements StartableArtifact, StoppableArtifact, AuthenticatorProvider, WebFragmentProvider {
 
 	public static final String MODULE = "nabu.web.application";
 	private Map<ResourceContainer<?>, ScriptRepository> additionalRepositories = new HashMap<ResourceContainer<?>, ScriptRepository>();
@@ -927,5 +927,16 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				throw new RuntimeException(e);
 			}
 		}
+	}
+
+	@Override
+	public List<WebFragment> getWebFragments() {
+		return getConfig().getWebFragments();
+	}
+
+	// always relative to whatever the web application says because it _is_ the web application
+	@Override
+	public String getRelativePath() {
+		return "/";
 	}
 }
