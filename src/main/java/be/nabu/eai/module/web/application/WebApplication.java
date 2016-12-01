@@ -30,8 +30,10 @@ import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.MetricsLevelProvider;
 import be.nabu.eai.repository.api.AuthenticatorProvider;
 import be.nabu.eai.repository.api.CacheProviderArtifact;
+import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.LicenseManager;
 import be.nabu.eai.repository.api.LicensedRepository;
+import be.nabu.eai.repository.api.Node;
 import be.nabu.eai.repository.api.Repository;
 import be.nabu.eai.repository.api.Translator;
 import be.nabu.eai.repository.api.UserLanguageProvider;
@@ -43,6 +45,7 @@ import be.nabu.glue.api.Script;
 import be.nabu.glue.api.ScriptRepository;
 import be.nabu.glue.api.StringSubstituter;
 import be.nabu.glue.api.StringSubstituterProvider;
+import be.nabu.glue.core.impl.methods.v2.HashMethods;
 import be.nabu.glue.core.impl.parsers.GlueParserProvider;
 import be.nabu.glue.core.repositories.ScannableScriptRepository;
 import be.nabu.glue.impl.SimpleExecutionEnvironment;
@@ -262,6 +265,15 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			environment.put("url", host);
 			environment.put("host", hostName);
 			environment.put("hostName", getConfiguration().getVirtualHost().getConfiguration().getHost());
+			
+			String version = "initial";
+			Entry entry = getRepository().getEntry(getId());
+			// build an automatic version
+			if (entry != null) {
+				Node node = entry.getNode();
+				version = (String) HashMethods.md5(node.getEnvironmentId() + "." + node.getVersion() + "." + node.getLastModified().toString());
+			}
+			environment.put("version", version);
 			
 			String environmentName = serverPath;
 			if (environmentName.startsWith("/")) {
