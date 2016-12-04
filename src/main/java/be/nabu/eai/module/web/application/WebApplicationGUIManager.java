@@ -603,6 +603,11 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 					find.show(selectedItem == null ? getResources(tree.rootProperty().get()) : getResources(selectedItem.getItem()));
 					event.consume();
 				}
+				else if (event.getCode() == KeyCode.E && event.isControlDown()) {
+					if (tree.getSelectionModel().getSelectedItem() != null) {
+						tree.getSelectionModel().getSelectedItem().expandAll();
+					}
+				}
 			}
 		});
 		
@@ -788,7 +793,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		if (!found) {
 			final Resource resource = newValue.getItem().itemProperty().get();
 			if (resource instanceof ReadableResource) {
-				final Tab tab = new Tab(path);
+				final Tab tab = new Tab(path.replaceAll("^.*/", ""));
 				tab.setId(path);
 				editors.getTabs().add(tab);
 				byte[] bytes;
