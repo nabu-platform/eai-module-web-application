@@ -289,7 +289,8 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 					updater, 
 					childPane, 
 					true, 
-					artifact.getRepository()
+					artifact.getRepository(),
+					true
 				);
 				box.getChildren().add(childPane);
 				vbox.getChildren().add(box);

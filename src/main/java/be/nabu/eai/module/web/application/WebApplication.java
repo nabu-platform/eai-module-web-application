@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.nio.charset.Charset;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -418,6 +419,27 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							synchronized(cacheProvider) {
 								cache = cacheProvider.get(getId() + "-script-" + name);
 								if (cache == null) {
+									Long configuredTimeout = null;
+									try {
+										Script script = listener.getRepository().getScript(name);
+										if (script.getRoot().getContext() != null && script.getRoot().getContext().getAnnotations() != null) {
+											String string = script.getRoot().getContext().getAnnotations().get("cache");
+											if (string != null && !string.trim().isEmpty()) {
+												String[] parts = string.split("[\\s]*,[\\s]*");
+												configuredTimeout = Long.parseLong(parts[0]);
+											}
+										}
+									}
+									catch (ParseException e) {
+										logger.warn("Can not check for configured timeout for glue script '" + name + "'", e);
+									}
+									if (configuredTimeout == null) {
+										configuredTimeout = getConfiguration().getScriptCacheTimeout() == null ? 1000l*60*60 : getConfiguration().getScriptCacheTimeout();
+									}
+									// if you set the timeout to negative, it should not be cached
+									if (configuredTimeout < 0) {
+										return null;
+									}
 									cache = cacheProvider.create(getId() + "-script-" + name, 
 										// defaults to unlimited
 										getConfiguration().getMaxTotalScriptCacheSize() == null ? 0 : getConfiguration().getMaxTotalScriptCacheSize(),
@@ -427,7 +449,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 										new HTTPResponseDataSerializer(), 
 										null, 
 										// defaults to 1 hour
-										new AccessBasedTimeoutManager(getConfiguration().getScriptCacheTimeout() == null ? 1000l*60*60 : getConfiguration().getScriptCacheTimeout())
+										new AccessBasedTimeoutManager(configuredTimeout)
 									);
 								}
 							}
