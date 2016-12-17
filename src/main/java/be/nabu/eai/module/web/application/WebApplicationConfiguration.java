@@ -14,7 +14,7 @@ import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "trackerService", "translationService", "languageProviderService", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "webFragments" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "languageProviderService", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "webFragments" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -32,7 +32,6 @@ public class WebApplicationConfiguration {
 	private DefinedService permissionService;
 	private DefinedService roleService;
 	private DefinedService tokenValidatorService;
-	private DefinedService trackerService;
 	private DefinedService translationService;
 	private DefinedService languageProviderService;
 	private DefinedService deviceValidatorService;
@@ -118,16 +117,6 @@ public class WebApplicationConfiguration {
 		this.tokenValidatorService = tokenValidatorService;
 	}
 
-	@EnvironmentSpecific
-	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
-	@InterfaceFilter(implement = "be.nabu.eai.repository.api.FlatServiceTracker.track")
-	public DefinedService getTrackerService() {
-		return trackerService;
-	}
-	public void setTrackerService(DefinedService serviceTrackerService) {
-		this.trackerService = serviceTrackerService;
-	}
-	
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.libs.authentication.api.DeviceValidator.isAllowed")	
 	public DefinedService getDeviceValidatorService() {
