@@ -9,6 +9,7 @@ import java.util.Map;
 
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
+import javax.xml.bind.Marshaller;
 import javax.xml.bind.annotation.XmlRootElement;
 import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 
@@ -31,8 +32,14 @@ public class WebConfiguration {
 
 	public static class WebConfigurationPart {
 		private String type;
+		// the paths for which this configuration counts, null means all
+		// the most specific one wins
+		private String pathRegex;
+		// this is deprecated but still provides some documentational support
 		private List<String> paths;
 		private Map<String, String> configuration;
+		// whether or not the given configuration is environment specific (almost nothing is)
+		private Boolean environmentSpecific;
 		public String getType() {
 			return type;
 		}
@@ -58,6 +65,18 @@ public class WebConfiguration {
 		public void setConfiguration(Map<String, String> configuration) {
 			this.configuration = configuration;
 		}
+		public String getPathRegex() {
+			return pathRegex;
+		}
+		public void setPathRegex(String pathRegex) {
+			this.pathRegex = pathRegex;
+		}
+		public Boolean getEnvironmentSpecific() {
+			return environmentSpecific;
+		}
+		public void setEnvironmentSpecific(Boolean environmentSpecific) {
+			this.environmentSpecific = environmentSpecific;
+		}
 	}
 	
 	public static WebConfiguration unmarshal(InputStream input) {
@@ -71,7 +90,9 @@ public class WebConfiguration {
 	
 	public void marshal(OutputStream output) {
 		try {
-			JAXBContext.newInstance(WebConfiguration.class).createMarshaller().marshal(this, output);
+			Marshaller marshaller = JAXBContext.newInstance(WebConfiguration.class).createMarshaller();
+			marshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, Boolean.TRUE);
+			marshaller.marshal(this, output);
 		}
 		catch (JAXBException e) {
 			throw new RuntimeException(e);

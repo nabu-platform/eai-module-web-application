@@ -1,12 +1,11 @@
 package be.nabu.eai.module.web.application;
 
-import java.io.IOException;
-
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.VBox;
 import be.nabu.eai.developer.managers.base.JAXBArtifactMerger;
 import be.nabu.eai.repository.api.Repository;
+import be.nabu.libs.types.api.ComplexContent;
 
 public class WebApplicationMerger extends JAXBArtifactMerger<WebApplication> {
 
@@ -21,16 +20,20 @@ public class WebApplicationMerger extends JAXBArtifactMerger<WebApplication> {
 		VBox vbox = new VBox();
 		vbox.getChildren().addAll(pane.getChildren());
 		pane.getChildren().clear();
-		try {
-			// if the target exist, take its configuration
-			if (target != null) {
-				source.setFragmentConfiguration(target.getFragmentConfiguration());
+		// if the target exist, take its configuration for the environment-specific parts
+		if (target != null) {
+			for (String typeId : source.getFragmentConfigurations().keySet()) {
+				for (String regex : source.getFragmentConfigurations().get(typeId).keySet()) {
+					if (source.getEnvironmentSpecificConfigurations().contains(source.getFragmentConfigurations().get(typeId).get(regex))) {
+						ComplexContent targetContent = target.getFragmentConfigurations().get(typeId).get(regex);
+						if (targetContent != null) {
+							source.getFragmentConfigurations().get(typeId).put(regex, targetContent);
+						}
+					}
+				}
 			}
-			WebApplicationGUIManager.displayPartConfiguration(source, vbox);
 		}
-		catch (IOException e) {
-			throw new RuntimeException(e);
-		}
+		WebApplicationGUIManager.displayPartConfiguration(source, vbox, source.getFragmentConfigurations(), source.getEnvironmentSpecificConfigurations(), false);
 		scroll.setContent(vbox);
 		pane.getChildren().add(scroll);
 		AnchorPane.setBottomAnchor(scroll, 0.0);

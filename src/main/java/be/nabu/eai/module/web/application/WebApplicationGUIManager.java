@@ -13,12 +13,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
@@ -27,7 +25,6 @@ import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
-import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.event.Event;
@@ -36,6 +33,8 @@ import javafx.geometry.Orientation;
 import javafx.geometry.Side;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
@@ -46,7 +45,6 @@ import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TabPane.TabClosingPolicy;
-import javafx.scene.control.Tooltip;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
@@ -54,12 +52,14 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.AnchorPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import be.nabu.eai.authentication.api.PasswordAuthenticator;
 import be.nabu.eai.authentication.api.SecretAuthenticator;
+import be.nabu.eai.developer.ComplexContentEditor;
+import be.nabu.eai.developer.ComplexContentEditor.ValueWrapper;
 import be.nabu.eai.developer.MainController;
-import be.nabu.eai.developer.managers.base.BaseConfigurationGUIManager;
 import be.nabu.eai.developer.managers.base.BaseJAXBGUIManager;
 import be.nabu.eai.developer.managers.util.SimpleProperty;
 import be.nabu.eai.developer.managers.util.SimplePropertyUpdater;
@@ -68,7 +68,6 @@ import be.nabu.eai.developer.util.Confirm.ConfirmType;
 import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.developer.util.Find;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
-import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Translator;
@@ -87,7 +86,6 @@ import be.nabu.libs.authentication.api.DeviceValidator;
 import be.nabu.libs.authentication.api.PermissionHandler;
 import be.nabu.libs.authentication.api.RoleHandler;
 import be.nabu.libs.authentication.api.TokenValidator;
-import be.nabu.libs.converter.ConverterFactory;
 import be.nabu.libs.property.api.Property;
 import be.nabu.libs.property.api.Value;
 import be.nabu.libs.resources.ResourceUtils;
@@ -98,11 +96,10 @@ import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.resources.api.WritableResource;
 import be.nabu.libs.resources.api.features.CacheableResource;
+import be.nabu.libs.types.api.ComplexContent;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.Element;
-import be.nabu.libs.types.base.ComplexElementImpl;
-import be.nabu.libs.types.base.ValueImpl;
 import be.nabu.libs.validator.api.ValidationMessage;
 import be.nabu.libs.validator.api.ValidationMessage.Severity;
 import be.nabu.utils.io.IOUtils;
@@ -115,6 +112,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 
 	public WebApplicationGUIManager() {
 		super("Web Application", WebApplication.class, new WebApplicationManager(), WebApplicationConfiguration.class);
+		MainController.registerStyleSheet("webapplication.css");
 	}
 
 	@Override
@@ -167,55 +165,31 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		pane.getChildren().add(tabs);
 	}
 
-	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public static void displayPartConfiguration(final WebApplication artifact, VBox vbox) {
+		displayPartConfiguration(artifact, vbox, artifact.getFragmentConfigurations(), artifact.getEnvironmentSpecificConfigurations(), true);
+	}
+	
+	public static void displayPartConfiguration(final WebApplication artifact, VBox vbox, Map<String, Map<String, ComplexContent>> fragmentConfigurations, List<ComplexContent> environmentSpecificConfigurations, boolean includeCheckbox) {
 		// add the configuration per fragment
 		try {
-			WebConfiguration webConfiguration = artifact.getFragmentConfiguration();
-			Set<String> allPaths = new HashSet<String>();
-			Set<String> allTypes = new HashSet<String>();
-			// saves a lookup later on
-			Map<String, ComplexType> typeDefinitions = new HashMap<String, ComplexType>();
+			// keeps track of the contents to see which are in use
+			List<ComplexContent> used = new ArrayList<ComplexContent>();
 			if (artifact.getConfiguration().getWebFragments() != null) {
 				for (WebFragment fragment : artifact.getConfiguration().getWebFragments()) {
-					if (fragment != null) {
-						for (final WebFragmentConfiguration fragmentConfiguration : fragment.getFragmentConfiguration()) {
+					List<WebFragmentConfiguration> configurations = fragment == null ? null : fragment.getFragmentConfiguration();
+					if (configurations != null) {
+						for (final WebFragmentConfiguration fragmentConfiguration : configurations) {
 							String typeId = ((DefinedType) fragmentConfiguration.getType()).getId();
-							typeDefinitions.put(typeId, fragmentConfiguration.getType());
+							// get the path claimed by the configuration
 							String path = fragmentConfiguration.getPath();
+							// append anything that the web application itself adds (if it is not on the root)
 							if (artifact.getConfiguration().getPath() != null && !artifact.getConfiguration().getPath().isEmpty() && !"/".equals(artifact.getConfiguration().getPath())) {
 								path = artifact.getConfiguration().getPath().replaceFirst("[/]+$", "") + "/" + path.replaceFirst("^[/]+", "");
 								if (!path.startsWith("/")) {
 									path = "/" + path;
 								}
 							}
-							allPaths.add(path);
-							allTypes.add(typeId);
-							boolean found = false;
-							WebConfigurationPart typeMatch = null;
-							for (WebConfigurationPart configuration : webConfiguration.getParts()) {
-								if (configuration.getType().equals(typeId)) {
-									typeMatch = configuration;
-									if (configuration.getPaths().contains(path)) {
-										found = true;
-										break;
-									}
-								}
-							}
-							// did not find configuration for this fragment
-							if (!found) {
-								// found a similar type configuration, use that
-								if (typeMatch != null) {
-									typeMatch.getPaths().add(path);
-								}
-								// add a new one
-								else {
-									WebConfigurationPart newPart = new WebConfigurationPart();
-									newPart.setType(typeId);
-									newPart.getPaths().add(path);
-									webConfiguration.getParts().add(newPart);
-								}
-							}
+							reusableMethodWithNoName(artifact, used, typeId, path, fragmentConfiguration.getType(), fragmentConfigurations);
 						}
 					}
 				}
@@ -226,108 +200,84 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 				for (Element<?> element : extensions.get(method)) {
 					if (element.getType() instanceof ComplexType && element.getType() instanceof DefinedType) {
 						String typeId = ((DefinedType) element.getType()).getId();
-						typeDefinitions.put(typeId, (ComplexType) element.getType());
 						String path = "$" + method.toString();
-						allPaths.add(path);
-						allTypes.add(typeId);
-						boolean found = false;
-						WebConfigurationPart typeMatch = null;
-						for (WebConfigurationPart configuration : webConfiguration.getParts()) {
-							if (configuration.getType().equals(typeId)) {
-								typeMatch = configuration;
-								if (configuration.getPaths().contains(path)) {
-									found = true;
-									break;
-								}
-							}
-						}
-						// did not find configuration for this fragment
-						if (!found) {
-							// found a similar type configuration, use that
-							if (typeMatch != null) {
-								typeMatch.getPaths().add(path);
-							}
-							// add a new one
-							else {
-								WebConfigurationPart newPart = new WebConfigurationPart();
-								newPart.setType(typeId);
-								newPart.getPaths().add(path);
-								webConfiguration.getParts().add(newPart);
-							}
-						}
+						reusableMethodWithNoName(artifact, used, typeId, path, (ComplexType) element.getType(), fragmentConfigurations);
 					}
 				}
 			}
 			
-			// remove unused paths and/or types
-			Iterator<WebConfigurationPart> iterator = webConfiguration.getParts().iterator();
-			while (iterator.hasNext()) {
-				WebConfigurationPart next = iterator.next();
-				if (!allTypes.contains(next.getType())) {
-					iterator.remove();
-				}
-				else {
-					next.getPaths().retainAll(allPaths);
-				}
-			}
-			
-			for (final WebConfigurationPart configuration : webConfiguration.getParts()) {
-				VBox box = new VBox();
-				Label label = new Label(configuration.getType());
-				StringBuilder pathBuilder = new StringBuilder();
-				for (String path : configuration.getPaths()) {
-					if (!pathBuilder.toString().isEmpty()) {
-						pathBuilder.append(", ");
-					}
-					pathBuilder.append(path);
-				}
-				label.setTooltip(new Tooltip(pathBuilder.toString()));
-				box.getChildren().addAll(new Separator(Orientation.HORIZONTAL), label);
-				List<Property<?>> properties = BaseConfigurationGUIManager.createProperty(new ComplexElementImpl(typeDefinitions.get(configuration.getType()), null));
-				List<Value<?>> values = new ArrayList<Value<?>>();
-				for (Property<?> property : properties) {
-					if (configuration.getConfiguration().containsKey(property.getName())) {
-						values.add(new ValueImpl(property, ConverterFactory.getInstance().getConverter().convert(configuration.getConfiguration().get(property.getName()), property.getValueClass())));
-					}
-				}
-				AnchorPane childPane = new AnchorPane();
-				SimplePropertyUpdater updater = new SimplePropertyUpdater(true, new LinkedHashSet<Property<?>>(properties), values.toArray(new Value[values.size()]));
-				updater.valuesProperty().addListener(new ListChangeListener<Value<?>>() {
-					@Override
-					public void onChanged(ListChangeListener.Change<? extends Value<?>> change) {
-						while (change.next()) {
-							if (change.wasRemoved()) {
-								for (Value<?> value : change.getRemoved()) {
-									configuration.getConfiguration().remove(value.getProperty().getName());
+			// could autoremove unused configurations or just flag them with a button to delete
+			// you might have accidently removed something you didn't mean to and lose precious configuration settings
+			for (String typeId : fragmentConfigurations.keySet()) {
+				for (String regex : fragmentConfigurations.get(typeId).keySet()) {
+					ComplexContent content = fragmentConfigurations.get(typeId).get(regex);
+					VBox box = new VBox();
+					box.getStyleClass().add("web-fragment-configuration");
+					HBox hbox = new HBox();
+					hbox.getStyleClass().add("title");
+					hbox.getChildren().add(new Label(typeId + " applicable to: " + (regex == null ? ".*" : regex)));
+					if (!used.contains(content)) {
+						Button delete = new Button("Remove Unused");
+						delete.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
+							@Override
+							public void handle(ActionEvent arg0) {
+								fragmentConfigurations.get(typeId).remove(regex);
+								if (fragmentConfigurations.get(typeId).isEmpty()) {
+									fragmentConfigurations.remove(typeId);
 								}
+								vbox.getChildren().remove(box);
+								MainController.getInstance().setChanged();
 							}
-							if (change.wasAdded()) {
-								for (Value value : change.getAddedSubList()) {
-									configuration.getConfiguration().put(value.getProperty().getName(), ConverterFactory.getInstance().getConverter().convert(value.getValue(), String.class));
-								}
-							}
-							if (change.wasUpdated() || change.wasReplaced()) {
-								for (Value value : change.getList()) {
-									configuration.getConfiguration().put(value.getProperty().getName(), ConverterFactory.getInstance().getConverter().convert(value.getValue(), String.class));
-								}
-							}
-						}
+						});
+						hbox.getChildren().add(delete);
+						box.getStyleClass().add("web-fragment-configuration-unused");
 					}
-				});
-				MainController.getInstance().showProperties(
-					updater, 
-					childPane, 
-					true, 
-					artifact.getRepository(),
-					true
-				);
-				box.getChildren().add(childPane);
-				vbox.getChildren().add(box);
+					Separator separator = new Separator(Orientation.HORIZONTAL);
+					separator.getStyleClass().add("separator");
+					box.getChildren().addAll(separator, hbox);
+					if (includeCheckbox) {
+						CheckBox checkbox = new CheckBox("Environment specific");
+						checkbox.getStyleClass().add("environmentSpecific");
+						checkbox.setSelected(environmentSpecificConfigurations.contains(content));
+						checkbox.selectedProperty().addListener(new ChangeListener<Boolean>() {
+							@Override
+							public void changed(ObservableValue<? extends Boolean> arg0, Boolean arg1, Boolean arg2) {
+								if (!arg2) {
+									environmentSpecificConfigurations.remove(content);
+								}
+								else if (!environmentSpecificConfigurations.contains(content)) {
+									environmentSpecificConfigurations.add(content);
+								}
+								MainController.getInstance().setChanged();
+							}
+						});
+						box.getChildren().add(checkbox);
+					}
+					Tree<ValueWrapper> tree = new ComplexContentEditor(content, true, artifact.getRepository()).getTree();
+					tree.getStyleClass().add("tree");
+					tree.prefWidthProperty().bind(box.widthProperty());
+					box.getChildren().add(tree);
+					vbox.getChildren().add(box);
+				}
 			}
 		}
 		catch (IOException e) {
 			throw new RuntimeException(e);
 		}
+	}
+
+	private static void reusableMethodWithNoName(final WebApplication artifact, List<ComplexContent> used, String typeId, String path, ComplexType type, Map<String, Map<String, ComplexContent>> fragmentConfigurations) throws IOException {
+		// check if there is a configuration for this item
+		ComplexContent currentConfiguration = artifact.getConfigurationFor(path, type, fragmentConfigurations);
+		// if not, create one with a root path regex
+		if (currentConfiguration == null) {
+			if (!fragmentConfigurations.containsKey(typeId)) {
+				fragmentConfigurations.put(typeId, new HashMap<String, ComplexContent>());
+			}
+			currentConfiguration = type.newInstance();
+			fragmentConfigurations.get(typeId).put(null, currentConfiguration);
+		}
+		used.add(currentConfiguration);
 	}
 	
 	private static Map<Method, List<Element<?>>> getExtensions(WebApplication artifact) {

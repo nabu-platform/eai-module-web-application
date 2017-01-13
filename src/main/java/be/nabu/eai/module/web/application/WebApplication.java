@@ -111,6 +111,7 @@ import be.nabu.libs.types.api.ComplexContent;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.Element;
+import be.nabu.libs.types.base.TypeBaseUtils;
 import be.nabu.libs.types.binding.json.JSONBinding;
 import be.nabu.utils.io.IOUtils;
 import be.nabu.utils.io.api.ByteBuffer;
@@ -150,6 +151,11 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private TokenValidator tokenValidator;
 	private UserLanguageProvider userLanguageProvider;
 	private DeviceValidator deviceValidator;
+	
+	// typeId > regex > content
+	private Map<String, Map<String, ComplexContent>> fragmentConfigurations;
+	// very bad solution to keep track of which configuration is environment specific (almost none are)
+	private List<ComplexContent> environmentSpecificConfigurations = new ArrayList<ComplexContent>();
 	
 	public WebApplication(String id, ResourceContainer<?> directory, Repository repository) {
 		super(id, directory, repository, "webartifact.xml", WebApplicationConfiguration.class);
@@ -195,6 +201,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		}
 		boolean isDevelopment = EAIResourceRepository.isDevelopment();
 		if (!started && getConfiguration().getVirtualHost() != null) {
+			buildConfiguration();
+			
+			// load the rest
 			String realm = getRealm();
 			String serverPath = getServerPath();
 
@@ -630,6 +639,40 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			logger.info("Started " + subscriptions.size() + " subscriptions");
 		}
 	}
+
+	private void buildConfiguration() {
+		fragmentConfigurations = new HashMap<String, Map<String,ComplexContent>>();
+		// load the fragment configurations
+		WebConfiguration fragmentConfiguration = getFragmentConfiguration();
+		if (fragmentConfiguration != null && fragmentConfiguration.getParts() != null) {
+			for (WebConfigurationPart part : fragmentConfiguration.getParts()) {
+				if (!fragmentConfigurations.containsKey(part.getType())) {
+					fragmentConfigurations.put(part.getType(), new HashMap<String, ComplexContent>());
+				}
+				DefinedType resolve = (DefinedType) getRepository().resolve(part.getType());
+				if (resolve == null) {
+					throw new RuntimeException("Could not find complex type: " + part.getType());
+				}
+				ComplexContent newInstance = ((ComplexType) resolve).newInstance();
+				Set<String> keySet = part.getConfiguration().keySet();
+				Iterator<String> iterator = keySet.iterator();
+				while(iterator.hasNext()) {
+					String key = iterator.next();
+					try {
+						newInstance.set(key.replace('.', '/'), part.getConfiguration().get(key));
+					}
+					catch (Exception e) {
+						logger.warn("Removing " + part.getPathRegex() + ", " + key + " = " + part.getConfiguration().get(key), e);
+						iterator.remove();
+					}
+				}
+				fragmentConfigurations.get(part.getType()).put(part.getPathRegex(), newInstance);
+				if (part.getEnvironmentSpecific() != null && part.getEnvironmentSpecific()) {
+					environmentSpecificConfigurations.add(newInstance);
+				}
+			}
+		}
+	}
 	
 	public Map<String, String> getProperties() throws IOException {
 		// load properties
@@ -883,22 +926,27 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		fragmentConfiguration = configuration;
 	}
 	
-	WebConfiguration getFragmentConfiguration() throws IOException {
+	WebConfiguration getFragmentConfiguration() {
 		if (fragmentConfiguration == null) {
 			synchronized(this) {
 				if (fragmentConfiguration == null) {
-					Resource child = getDirectory().getChild("fragments.xml");
-					if (child != null) {
-						ReadableContainer<ByteBuffer> readable = ((ReadableResource) child).getReadable();
-						try {
-							fragmentConfiguration = WebConfiguration.unmarshal(IOUtils.toInputStream(readable));
+					try {
+						Resource child = getDirectory().getChild("fragments.xml");
+						if (child != null) {
+							ReadableContainer<ByteBuffer> readable = ((ReadableResource) child).getReadable();
+							try {
+								fragmentConfiguration = WebConfiguration.unmarshal(IOUtils.toInputStream(readable));
+							}
+							finally {
+								readable.close();
+							}
 						}
-						finally {
-							readable.close();
+						else {
+							fragmentConfiguration = new WebConfiguration();
 						}
 					}
-					else {
-						fragmentConfiguration = new WebConfiguration();
+					catch (IOException e) {
+						throw new RuntimeException(e);
 					}
 				}
 			}
@@ -907,38 +955,68 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	}
 	
 	public ComplexContent getConfigurationFor(String path, ComplexType type) throws IOException {
-		ComplexContent newInstance = type.newInstance();
+		return getConfigurationFor(path, type, fragmentConfigurations);
+	}
+
+	ComplexContent getConfigurationFor(String path, ComplexType type, Map<String, Map<String, ComplexContent>> fragmentConfigurations) {
 		String typeId = ((DefinedType) type).getId();
-		for (WebConfigurationPart configuration : getFragmentConfiguration().getParts()) {
-			if (typeId.equals(configuration.getType()) && configuration.getPaths().contains(path)) {
-				Set<String> keySet = configuration.getConfiguration().keySet();
-				Iterator<String> iterator = keySet.iterator();
-				while(iterator.hasNext()) {
-					String key = iterator.next();
-					try {
-						newInstance.set(key.replace('.', '/'), configuration.getConfiguration().get(key));
-					}
-					catch (Exception e) {
-						logger.warn("Removing " + path + ", " + key + " = " + configuration.getConfiguration().get(key), e);
-						iterator.remove();
-					}
+		Map<String, ComplexContent> map = fragmentConfigurations.get(typeId);
+		if (map == null) {
+			return null;
+		}
+		String closestRegex = null;
+		ComplexContent closest = null;
+		for (String key : map.keySet()) {
+			if (key == null || path.matches(key)) {
+				if (closestRegex == null || (key != null && key.length() > closestRegex.length())) {
+					closest = map.get(key);
 				}
 			}
 		}
-		return newInstance;
+		return closest;
 	}
 	
+	Map<String, Map<String, ComplexContent>> getFragmentConfigurations() {
+		if (fragmentConfigurations == null) {
+			synchronized(this) {
+				if (fragmentConfigurations == null) {
+					buildConfiguration();
+				}
+			}
+		}
+		return fragmentConfigurations;
+	}
+	
+	List<ComplexContent> getEnvironmentSpecificConfigurations() {
+		return environmentSpecificConfigurations;
+	}
+
+	void setEnvironmentSpecificConfigurations(List<ComplexContent> environmentSpecificConfigurations) {
+		this.environmentSpecificConfigurations = environmentSpecificConfigurations;
+	}
+
 	@Override
 	public void save(ResourceContainer<?> directory) throws IOException {
+		WebConfiguration configuration = new WebConfiguration();
+		for (String typeId : getFragmentConfigurations().keySet()) {
+			for (String regex : getFragmentConfigurations().get(typeId).keySet()) {
+				ComplexContent content = getFragmentConfigurations().get(typeId).get(regex);
+				WebConfigurationPart part = new WebConfigurationPart();
+				part.setConfiguration(TypeBaseUtils.toStringMap(content));
+				part.setPathRegex(regex);
+				part.setType(typeId);
+				part.setEnvironmentSpecific(environmentSpecificConfigurations.contains(content));
+				configuration.getParts().add(part);
+			}
+		}
 		// save properties
-		WebConfiguration fragmentConfiguration2 = getFragmentConfiguration();
 		Resource resource = directory.getChild("fragments.xml");
 		if (resource == null) {
 			resource = ((ManageableContainer<?>) directory).create("fragments.xml", "application/xml");
 		}
 		WritableContainer<ByteBuffer> writable = ((WritableResource) resource).getWritable();
 		try {
-			fragmentConfiguration2.marshal(IOUtils.toOutputStream(writable));
+			configuration.marshal(IOUtils.toOutputStream(writable));
 		}
 		finally {
 			writable.close();

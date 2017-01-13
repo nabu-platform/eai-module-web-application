@@ -1,0 +1,8 @@
+.web-fragment-configuration .title, .web-fragment-configuration .environmentSpecific, .web-fragment-configuration .separator,
+	.web-fragment-configuration .tree {
+	-fx-padding: 5px;
+}
+
+.web-fragment-configuration-unused {
+	
+}
