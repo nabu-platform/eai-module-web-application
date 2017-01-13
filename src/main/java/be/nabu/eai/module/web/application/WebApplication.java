@@ -879,6 +879,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		return resourceHandler;
 	}
 
+	void setFragmentConfiguration(WebConfiguration configuration) {
+		fragmentConfiguration = configuration;
+	}
+	
 	WebConfiguration getFragmentConfiguration() throws IOException {
 		if (fragmentConfiguration == null) {
 			synchronized(this) {

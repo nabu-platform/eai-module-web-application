@@ -132,7 +132,6 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		return "Web";
 	}
 	
-	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	public void display(MainController controller, AnchorPane pane, final WebApplication artifact) {
 		VBox vbox = new VBox();
@@ -140,6 +139,36 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		display(artifact, anchor);
 		vbox.getChildren().addAll(anchor);
 		
+		displayPartConfiguration(artifact, vbox);
+		
+		ScrollPane scroll = new ScrollPane();
+		scroll.setContent(vbox);
+		vbox.prefWidthProperty().bind(scroll.widthProperty().subtract(100));
+		
+		TabPane tabs = new TabPane();
+		tabs.setTabClosingPolicy(TabClosingPolicy.UNAVAILABLE);
+		tabs.setSide(Side.RIGHT);
+		Tab tab = new Tab("Configuration");
+		tab.setContent(scroll);
+		tab.setClosable(false);
+		tabs.getTabs().add(tab);
+		try {
+			tabs.getTabs().add(buildEditingTab(artifact));
+		}
+		catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+		
+		AnchorPane.setLeftAnchor(tabs, 0d);
+		AnchorPane.setRightAnchor(tabs, 0d);
+		AnchorPane.setTopAnchor(tabs, 0d);
+		AnchorPane.setBottomAnchor(tabs, 0d);
+		
+		pane.getChildren().add(tabs);
+	}
+
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	public static void displayPartConfiguration(final WebApplication artifact, VBox vbox) {
 		// add the configuration per fragment
 		try {
 			WebConfiguration webConfiguration = artifact.getFragmentConfiguration();
@@ -299,34 +328,9 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		catch (IOException e) {
 			throw new RuntimeException(e);
 		}
-		
-		ScrollPane scroll = new ScrollPane();
-		scroll.setContent(vbox);
-		vbox.prefWidthProperty().bind(scroll.widthProperty().subtract(100));
-		
-		TabPane tabs = new TabPane();
-		tabs.setTabClosingPolicy(TabClosingPolicy.UNAVAILABLE);
-		tabs.setSide(Side.RIGHT);
-		Tab tab = new Tab("Configuration");
-		tab.setContent(scroll);
-		tab.setClosable(false);
-		tabs.getTabs().add(tab);
-		try {
-			tabs.getTabs().add(buildEditingTab(artifact));
-		}
-		catch (Exception e) {
-			throw new RuntimeException(e);
-		}
-		
-		AnchorPane.setLeftAnchor(tabs, 0d);
-		AnchorPane.setRightAnchor(tabs, 0d);
-		AnchorPane.setTopAnchor(tabs, 0d);
-		AnchorPane.setBottomAnchor(tabs, 0d);
-		
-		pane.getChildren().add(tabs);
 	}
 	
-	private Map<Method, List<Element<?>>> getExtensions(WebApplication artifact) {
+	private static Map<Method, List<Element<?>>> getExtensions(WebApplication artifact) {
 		Map<Method, List<Element<?>>> extensions = new HashMap<Method, List<Element<?>>>();
 		
 		// password authenticator
@@ -578,6 +582,10 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 				}
 			}
 		});
+		
+		final List<String> searchableContentTypes = Arrays.asList(new String [] { "text/plain", "application/javascript", "text/xml", "application/xml", "text/css",
+				"text/x-glue", "text/x-gcss", "text/x-eglue", "text/x-markdown" });
+		
 		tree.addEventHandler(KeyEvent.KEY_PRESSED, new EventHandler<KeyEvent>() {
 			@Override
 			public void handle(KeyEvent event) {
@@ -586,7 +594,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 						open(editors, tree.getSelectionModel().getSelectedItem());
 					}
 				}
-				else if (event.getCode() == KeyCode.F && event.isControlDown()) {
+				else if (event.getCode() == KeyCode.F && event.isControlDown() && !event.isShiftDown()) {
 					Find<TreeItem<Resource>> find = new Find<TreeItem<Resource>>(new Marshallable<TreeItem<Resource>>() {
 						@Override
 						public String marshal(TreeItem<Resource> instance) {
@@ -604,6 +612,36 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 					find.show(selectedItem == null ? getResources(tree.rootProperty().get()) : getResources(selectedItem.getItem()));
 					event.consume();
 				}
+				// need to add a lucene searcher for resources and use it here
+//				else if (event.getCode() == KeyCode.F && event.isControlDown() && event.isShiftDown()) {
+//					Find<TreeItem<Resource>> find = new Find<TreeItem<Resource>>(new Marshallable<TreeItem<Resource>>() {
+//						@Override
+//						public String marshal(TreeItem<Resource> instance) {
+//							return TreeUtils.getPath(instance).replaceFirst("^[/]+", "").replace("/", ".");
+//						}
+//					}) {
+//						@Override
+//						public void filterList(List<TreeItem<Resource>> list, String newValue) {
+//							Iterator<TreeItem<Resource>> iterator = list.iterator();
+//							while (iterator.hasNext()) {
+//								TreeItem<Resource> next = iterator.next();
+//								if (searchableContentTypes.contains(next.itemProperty().get().getContentType())) {
+//									
+//								}
+//							}
+//						}
+//					};
+//					find.selectedItemProperty().addListener(new ChangeListener<TreeItem<Resource>>() {
+//						@Override
+//						public void changed(ObservableValue<? extends TreeItem<Resource>> observable, TreeItem<Resource> oldValue, TreeItem<Resource> newValue) {
+//							TreeCell<Resource> treeCell = tree.getTreeCell(newValue);
+//							treeCell.select();
+//						}
+//					});
+//					TreeCell<Resource> selectedItem = tree.getSelectionModel().getSelectedItem();
+//					find.show(selectedItem == null ? getResources(tree.rootProperty().get()) : getResources(selectedItem.getItem()));
+//					event.consume();
+//				}
 				else if (event.getCode() == KeyCode.E && event.isControlDown()) {
 					if (tree.getSelectionModel().getSelectedItem() != null) {
 						tree.getSelectionModel().getSelectedItem().expandAll();
