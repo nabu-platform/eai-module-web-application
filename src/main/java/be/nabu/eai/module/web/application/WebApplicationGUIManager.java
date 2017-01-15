@@ -234,7 +234,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 					}
 					Separator separator = new Separator(Orientation.HORIZONTAL);
 					separator.getStyleClass().add("separator");
-					box.getChildren().addAll(separator, hbox);
+					box.getChildren().addAll(hbox);
 					if (includeCheckbox) {
 						CheckBox checkbox = new CheckBox("Environment specific");
 						checkbox.getStyleClass().add("environmentSpecific");
@@ -256,7 +256,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 					Tree<ValueWrapper> tree = new ComplexContentEditor(content, true, artifact.getRepository()).getTree();
 					tree.getStyleClass().add("tree");
 					tree.prefWidthProperty().bind(box.widthProperty());
-					box.getChildren().add(tree);
+					box.getChildren().addAll(tree, separator);
 					vbox.getChildren().add(box);
 				}
 			}
@@ -346,10 +346,14 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		if (publicDirectory == null && artifact.getDirectory() instanceof ManageableContainer) {
 			publicDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) artifact.getDirectory()).create(EAIResourceRepository.PUBLIC, Resource.CONTENT_TYPE_DIRECTORY);
 		}
+		ResourceUtils.mkdirs(publicDirectory, "pages");
+		ResourceUtils.mkdirs(publicDirectory, "resources");
 		ResourceContainer<?> privateDirectory = (ResourceContainer<?>) artifact.getDirectory().getChild(EAIResourceRepository.PRIVATE);
 		if (privateDirectory == null && artifact.getDirectory() instanceof ManageableContainer) {
 			privateDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) artifact.getDirectory()).create(EAIResourceRepository.PRIVATE, Resource.CONTENT_TYPE_DIRECTORY);
 		}
+		ResourceUtils.mkdirs(privateDirectory, "scripts");
+		ResourceUtils.mkdirs(privateDirectory, "meta");
 		VirtualContainer container = new VirtualContainer(null, "web");
 		if (publicDirectory != null) {
 			container.addChild(publicDirectory.getName(), publicDirectory);
@@ -400,6 +404,48 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 					if (selectedItem != null) {
 						ContextMenu contextMenu = new ContextMenu();
 						Resource resource = selectedItem.getItem().itemProperty().get();
+						if (TreeUtils.getPath(selectedItem.getItem()).startsWith("web/public/pages")) {
+							MenuItem item = new MenuItem("Add Page");
+							item.setGraphic(MainController.loadFixedSizeGraphic("text-x-eglue.png"));
+							item.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
+								@Override
+								public void handle(ActionEvent arg0) {
+									SimplePropertyUpdater updater = new SimplePropertyUpdater(true, new LinkedHashSet<Property<?>>(Arrays.asList(
+										new SimpleProperty<String>("Name", String.class, true)
+									)));
+									EAIDeveloperUtils.buildPopup(MainController.getInstance(), updater, "Add Page", new EventHandler<ActionEvent>() {
+										@Override
+										public void handle(ActionEvent arg0) {
+											String name = updater.getValue("Name");
+											try {
+												if (((ResourceContainer) selectedItem.getItem().itemProperty().get()).getChild(name + ".eglue") == null) {
+													Resource create = ((ManageableContainer<?>) selectedItem.getItem().itemProperty().get()).create(name + ".eglue", "text/x-eglue");
+													WritableContainer<ByteBuffer> writable = ((WritableResource) create).getWritable();
+													try {
+														writable.write(IOUtils.wrap(("<html>\n"
+															+ "\t<head>\n"
+															+ "\t\t<title>My Page</title>\n"
+															+ "\t</head>\n"
+															+ "\t<body>\n"
+															+ "\t\t<p>Hello World!</p>\n"
+															+ "\t</body>\n"
+															+ "</html>").getBytes("UTF-8"), true));
+													}
+													finally {
+														writable.close();
+													}
+													selectedItem.getParent().refresh();
+												}
+											}
+											catch (IOException e) {
+												MainController.getInstance().notify(e);
+											}
+										}
+									});
+								}
+							});
+							contextMenu.getItems().add(item);
+						}
 						if (resource instanceof ManageableContainer) {
 							Menu menu = new Menu("Create");
 							MenuItem createDirectory = new MenuItem("Folder");
@@ -408,8 +454,8 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 								@Override
 								public void handle(ActionEvent arg0) {
 									SimplePropertyUpdater updater = new SimplePropertyUpdater(true, new LinkedHashSet<Property<?>>(Arrays.asList(
-											new SimpleProperty<String>("Name", String.class, true)
-											)));
+										new SimpleProperty<String>("Name", String.class, true)
+									)));
 									EAIDeveloperUtils.buildPopup(MainController.getInstance(), updater, "Create New Folder", new EventHandler<ActionEvent>() {
 										@Override
 										public void handle(ActionEvent arg0) {
