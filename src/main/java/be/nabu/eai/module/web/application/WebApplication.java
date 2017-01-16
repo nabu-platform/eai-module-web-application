@@ -36,6 +36,7 @@ import be.nabu.eai.repository.api.LicenseManager;
 import be.nabu.eai.repository.api.LicensedRepository;
 import be.nabu.eai.repository.api.Node;
 import be.nabu.eai.repository.api.Repository;
+import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.eai.repository.api.Translator;
 import be.nabu.eai.repository.api.UserLanguageProvider;
 import be.nabu.eai.repository.artifacts.jaxb.JAXBArtifact;
@@ -103,6 +104,7 @@ import be.nabu.libs.resources.api.ManageableContainer;
 import be.nabu.libs.resources.api.ReadableResource;
 import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
+import be.nabu.libs.resources.api.TimestampedResource;
 import be.nabu.libs.resources.api.WritableResource;
 import be.nabu.libs.services.api.Service;
 import be.nabu.libs.services.fixed.FixedInputService;
@@ -156,6 +158,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private Map<String, Map<String, ComplexContent>> fragmentConfigurations;
 	// very bad solution to keep track of which configuration is environment specific (almost none are)
 	private List<ComplexContent> environmentSpecificConfigurations = new ArrayList<ComplexContent>();
+	private String version;
 	
 	public WebApplication(String id, ResourceContainer<?> directory, Repository repository) {
 		super(id, directory, repository, "webartifact.xml", WebApplicationConfiguration.class);
@@ -275,15 +278,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			environment.put("url", host);
 			environment.put("host", hostName);
 			environment.put("hostName", getConfiguration().getVirtualHost().getConfiguration().getHost());
-			
-			String version = "initial";
-			Entry entry = getRepository().getEntry(getId());
-			// build an automatic version
-			if (entry != null) {
-				Node node = entry.getNode();
-				version = (String) HashMethods.md5(node.getEnvironmentId() + "." + node.getVersion() + "." + node.getLastModified().toString());
-			}
-			environment.put("version", version);
+			environment.put("version", getVersion());
 			
 			String environmentName = serverPath;
 			if (environmentName.startsWith("/")) {
@@ -638,6 +633,32 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			started = true;
 			logger.info("Started " + subscriptions.size() + " subscriptions");
 		}
+	}
+
+	public String getVersion() throws IOException {
+		if (this.version == null) {
+			synchronized(this) {
+				if (this.version == null) {
+					String version = "initial";
+					Entry entry = getRepository().getEntry(getId());
+					// build an automatic version
+					if (entry != null) {
+						Node node = entry.getNode();
+						String nodeModified = "";
+						// include the last modified of the actual node.xml file, on deployment this changes even if nothing else was changed
+						if (entry instanceof ResourceEntry) {
+							Resource child = ((ResourceEntry) entry).getContainer().getChild("node.xml");
+							if (child instanceof TimestampedResource) {
+								nodeModified = ((TimestampedResource) child).getLastModified().toString();
+							}
+						}
+						version = (String) HashMethods.md5(nodeModified + "." + node.getEnvironmentId() + "." + node.getVersion() + "." + node.getLastModified().toString());
+					}
+					this.version = version;
+				}
+			}
+		}
+		return version;
 	}
 
 	private void buildConfiguration() {
