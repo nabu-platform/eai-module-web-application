@@ -23,9 +23,9 @@ import org.slf4j.LoggerFactory;
 import be.nabu.eai.authentication.api.PasswordAuthenticator;
 import be.nabu.eai.authentication.api.SecretAuthenticator;
 import be.nabu.eai.module.http.server.RepositoryExceptionFormatter;
-import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
+import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.MetricsLevelProvider;
@@ -159,6 +159,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	// very bad solution to keep track of which configuration is environment specific (almost none are)
 	private List<ComplexContent> environmentSpecificConfigurations = new ArrayList<ComplexContent>();
 	private String version;
+	private GlueWebParserProvider parserProvider;
 	
 	public WebApplication(String id, ResourceContainer<?> directory, Repository repository) {
 		super(id, directory, repository, "webartifact.xml", WebApplicationConfiguration.class);
@@ -352,6 +353,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				subscriptions.add(subscription);
 			}
 			
+			parserProvider = new GlueWebParserProvider(serviceMethodProvider);
 			ResourceContainer<?> resources = null;
 			if (publicDirectory != null) {
 				// check if there is a resource directory
@@ -385,7 +387,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				if (pages != null) {
 					logger.debug("Adding public scripts found in: " + pages);
 					// the configured charset is for the end user, NOT for the local glue scripts, that should be the system default
-					ScannableScriptRepository scannableScriptRepository = new ScannableScriptRepository(repository, pages, new GlueWebParserProvider(serviceMethodProvider), Charset.defaultCharset());
+					ScannableScriptRepository scannableScriptRepository = new ScannableScriptRepository(repository, pages, parserProvider, Charset.defaultCharset());
 					scannableScriptRepository.setGroup(GlueListener.PUBLIC);
 					repository.add(scannableScriptRepository);
 				}
@@ -403,7 +405,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				ResourceContainer<?> scripts = (ResourceContainer<?>) privateDirectory.getChild("scripts");
 				if (scripts != null) {
 					logger.debug("Adding private scripts found in: " + scripts);
-					repository.add(new ScannableScriptRepository(repository, scripts, new GlueWebParserProvider(serviceMethodProvider), Charset.defaultCharset()));
+					repository.add(new ScannableScriptRepository(repository, scripts, parserProvider, Charset.defaultCharset()));
 				}
 			}
 			listener = new GlueListener(
@@ -634,6 +636,30 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			logger.info("Started " + subscriptions.size() + " subscriptions");
 		}
 	}
+
+//	private void subscribeToRepositoryChanges(ScriptRepository repository) {
+//		subscriptions.add(getRepository().getEventDispatcher().subscribe(NodeEvent.class, new EventHandler<NodeEvent, Void>() {
+//			@Override
+//			public Void handle(NodeEvent event) {
+//				// when a service is loaded or reloaded, we need to check which scripts use it and refresh those
+//				if (event.getState() == State.LOAD || event.getState() == State.RELOAD) {
+//					for (Script script : ScriptUtils.getRoot(repository)) {
+//						Set<String> references = new HashSet<String>();
+//						try {
+//							GlueServiceManager.getReferences(script.getRoot(), references);
+//							if (references.contains(event.getId())) {
+////								script.f
+//							}
+//						}
+//						catch (Exception e) {
+//							logger.error("Could not check if script '" + ScriptUtils.getFullName(script) + "' needs to be reloaded", e);
+//						}
+//					}
+//				}
+//				return null;
+//			}
+//		}));
+//	}
 
 	public String getVersion() throws IOException {
 		if (this.version == null) {
@@ -913,7 +939,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 
 	public void addGlueScripts(ResourceContainer<?> parent, boolean isPublic) throws IOException {
 		if (repository != null) {
-			ScannableScriptRepository scannableScriptRepository = new ScannableScriptRepository(repository, parent, new GlueWebParserProvider(serviceMethodProvider), Charset.defaultCharset());
+			ScannableScriptRepository scannableScriptRepository = new ScannableScriptRepository(repository, parent, parserProvider, Charset.defaultCharset());
 			if (isPublic) {
 				scannableScriptRepository.setGroup(GlueListener.PUBLIC);
 			}

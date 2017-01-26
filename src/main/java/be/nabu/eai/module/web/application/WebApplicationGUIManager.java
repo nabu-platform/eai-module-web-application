@@ -18,6 +18,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
+import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleBooleanProperty;
@@ -388,6 +389,19 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		tree.rootProperty().set(new ResourceTreeItem(null, container));
 
 		final TabPane editors = new TabPane();
+		editors.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<Tab>() {
+			@Override
+			public void changed(ObservableValue<? extends Tab> arg0, Tab arg1, Tab arg2) {
+				if (arg2 != null) {
+					Platform.runLater(new Runnable() {
+						@Override
+						public void run() {
+							arg2.getContent().requestFocus();
+						}
+					});
+				}
+			}
+		});
 		editors.setTabClosingPolicy(TabClosingPolicy.ALL_TABS);
 		editors.setSide(Side.TOP);
 		
