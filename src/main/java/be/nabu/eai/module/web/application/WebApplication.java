@@ -66,6 +66,7 @@ import be.nabu.libs.authentication.api.TokenValidator;
 import be.nabu.libs.cache.api.Cache;
 import be.nabu.libs.cache.api.CacheProvider;
 import be.nabu.libs.cache.impl.AccessBasedTimeoutManager;
+import be.nabu.libs.cache.impl.LastModifiedTimeoutManager;
 import be.nabu.libs.cache.impl.SerializableSerializer;
 import be.nabu.libs.cache.impl.StringSerializer;
 import be.nabu.libs.events.api.EventDispatcher;
@@ -455,7 +456,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 										new HTTPResponseDataSerializer(), 
 										null, 
 										// defaults to 1 hour
-										new AccessBasedTimeoutManager(configuredTimeout)
+										new LastModifiedTimeoutManager(configuredTimeout)
+//										new AccessBasedTimeoutManager(configuredTimeout)
 									);
 								}
 							}
