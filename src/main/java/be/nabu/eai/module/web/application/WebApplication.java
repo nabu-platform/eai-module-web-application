@@ -415,6 +415,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				new SimpleExecutionEnvironment(environmentName, environment),
 				serverPath
 			);
+			if (getConfig().getCookiePath() != null) {
+				listener.setCookiePath(getConfig().getCookiePath());
+			}
 			
 			final CacheProviderArtifact cacheProvider = getConfiguration().getScriptCacheProvider();
 			if (licensed && cacheProvider != null && !isDevelopment) {
