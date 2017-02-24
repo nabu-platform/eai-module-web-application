@@ -12,11 +12,12 @@ import be.nabu.eai.api.EnvironmentSpecific;
 import be.nabu.eai.api.InterfaceFilter;
 import be.nabu.eai.module.http.virtual.VirtualHostArtifact;
 import be.nabu.eai.repository.api.CacheProviderArtifact;
+import be.nabu.eai.repository.api.ListableSinkProviderArtifact;
 import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "languageProviderService", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "webFragments" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "languageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "webFragments" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -40,6 +41,9 @@ public class WebApplicationConfiguration {
 	private DefinedService requestSubscriber;
 	private Boolean allowBasicAuthentication;
 	private List<WebFragment> webFragments;
+	private ListableSinkProviderArtifact rateLimiterDatabase;
+	
+	private DefinedService rateLimiter;
 	
 	@Comment(title = "The path that the web application will listen to", description = "Multiple web applications can be hosted on a single host as long as they have different root paths")
 	@EnvironmentSpecific
@@ -299,4 +303,24 @@ public class WebApplicationConfiguration {
 	public void setRequestSubscriber(DefinedService requestSubscriber) {
 		this.requestSubscriber = requestSubscriber;
 	}
+	
+	@Advanced
+	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.RateLimitSettingsProvider.settings")
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	public DefinedService getRateLimiter() {
+		return rateLimiter;
+	}
+	public void setRateLimiter(DefinedService rateLimiter) {
+		this.rateLimiter = rateLimiter;
+	}
+	
+	@Advanced
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	public ListableSinkProviderArtifact getRateLimiterDatabase() {
+		return rateLimiterDatabase;
+	}
+	public void setRateLimiterDatabase(ListableSinkProviderArtifact rateLimiterDatabase) {
+		this.rateLimiterDatabase = rateLimiterDatabase;
+	}
+	
 }

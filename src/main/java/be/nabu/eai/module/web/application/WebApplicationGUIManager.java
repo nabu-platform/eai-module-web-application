@@ -68,6 +68,7 @@ import be.nabu.eai.developer.util.Confirm;
 import be.nabu.eai.developer.util.Confirm.ConfirmType;
 import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.developer.util.Find;
+import be.nabu.eai.module.web.application.api.RateLimitSettingsProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
@@ -336,6 +337,11 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		if (artifact.getConfig().getRequestSubscriber() != null) {
 			Method method = WebApplication.getMethod(RequestSubscriber.class, "handle");
 			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getRequestSubscriber(), method));
+		}
+		
+		if (artifact.getConfig().getRateLimiter() != null) {
+			Method method = WebApplication.getMethod(RateLimitSettingsProvider.class, "settings");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getRateLimiter(), method));
 		}
 		
 		return extensions;

@@ -19,9 +19,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import be.nabu.eai.module.web.application.WebApplication;
+import be.nabu.eai.module.web.application.WebFragment;
 import be.nabu.glue.api.Script;
 import be.nabu.glue.impl.ImperativeSubstitutor;
 import be.nabu.glue.utils.ScriptUtils;
+import be.nabu.libs.authentication.api.Permission;
 import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.resources.api.ResourceFilter;
@@ -33,6 +35,32 @@ import be.nabu.utils.io.IOUtils;
 public class Services {
 	private Logger logger = LoggerFactory.getLogger(getClass());
 	private ExecutionContext executionContext;
+	
+	@WebResult(name = "permissions")
+	public List<Permission> permissions(@NotNull @WebParam(name = "webApplicationId") String id) {
+		List<Permission> permissions = new ArrayList<Permission>();
+		if (id != null) {
+			WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+			if (resolved != null) {
+				permissions(resolved, permissions);
+			}
+		}
+		return permissions;
+	}
+	
+	private void permissions(WebApplication application, List<Permission> permissions) {
+		String path = application.getConfig().getPath();
+		if (path == null) {
+			path = "/";
+		}
+		for (WebFragment fragment : application.getWebFragments()) {
+			List<Permission> fragmentPermissions = fragment.getPermissions(application, path);
+			if (fragmentPermissions != null) {
+				permissions.addAll(fragmentPermissions);
+			}
+		}
+		// don't recurse, the web fragment providers should do that themselves
+	}
 	
 	@WebResult(name = "translationKeys")
 	public List<KeyValuePair> translationKeys(@NotNull @WebParam(name = "webApplicationId") String id) {

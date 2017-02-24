@@ -26,6 +26,7 @@ import be.nabu.eai.module.http.server.RepositoryExceptionFormatter;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
+import be.nabu.eai.module.web.application.rate.RateLimiter;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.MetricsLevelProvider;
@@ -95,7 +96,9 @@ import be.nabu.libs.http.server.SessionProviderImpl;
 import be.nabu.libs.metrics.api.GroupLevelProvider;
 import be.nabu.libs.metrics.api.MetricInstance;
 import be.nabu.libs.metrics.core.api.SinkEvent;
+import be.nabu.libs.metrics.core.api.SinkProvider;
 import be.nabu.libs.metrics.core.filters.ThresholdOverTimeFilter;
+import be.nabu.libs.metrics.core.sinks.LimitedHistorySinkProvider;
 import be.nabu.libs.metrics.impl.MetricGrouper;
 import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.nio.api.SourceContext;
@@ -161,6 +164,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private List<ComplexContent> environmentSpecificConfigurations = new ArrayList<ComplexContent>();
 	private String version;
 	private GlueWebParserProvider parserProvider;
+	private boolean rateLimiterResolved;
+	private RateLimiter rateLimiter;
 	
 	public WebApplication(String id, ResourceContainer<?> directory, Repository repository) {
 		super(id, directory, repository, "webartifact.xml", WebApplicationConfiguration.class);
@@ -703,7 +708,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				}
 				DefinedType resolve = (DefinedType) getRepository().resolve(part.getType());
 				if (resolve == null) {
-					throw new RuntimeException("Could not find complex type: " + part.getType());
+					logger.error("Can not find type '" + part.getType() + "', skipping");
+					continue;
 				}
 				ComplexContent newInstance = ((ComplexType) resolve).newInstance();
 				Set<String> keySet = part.getConfiguration().keySet();
@@ -886,6 +892,25 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 		}
 		return permissionHandler;
+	}
+	
+	public RateLimiter getRateLimiter() throws IOException {
+		if (!rateLimiterResolved) {
+			synchronized(this) {
+				if (!rateLimiterResolved) {
+					rateLimiterResolved = true;
+					if (getConfiguration().getRateLimiter() != null) {
+						SinkProvider sinkProvider = getConfig().getRateLimiterDatabase() == null ? new LimitedHistorySinkProvider(1000) : getConfig().getRateLimiterDatabase();
+						rateLimiter = new RateLimiter(
+							getRepository(), 
+							getConfig().getRateLimiter(), 
+							sinkProvider
+						);
+					}
+				}
+			}
+		}
+		return rateLimiter;
 	}
 	
 	public TokenValidator getTokenValidator() throws IOException {
