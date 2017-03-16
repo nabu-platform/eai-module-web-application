@@ -104,6 +104,7 @@ import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.nio.api.SourceContext;
 import be.nabu.libs.resources.CombinedContainer;
 import be.nabu.libs.resources.ResourceReadableContainer;
+import be.nabu.libs.resources.ResourceUtils;
 import be.nabu.libs.resources.api.ManageableContainer;
 import be.nabu.libs.resources.api.ReadableResource;
 import be.nabu.libs.resources.api.Resource;
@@ -366,6 +367,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				resources = (ResourceContainer<?>) publicDirectory.getChild("resources");
 				if (resources != null) {
 					logger.debug("Adding resource listener for folder: " + resources);
+					if (privateDirectory != null) {
+						// externally provided resources
+						Resource resolve = ResourceUtils.resolve(privateDirectory, "provided/resources");
+						if (resolve != null) {
+							resources = new CombinedContainer(null, "resources", resources, (ResourceContainer<?>) resolve);
+						}
+					}
 					if (isDevelopment && privateDirectory != null) {
 						Resource child = privateDirectory.getChild("resources");
 						if (child != null) {
@@ -412,6 +420,12 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				if (scripts != null) {
 					logger.debug("Adding private scripts found in: " + scripts);
 					repository.add(new ScannableScriptRepository(repository, scripts, parserProvider, Charset.defaultCharset()));
+				}
+				// externally provided scripts
+				Resource resolve = ResourceUtils.resolve(privateDirectory, "provided/artifacts");
+				if (resolve != null) {
+					logger.debug("Adding private provided artifacts found in: " + resolve);
+					repository.add(new ScannableScriptRepository(repository, (ResourceContainer<?>) resolve, parserProvider, Charset.defaultCharset()));
 				}
 			}
 			listener = new GlueListener(
@@ -562,11 +576,15 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						}
 						try {
 							if (additional != null) {
-								return new be.nabu.glue.impl.ImperativeSubstitutor("%", "template(" + getConfiguration().getTranslationService().getId() + "(\"page:" + ScriptUtils.getFullName(runtime.getScript()) + "\", \"${value}\", " + (language == null ? "null" : "\"" + language + "\"")
+								return new be.nabu.glue.impl.ImperativeSubstitutor("%", "template(" + getConfiguration().getTranslationService().getId() 
+										+ "(when(\"${value}\" ~ \"^[a-z0-9.]+:.*\", replace(\"^([a-z0-9.]+):.*\", \"$1\", \"${value}\"), \"page:" + ScriptUtils.getFullName(runtime.getScript()) + "\"), "
+										+ "when(\"${value}\" ~ \"^[a-z0-9.]+:.*\", replace(\"^[a-z0-9.]+:(.*)\", \"$1\", \"${value}\"), \"${value}\"), " + (language == null ? "null" : "\"" + language + "\"")
 										+ ", " + key + ": json.objectify('" + additional + "'))/translation)");
 							}
 							else {
-								return new be.nabu.glue.impl.ImperativeSubstitutor("%", "template(" + getConfiguration().getTranslationService().getId() + "(\"page:" + ScriptUtils.getFullName(runtime.getScript()) + "\", \"${value}\", " + (language == null ? "null" : "\"" + language + "\"") + ")/translation)");
+								return new be.nabu.glue.impl.ImperativeSubstitutor("%", "template(" + getConfiguration().getTranslationService().getId() 
+										+ "(when(\"${value}\" ~ \"^[a-z0-9.]+:.*\", replace(\"^([a-z0-9.]+):.*\", \"$1\", \"${value}\"), \"page:" + ScriptUtils.getFullName(runtime.getScript()) + "\"), "
+										+ "when(\"${value}\" ~ \"^[a-z0-9.]+:.*\", replace(\"^[a-z0-9.]+:(.*)\", \"$1\", \"${value}\"), \"${value}\"), " + (language == null ? "null" : "\"" + language + "\"") + ")/translation)");
 							}
 						}
 						catch (IOException e) {
