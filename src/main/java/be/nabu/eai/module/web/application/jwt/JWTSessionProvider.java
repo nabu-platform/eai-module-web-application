@@ -52,6 +52,11 @@ public class JWTSessionProvider implements SessionProvider {
 		if (session == null && sessionId.matches(".+\\..+\\..+")) {
 			try {
 				session = new JWTSession(sessionId);
+				if (session != null) {
+					synchronized(sessions) {
+						sessions.put(session.getId(), session);
+					}
+				}
 			}
 			catch (ParseException e) {
 				logger.warn("Invalid JWT session: " + sessionId, e);
