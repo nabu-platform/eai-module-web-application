@@ -25,7 +25,7 @@ public class WebApplicationMerger extends JAXBArtifactMerger<WebApplication> {
 			for (String typeId : source.getFragmentConfigurations().keySet()) {
 				for (String regex : source.getFragmentConfigurations().get(typeId).keySet()) {
 					if (source.getEnvironmentSpecificConfigurations().contains(source.getFragmentConfigurations().get(typeId).get(regex))) {
-						ComplexContent targetContent = target.getFragmentConfigurations().get(typeId).get(regex);
+						ComplexContent targetContent = target.getFragmentConfigurations().get(typeId) == null ? null : target.getFragmentConfigurations().get(typeId).get(regex);
 						if (targetContent != null) {
 							source.getFragmentConfigurations().get(typeId).put(regex, targetContent);
 						}

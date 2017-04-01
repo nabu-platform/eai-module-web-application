@@ -11,13 +11,14 @@ import be.nabu.eai.api.Comment;
 import be.nabu.eai.api.EnvironmentSpecific;
 import be.nabu.eai.api.InterfaceFilter;
 import be.nabu.eai.module.http.virtual.VirtualHostArtifact;
+import be.nabu.eai.module.keystore.KeyStoreArtifact;
 import be.nabu.eai.repository.api.CacheProviderArtifact;
 import be.nabu.eai.repository.api.ListableSinkProviderArtifact;
 import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "languageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "webFragments" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "languageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtSecretAlias", "webFragments" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -30,6 +31,7 @@ public class WebApplicationConfiguration {
 	private String realm;
 	private String whitelistedCodes;
 	private Long failedLoginThreshold, failedLoginWindow, failedLoginBlacklistDuration;
+	private boolean addCacheHeaders = true;
 	
 	private DefinedService passwordAuthenticationService, secretAuthenticationService;
 	private DefinedService permissionService;
@@ -42,6 +44,9 @@ public class WebApplicationConfiguration {
 	private Boolean allowBasicAuthentication;
 	private List<WebFragment> webFragments;
 	private ListableSinkProviderArtifact rateLimiterDatabase;
+	
+	private String jwtSecretAlias;
+	private KeyStoreArtifact jwtKeyStore;
 	
 	private DefinedService rateLimiter;
 	
@@ -321,6 +326,33 @@ public class WebApplicationConfiguration {
 	}
 	public void setRateLimiterDatabase(ListableSinkProviderArtifact rateLimiterDatabase) {
 		this.rateLimiterDatabase = rateLimiterDatabase;
+	}
+	
+	@Advanced
+	public boolean isAddCacheHeaders() {
+		return addCacheHeaders;
+	}
+	public void setAddCacheHeaders(boolean addCacheHeaders) {
+		this.addCacheHeaders = addCacheHeaders;
+	}
+		
+	@Advanced
+	@EnvironmentSpecific
+	public String getJwtSecretAlias() {
+		return jwtSecretAlias;
+	}
+	public void setJwtSecretAlias(String jwtSecretAlias) {
+		this.jwtSecretAlias = jwtSecretAlias;
+	}
+	
+	@Advanced
+	@EnvironmentSpecific
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	public KeyStoreArtifact getJwtKeyStore() {
+		return jwtKeyStore;
+	}
+	public void setJwtKeyStore(KeyStoreArtifact jwtKeyStore) {
+		this.jwtKeyStore = jwtKeyStore;
 	}
 	
 }

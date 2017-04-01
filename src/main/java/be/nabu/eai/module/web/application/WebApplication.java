@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.nio.charset.Charset;
+import java.security.KeyStoreException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,8 +25,10 @@ import be.nabu.eai.authentication.api.PasswordAuthenticator;
 import be.nabu.eai.authentication.api.SecretAuthenticator;
 import be.nabu.eai.module.http.server.RepositoryExceptionFormatter;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
+import be.nabu.eai.module.keystore.KeyStoreArtifact;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
+import be.nabu.eai.module.web.application.jwt.JWTSessionProvider;
 import be.nabu.eai.module.web.application.rate.RateLimiter;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
@@ -124,6 +127,8 @@ import be.nabu.utils.io.IOUtils;
 import be.nabu.utils.io.api.ByteBuffer;
 import be.nabu.utils.io.api.ReadableContainer;
 import be.nabu.utils.io.api.WritableContainer;
+import be.nabu.utils.mime.api.Header;
+import be.nabu.utils.mime.impl.MimeHeader;
 import be.nabu.utils.mime.impl.MimeUtils;
 
 /**
@@ -239,6 +244,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					((RepositoryExceptionFormatter) server.getExceptionFormatter()).register(getId(), Arrays.asList(getConfiguration().getWhitelistedCodes().split("[\\s]*,[\\s]*")));
 				}
 			}
+			
+			// TODO: if we have a jwt token, register a listener early on that can spot a Authorization: Bearer <token> header
+			// and transform it into a security header
 
 			// create session provider
 			if (licensed && getConfiguration().getSessionCacheProvider() != null) {
@@ -256,6 +264,18 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					new AccessBasedTimeoutManager(getConfiguration().getSessionTimeout() == null ? 1000l*60*60 : getConfiguration().getSessionTimeout())
 				);
 				sessionProvider = new CacheSessionProvider(sessionCache);
+			}
+			else if (licensed && getConfig().getJwtSecretAlias() != null && getConfig().getJwtKeyStore() != null) {
+				KeyStoreArtifact keystore = getConfig().getJwtKeyStore();
+				try {
+					sessionProvider = new JWTSessionProvider(
+						GlueListener.buildTokenName(getRealm()), 
+						keystore.getKeyStore().getSecretKey(getConfig().getJwtSecretAlias()), 
+						getConfiguration().getSessionTimeout() == null ? 1000l*60*60 : getConfiguration().getSessionTimeout());
+				}
+				catch (KeyStoreException e) {
+					throw new RuntimeException(e);
+				}
 			}
 			else {
 				sessionProvider = new SessionProviderImpl(getConfiguration().getSessionTimeout() == null ? 1000l*60*60 : getConfiguration().getSessionTimeout());
@@ -325,6 +345,35 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				subscriptions.add(subscription);
 			}
 			
+			// ie caches everything by default, including the responses from rest services
+			// this post processor will by default add no cache headers unless disabled
+			if (getConfig().isAddCacheHeaders()) {
+				EventSubscription<HTTPResponse, HTTPResponse> subscription = dispatcher.subscribe(HTTPResponse.class, new EventHandler<HTTPResponse, HTTPResponse>() {
+					@Override
+					public HTTPResponse handle(HTTPResponse event) {
+						if (event.getContent() == null) {
+							return null;
+						}
+						Header lastModified = MimeUtils.getHeader("Last-Modified", event.getContent().getHeaders());
+						if (lastModified == null) {
+							Header cacheControl = MimeUtils.getHeader("Cache-Control", event.getContent().getHeaders());
+							if (cacheControl == null) {
+								String contentType = MimeUtils.getContentType(event.getContent().getHeaders());
+								if (contentType != null && contentType.matches("application/(json|xml)")) {
+									event.getContent().setHeader(
+										new MimeHeader("Cache-Control", "no-store, no-cache, must-revalidate, post-check=0, pre-check=0"),
+										new MimeHeader("Pragma", "no-cache")
+									);
+								}
+							}
+						}
+						return null;
+					}
+				});
+				subscription.filter(HTTPServerUtils.limitToRequestPath(serverPath));
+				subscriptions.add(subscription);
+			}
+			
 			// set up a basic authentication listener which optionally interprets that, it allows for REST-based access
 			Authenticator authenticator = getAuthenticator();
 			if (getConfiguration().getAllowBasicAuthentication() != null && getConfiguration().getAllowBasicAuthentication()) {
@@ -367,13 +416,6 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				resources = (ResourceContainer<?>) publicDirectory.getChild("resources");
 				if (resources != null) {
 					logger.debug("Adding resource listener for folder: " + resources);
-					if (privateDirectory != null) {
-						// externally provided resources
-						Resource resolve = ResourceUtils.resolve(privateDirectory, "provided/resources");
-						if (resolve != null) {
-							resources = new CombinedContainer(null, "resources", resources, (ResourceContainer<?>) resolve);
-						}
-					}
 					if (isDevelopment && privateDirectory != null) {
 						Resource child = privateDirectory.getChild("resources");
 						if (child != null) {
@@ -395,6 +437,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 //						subscriptions.add(cssMergerSubscription);
 //						cssMergerSubscription.filter(HTTPServerUtils.limitToPath(resourcePath));
 //						rewriters.add(cssMerger);
+					}
+				}
+				if (privateDirectory != null) {
+					// externally provided resources
+					Resource resolve = ResourceUtils.resolve(privateDirectory, "provided/resources");
+					if (resolve != null) {
+						resources = resources == null ? (ResourceContainer<?>) resolve : new CombinedContainer(null, "resources", resources, (ResourceContainer<?>) resolve);
 					}
 				}
 				ResourceContainer<?> pages = (ResourceContainer<?>) publicDirectory.getChild("pages");
