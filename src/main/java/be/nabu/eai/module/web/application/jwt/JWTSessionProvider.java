@@ -28,6 +28,7 @@ import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.java.BeanInstance;
 import be.nabu.libs.types.java.BeanResolver;
 
+@Deprecated
 public class JWTSessionProvider implements SessionProvider {
 
 	private Logger logger = LoggerFactory.getLogger(getClass());
@@ -94,7 +95,7 @@ public class JWTSessionProvider implements SessionProvider {
 		
 		// generate with an existing jwt token
 		public JWTSession(String token) throws ParseException {
-			JWTBody jwt = TypeUtils.getAsBean(JWTUtils.decodeJWT((ComplexType) BeanResolver.getInstance().resolve(JWTBody.class), token, key), JWTBody.class);
+			JWTBody jwt = TypeUtils.getAsBean(JWTUtils.decodeJWTSecret((ComplexType) BeanResolver.getInstance().resolve(JWTBody.class), token, key), JWTBody.class);
 			this.id = token;
 			if (jwt.getTkn() != null && jwt.getTkt() != null) {
 				TokenSerializer<Token> serializer = TokenSerializerFactory.getInstance().getSerializer(jwt.getTkt());

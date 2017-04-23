@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
+import java.security.Signature;
 import java.text.ParseException;
 
 import javax.crypto.Cipher;
@@ -23,16 +25,17 @@ import be.nabu.utils.codec.impl.Base64Decoder;
 import be.nabu.utils.codec.impl.Base64Encoder;
 import be.nabu.utils.io.IOUtils;
 
+@Deprecated
 public class JWTUtils {
 	
-	public enum JWTAlgorithm {
+	public enum JWTSecretAlgorithm {
 		SHA256("HmacSHA256", "HS256")
 		;
 		
 		private String name;
 		private String jsonName;
 
-		private JWTAlgorithm(String name, String jsonName) {
+		private JWTSecretAlgorithm(String name, String jsonName) {
 			this.name = name;
 			this.jsonName = jsonName;
 		}
@@ -44,10 +47,34 @@ public class JWTUtils {
 		public String getJsonName() {
 			return jsonName;
 		}
+	}
+	
+	public enum JWTRSAAlgorithm {
+		RS256("SHA256withRSA"),
+		RS384("SHA384withRSA"),
+		RS512("SHA512withRSA")
+		;
+		private String algorithm;
+
+		private JWTRSAAlgorithm(String algorithm) {
+			this.algorithm = algorithm;
+		}
+
+		public String getAlgorithm() {
+			return algorithm;
+		}
 		
+		public Signature getSignature() {
+			try {
+				return Signature.getInstance(algorithm);
+			}
+			catch (NoSuchAlgorithmException e) {
+				throw new RuntimeException(e);
+			}
+		}
 	}
 
-	public static ComplexContent decodeJWT(ComplexType type, String content, SecretKey key) throws ParseException {
+	public static ComplexContent decodeJWTSecret(ComplexType type, String content, SecretKey key) throws ParseException {
 		String[] parts = content.split("\\.");
 		if (parts.length != 3) {
 			throw new ParseException("Expecting three parts in the token: " + content, 0);
@@ -62,12 +89,12 @@ public class JWTUtils {
 			if (!"JWT".equalsIgnoreCase(typ)) {
 				throw new ParseException("Expecting JWT type tokens only: " + typ, 1);
 			}
-			if (!JWTAlgorithm.SHA256.getJsonName().equalsIgnoreCase(alg)) {
+			if (!JWTSecretAlgorithm.SHA256.getJsonName().equalsIgnoreCase(alg)) {
 				throw new ParseException("Only HS256 algorithm supported currently: " + alg, 2);
 			}
 			
 			if (key != null) {
-				Mac mac = Mac.getInstance(JWTAlgorithm.SHA256.getName());
+				Mac mac = Mac.getInstance(JWTSecretAlgorithm.SHA256.getName());
 				mac.init(key);
 				mac.update(base64Header);
 				mac.update((byte) '.');
@@ -80,6 +107,46 @@ public class JWTUtils {
 				}
 			}
 			
+			return unmarshal(type, base64Body);
+		}
+		catch (ParseException e) {
+			throw e;
+		}
+		catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	public static ComplexContent decodeJWTPublic(ComplexType type, String content, PublicKey key) throws ParseException {
+		String[] parts = content.split("\\.");
+		if (parts.length != 3) {
+			throw new ParseException("Expecting three parts in the token: " + content, 0);
+		}
+		try {
+			byte [] base64Header = parts[0].getBytes("ASCII");
+			byte [] base64Body = parts[1].getBytes("ASCII");
+			
+			ComplexContent header = unmarshal((ComplexType) BeanResolver.getInstance().resolve(Header.class), base64Header);
+			String alg = (String) header.get("alg");
+			String typ = (String) header.get("typ");
+			if (!"JWT".equalsIgnoreCase(typ)) {
+				throw new ParseException("Expecting JWT type tokens only: " + typ, 1);
+			}
+			JWTRSAAlgorithm algorithm = JWTRSAAlgorithm.valueOf(alg);
+			if (algorithm == null) {
+				throw new ParseException("Unsupported algorithm: " + alg, 0);
+			}
+			if (key != null) {
+				Signature signature = algorithm.getSignature();
+				signature.initVerify(key);
+				signature.update(base64Header);
+				signature.update((byte) '.');
+				signature.update(base64Body);
+				boolean verify = signature.verify(base64Decode(parts[2].getBytes("ASCII")));
+				if (!verify) {
+					throw new RuntimeException("Invalid signature");
+				}
+			}
 			return unmarshal(type, base64Body);
 		}
 		catch (ParseException e) {
@@ -117,12 +184,12 @@ public class JWTUtils {
 		try {
 			// marshal the header
 			Header header = new Header();
-			header.setAlg(JWTAlgorithm.SHA256.getJsonName());
+			header.setAlg(JWTSecretAlgorithm.SHA256.getJsonName());
 			header.setTyp("JWT");
 			byte [] base64Header = marshal(new BeanInstance<Header>(header));
 			byte [] base64Body = marshal(content);
 
-			Mac mac = Mac.getInstance(JWTAlgorithm.SHA256.getName());
+			Mac mac = Mac.getInstance(JWTSecretAlgorithm.SHA256.getName());
 			mac.init(key);
 			mac.update(base64Header);
 			mac.update((byte) '.');
@@ -165,7 +232,7 @@ public class JWTUtils {
 		return IOUtils.toBytes(TranscoderUtils.transcodeBytes(IOUtils.wrap(content, true), new Base64Decoder()));
 	}
 	
-	public static byte[] encode(byte [] content, SecretKey key, JWTAlgorithm algorithm) {
+	public static byte[] encode(byte [] content, SecretKey key, JWTSecretAlgorithm algorithm) {
 		try {
 			Mac mac = Mac.getInstance(algorithm.getName());
 			mac.init(key);

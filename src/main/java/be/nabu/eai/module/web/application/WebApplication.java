@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.nio.charset.Charset;
-import java.security.KeyStoreException;
+import java.security.Key;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,7 +28,6 @@ import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.keystore.KeyStoreArtifact;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
-import be.nabu.eai.module.web.application.jwt.JWTSessionProvider;
 import be.nabu.eai.module.web.application.rate.RateLimiter;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
@@ -67,6 +66,7 @@ import be.nabu.libs.authentication.api.PermissionHandler;
 import be.nabu.libs.authentication.api.RoleHandler;
 import be.nabu.libs.authentication.api.Token;
 import be.nabu.libs.authentication.api.TokenValidator;
+import be.nabu.libs.authentication.impl.TimeoutTokenValidator;
 import be.nabu.libs.cache.api.Cache;
 import be.nabu.libs.cache.api.CacheProvider;
 import be.nabu.libs.cache.impl.AccessBasedTimeoutManager;
@@ -92,6 +92,8 @@ import be.nabu.libs.http.glue.HTTPResponseDataSerializer;
 import be.nabu.libs.http.glue.api.CacheKeyProvider;
 import be.nabu.libs.http.glue.impl.RequestMethods;
 import be.nabu.libs.http.glue.impl.UserMethods;
+import be.nabu.libs.http.jwt.JWTSessionProvider;
+import be.nabu.libs.http.jwt.impl.JWTBearerHandler;
 import be.nabu.libs.http.server.BasicAuthenticationHandler;
 import be.nabu.libs.http.server.HTTPServerUtils;
 import be.nabu.libs.http.server.ResourceHandler;
@@ -265,20 +267,21 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				);
 				sessionProvider = new CacheSessionProvider(sessionCache);
 			}
-			else if (licensed && getConfig().getJwtSecretAlias() != null && getConfig().getJwtKeyStore() != null) {
+			else {
+				sessionProvider = new SessionProviderImpl(getConfiguration().getSessionTimeout() == null ? 1000l*60*60 : getConfiguration().getSessionTimeout());
+			}
+
+			if (licensed && getConfig().getJwtKeyAlias() != null && getConfig().getJwtKeyStore() != null) {
 				KeyStoreArtifact keystore = getConfig().getJwtKeyStore();
 				try {
 					sessionProvider = new JWTSessionProvider(
-						GlueListener.buildTokenName(getRealm()), 
-						keystore.getKeyStore().getSecretKey(getConfig().getJwtSecretAlias()), 
-						getConfiguration().getSessionTimeout() == null ? 1000l*60*60 : getConfiguration().getSessionTimeout());
+						GlueListener.buildTokenName(getRealm()),
+						sessionProvider,
+						keystore.getKeyStore().getSecretKey(getConfig().getJwtKeyAlias()));
 				}
-				catch (KeyStoreException e) {
-					throw new RuntimeException(e);
+				catch (Exception e) {
+					logger.info("JWT key alias '" + getConfig().getJwtKeyAlias() + " is not a secret key, skipping JWT session management");
 				}
-			}
-			else {
-				sessionProvider = new SessionProviderImpl(getConfiguration().getSessionTimeout() == null ? 1000l*60*60 : getConfiguration().getSessionTimeout());
 			}
 			
 			Map<String, String> environment = getProperties();
@@ -390,6 +393,27 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 //				EventSubscription<HTTPResponse, HTTPResponse> ensureAuthenticationSubscription = dispatcher.subscribe(HTTPResponse.class, HTTPServerUtils.ensureAuthenticateHeader(realm));
 //				ensureAuthenticationSubscription.filter(HTTPServerUtils.limitToRequestPath(serverPath));
 //				subscriptions.add(ensureAuthenticationSubscription);
+			}
+			
+			if (licensed && getConfig().isAllowJwtBearer() && getConfig().getJwtKeyAlias() != null && getConfig().getJwtKeyStore() != null) {
+				KeyStoreArtifact keystore = getConfig().getJwtKeyStore();
+				Key key = null;
+				try {
+					key = keystore.getKeyStore().getCertificate(getConfig().getJwtKeyAlias()).getPublicKey();
+				}
+				catch (Exception e) {
+					try {
+						key = keystore.getKeyStore().getChain(getConfig().getJwtKeyAlias())[0].getPublicKey();
+					}
+					catch (Exception f) {
+						logger.info("JWT key alias '" + getConfig().getJwtKeyAlias() + " does not have a certificate, skipping JWT bearer tokens");
+					}
+				}
+				if (key != null) {
+					EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, new JWTBearerHandler(key, getRealm()));
+					subscription.filter(HTTPServerUtils.limitToPath(serverPath));
+					subscriptions.add(subscription);
+				}
 			}
 			
 			// after the base authentication but before anything else, allow for rewriting
@@ -990,6 +1014,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					}
 				}
 			}
+		}
+		if (tokenValidator == null) {
+			tokenValidator = new TimeoutTokenValidator();
 		}
 		return tokenValidator;
 	}

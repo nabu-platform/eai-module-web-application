@@ -18,7 +18,7 @@ import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "languageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtSecretAlias", "webFragments" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "languageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "webFragments" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -45,8 +45,9 @@ public class WebApplicationConfiguration {
 	private List<WebFragment> webFragments;
 	private ListableSinkProviderArtifact rateLimiterDatabase;
 	
-	private String jwtSecretAlias;
+	private String jwtKeyAlias;
 	private KeyStoreArtifact jwtKeyStore;
+	private boolean allowJwtBearer;
 	
 	private DefinedService rateLimiter;
 	
@@ -338,11 +339,11 @@ public class WebApplicationConfiguration {
 		
 	@Advanced
 	@EnvironmentSpecific
-	public String getJwtSecretAlias() {
-		return jwtSecretAlias;
+	public String getJwtKeyAlias() {
+		return jwtKeyAlias;
 	}
-	public void setJwtSecretAlias(String jwtSecretAlias) {
-		this.jwtSecretAlias = jwtSecretAlias;
+	public void setJwtKeyAlias(String jwtKeyAlias) {
+		this.jwtKeyAlias = jwtKeyAlias;
 	}
 	
 	@Advanced
@@ -353,6 +354,14 @@ public class WebApplicationConfiguration {
 	}
 	public void setJwtKeyStore(KeyStoreArtifact jwtKeyStore) {
 		this.jwtKeyStore = jwtKeyStore;
+	}
+	
+	@Advanced
+	public boolean isAllowJwtBearer() {
+		return allowJwtBearer;
+	}
+	public void setAllowJwtBearer(boolean allowJwtBearer) {
+		this.allowJwtBearer = allowJwtBearer;
 	}
 	
 }
