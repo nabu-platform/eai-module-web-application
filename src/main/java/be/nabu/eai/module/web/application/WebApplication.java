@@ -528,7 +528,11 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 											String string = script.getRoot().getContext().getAnnotations().get("cache");
 											if (string != null && !string.trim().isEmpty()) {
 												String[] parts = string.split("[\\s]*,[\\s]*");
-												configuredTimeout = Long.parseLong(parts[0]);
+												for (String part : parts) {
+													if (part.matches("[0-9-]+")) {
+														configuredTimeout = Long.parseLong(parts[0]);
+													}
+												}
 											}
 										}
 									}
