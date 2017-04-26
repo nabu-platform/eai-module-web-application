@@ -530,7 +530,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 												String[] parts = string.split("[\\s]*,[\\s]*");
 												for (String part : parts) {
 													if (part.matches("[0-9-]+")) {
-														configuredTimeout = Long.parseLong(parts[0]);
+														configuredTimeout = Long.parseLong(part);
 													}
 												}
 											}
