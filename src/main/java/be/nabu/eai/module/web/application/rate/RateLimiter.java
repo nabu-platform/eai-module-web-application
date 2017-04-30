@@ -63,7 +63,11 @@ public class RateLimiter implements RequestHandler {
 			}
 		}
 		RateLimitSettings rateLimitSettings = settings.get(identityKey);
-		HistorySink sink = (HistorySink) provider.getSink(rateLimitSettings.getIdentity() == null ? identityKey : rateLimitSettings.getIdentity(), rateLimitSettings.getContext());
+		// if unlimited, we don't care
+		if (rateLimitSettings.getAmount() == null || rateLimitSettings.getAmount() == 0) {
+			return null;
+		}
+		HistorySink sink = (HistorySink) provider.getSink(rateLimitSettings.getIdentity() == null ? identityKey : rateLimitSettings.getIdentity(), rateLimitSettings.getContext() == null ? action : rateLimitSettings.getContext());
 		long time = new Date().getTime();
 		SinkSnapshot snapshotBetween = sink.getSnapshotBetween(time - rateLimitSettings.getInterval(), time);
 		if (snapshotBetween.getValues().size() >= rateLimitSettings.getAmount()) {

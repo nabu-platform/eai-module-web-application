@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import be.nabu.eai.module.http.virtual.api.Source;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.web.application.rate.RateLimiter;
 import be.nabu.libs.authentication.api.Authenticator;
@@ -20,8 +21,20 @@ import be.nabu.libs.http.api.server.Session;
 import be.nabu.libs.http.core.HTTPUtils;
 import be.nabu.libs.http.glue.GlueListener;
 import be.nabu.libs.nio.PipelineUtils;
+import be.nabu.libs.nio.api.Pipeline;
 
 public class WebApplicationUtils {
+	
+	public static Source getSource() {
+		Pipeline pipeline = PipelineUtils.getPipeline();
+		return pipeline == null ? null : new SourceImpl(pipeline.getSourceContext());
+	}
+	
+	public static Session getSession(WebApplication application, HTTPRequest request) {
+		Map<String, List<String>> cookies = HTTPUtils.getCookies(request.getContent().getHeaders());
+		String originalSessionId = GlueListener.getSessionId(cookies);
+		return originalSessionId == null ? null : application.getSessionProvider().getSession(originalSessionId);
+	}
 	
 	public static Token getToken(WebApplication application, HTTPRequest request) {
 		Map<String, List<String>> cookies = HTTPUtils.getCookies(request.getContent().getHeaders());

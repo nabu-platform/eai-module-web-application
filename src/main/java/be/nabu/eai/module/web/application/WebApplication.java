@@ -284,32 +284,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				}
 			}
 			
-			Map<String, String> environment = getProperties();
-			if (isDevelopment) {
-				environment.put("development", "true");
-			}
-			// always set the id of the web artifact (need it to introspect artifact)
-			String hostName = getConfiguration().getVirtualHost().getConfiguration().getHost();
-			Integer port = getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getPort();
-			boolean secure = getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getKeystore() != null;
-
-			String host = null;
-			if (hostName != null) {
-				if (port != null) {
-					hostName += ":" + port;
-				}
-				host = secure ? "https://" : "http://";
-				host += hostName;
-			}
-			
-			environment.put("mobile", "false");
-			environment.put("web", "true");
-			environment.put("webApplicationId", getId());
-			environment.put("secure", Boolean.toString(secure));
-			environment.put("url", host);
-			environment.put("host", hostName);
-			environment.put("hostName", getConfiguration().getVirtualHost().getConfiguration().getHost());
-			environment.put("version", getVersion());
+			Map<String, String> environment = getEnvironmentProperties();
 			
 			String environmentName = serverPath;
 			if (environmentName.startsWith("/")) {
@@ -644,8 +619,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						}
 						// if there is no language provider or it does not have a language for the user, try to detect from browser settings
 						if (language == null) {
-							if (RequestMethods.content().getContent() != null) {
-								List<String> acceptedLanguages = MimeUtils.getAcceptedLanguages(RequestMethods.content().getContent().getHeaders());
+							if (RequestMethods.entity().getContent() != null) {
+								List<String> acceptedLanguages = MimeUtils.getAcceptedLanguages(RequestMethods.entity().getContent().getHeaders());
 								if (!acceptedLanguages.isEmpty()) {
 									language = acceptedLanguages.get(0).replaceAll("-.*$", "");
 								}
@@ -740,6 +715,37 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			started = true;
 			logger.info("Started " + subscriptions.size() + " subscriptions");
 		}
+	}
+
+	public Map<String, String> getEnvironmentProperties() throws IOException {
+		boolean isDevelopment = EAIResourceRepository.isDevelopment();
+		Map<String, String> environment = getProperties();
+		if (isDevelopment) {
+			environment.put("development", "true");
+		}
+		// always set the id of the web artifact (need it to introspect artifact)
+		String hostName = getConfiguration().getVirtualHost().getConfiguration().getHost();
+		Integer port = getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getPort();
+		boolean secure = getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getKeystore() != null;
+
+		String host = null;
+		if (hostName != null) {
+			if (port != null) {
+				hostName += ":" + port;
+			}
+			host = secure ? "https://" : "http://";
+			host += hostName;
+		}
+		
+		environment.put("mobile", "false");
+		environment.put("web", "true");
+		environment.put("webApplicationId", getId());
+		environment.put("secure", Boolean.toString(secure));
+		environment.put("url", host);
+		environment.put("host", hostName);
+		environment.put("hostName", getConfiguration().getVirtualHost().getConfiguration().getHost());
+		environment.put("version", getVersion());
+		return environment;
 	}
 
 //	private void subscribeToRepositoryChanges(ScriptRepository repository) {
