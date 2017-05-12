@@ -52,6 +52,7 @@ import be.nabu.glue.api.StringSubstituter;
 import be.nabu.glue.api.StringSubstituterProvider;
 import be.nabu.glue.core.impl.methods.v2.HashMethods;
 import be.nabu.glue.core.impl.parsers.GlueParserProvider;
+import be.nabu.glue.core.impl.providers.StaticJavaMethodProvider;
 import be.nabu.glue.core.repositories.ScannableScriptRepository;
 import be.nabu.glue.impl.SimpleExecutionEnvironment;
 import be.nabu.glue.services.ServiceMethodProvider;
@@ -408,7 +409,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				subscriptions.add(subscription);
 			}
 			
-			parserProvider = new GlueWebParserProvider(serviceMethodProvider);
+			parserProvider = new GlueWebParserProvider(serviceMethodProvider, new StaticJavaMethodProvider(new WebApplicationMethods(this)));
 			ResourceContainer<?> resources = null;
 			if (publicDirectory != null) {
 				// check if there is a resource directory

@@ -56,6 +56,7 @@ import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
+import javafx.stage.WindowEvent;
 import be.nabu.eai.authentication.api.PasswordAuthenticator;
 import be.nabu.eai.authentication.api.SecretAuthenticator;
 import be.nabu.eai.developer.ComplexContentEditor;
@@ -593,6 +594,12 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 							tree.getContextMenu().addEventHandler(ActionEvent.ACTION, new EventHandler<ActionEvent>() {
 								@Override
 								public void handle(ActionEvent arg0) {
+									tree.setContextMenu(null);
+								}
+							});
+							tree.getContextMenu().setOnHiding(new EventHandler<WindowEvent>() {
+								@Override
+								public void handle(WindowEvent arg0) {
 									tree.setContextMenu(null);
 								}
 							});
