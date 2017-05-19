@@ -27,6 +27,8 @@ import be.nabu.eai.module.http.server.RepositoryExceptionFormatter;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.keystore.KeyStoreArtifact;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
+import be.nabu.eai.module.web.application.api.RESTFragment;
+import be.nabu.eai.module.web.application.api.RESTFragmentProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.module.web.application.rate.RateLimiter;
 import be.nabu.eai.repository.EAIRepositoryUtils;
@@ -46,16 +48,21 @@ import be.nabu.eai.repository.artifacts.jaxb.JAXBArtifact;
 import be.nabu.eai.repository.impl.CacheSessionProvider;
 import be.nabu.eai.repository.util.CombinedAuthenticator;
 import be.nabu.eai.repository.util.SystemPrincipal;
+import be.nabu.glue.api.AssignmentExecutor;
+import be.nabu.glue.api.Executor;
+import be.nabu.glue.api.ExecutorGroup;
 import be.nabu.glue.api.Script;
 import be.nabu.glue.api.ScriptRepository;
 import be.nabu.glue.api.StringSubstituter;
 import be.nabu.glue.api.StringSubstituterProvider;
+import be.nabu.glue.core.impl.DefaultOptionalTypeProvider;
 import be.nabu.glue.core.impl.methods.v2.HashMethods;
 import be.nabu.glue.core.impl.parsers.GlueParserProvider;
 import be.nabu.glue.core.impl.providers.StaticJavaMethodProvider;
 import be.nabu.glue.core.repositories.ScannableScriptRepository;
 import be.nabu.glue.impl.SimpleExecutionEnvironment;
 import be.nabu.glue.services.ServiceMethodProvider;
+import be.nabu.glue.types.GlueTypeUtils;
 import be.nabu.glue.utils.MultipleRepository;
 import be.nabu.glue.utils.ScriptRuntime;
 import be.nabu.glue.utils.ScriptUtils;
@@ -108,6 +115,7 @@ import be.nabu.libs.metrics.core.sinks.LimitedHistorySinkProvider;
 import be.nabu.libs.metrics.impl.MetricGrouper;
 import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.nio.api.SourceContext;
+import be.nabu.libs.property.api.Value;
 import be.nabu.libs.resources.CombinedContainer;
 import be.nabu.libs.resources.ResourceReadableContainer;
 import be.nabu.libs.resources.ResourceUtils;
@@ -120,12 +128,21 @@ import be.nabu.libs.resources.api.WritableResource;
 import be.nabu.libs.services.api.Service;
 import be.nabu.libs.services.fixed.FixedInputService;
 import be.nabu.libs.services.pojo.POJOUtils;
+import be.nabu.libs.types.DefinedTypeResolverFactory;
 import be.nabu.libs.types.api.ComplexContent;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.Element;
+import be.nabu.libs.types.api.SimpleType;
+import be.nabu.libs.types.api.Type;
+import be.nabu.libs.types.base.ComplexElementImpl;
+import be.nabu.libs.types.base.SimpleElementImpl;
 import be.nabu.libs.types.base.TypeBaseUtils;
+import be.nabu.libs.types.base.ValueImpl;
 import be.nabu.libs.types.binding.json.JSONBinding;
+import be.nabu.libs.types.properties.MaxOccursProperty;
+import be.nabu.libs.types.properties.MinOccursProperty;
+import be.nabu.libs.types.structure.StructureGenerator;
 import be.nabu.utils.io.IOUtils;
 import be.nabu.utils.io.api.ByteBuffer;
 import be.nabu.utils.io.api.ReadableContainer;
@@ -145,7 +162,7 @@ import be.nabu.utils.mime.impl.MimeUtils;
  * We could still support the (very rare) occassion when you want to mount something twice by allowing webcomponent-level configuration
  * This would require you to add the fragment the second time to a web component, configure it there and add the web component to the application
  */
-public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> implements StartableArtifact, StoppableArtifact, AuthenticatorProvider, WebFragmentProvider {
+public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> implements StartableArtifact, StoppableArtifact, AuthenticatorProvider, WebFragmentProvider, RESTFragmentProvider {
 
 	public static final String MODULE = "nabu.web.application";
 	private Map<ResourceContainer<?>, ScriptRepository> additionalRepositories = new HashMap<ResourceContainer<?>, ScriptRepository>();
@@ -175,6 +192,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private GlueWebParserProvider parserProvider;
 	private boolean rateLimiterResolved;
 	private RateLimiter rateLimiter;
+	private List<RESTFragment> restFragments;
 	
 	public WebApplication(String id, ResourceContainer<?> directory, Repository repository) {
 		super(id, directory, repository, "webartifact.xml", WebApplicationConfiguration.class);
@@ -666,7 +684,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			
 			listener.getContentRewriters().addAll(rewriters);
 			listener.setRefreshScripts(isDevelopment);
-			listener.setAllowEncoding(!isDevelopment);
+			listener.setAllowEncoding(!isDevelopment && getConfig().isAllowContentEncoding());
 			listener.setAuthenticator(authenticator);
 			listener.setTokenValidator(getTokenValidator());
 			listener.setPermissionHandler(getPermissionHandler());
@@ -1236,5 +1254,237 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	@Override
 	public String getRelativePath() {
 		return "/";
+	}
+
+	@Override
+	public List<RESTFragment> getFragments() {
+		if (restFragments == null) {
+			synchronized(this) {
+				if (restFragments == null) {
+					List<RESTFragment> restFragments = new ArrayList<RESTFragment>();
+					for (Script script : repository) {
+						try {
+							if (GlueListener.isPublicScript(script)) {
+								if (script.getRoot() != null && script.getRoot().getContext() != null && script.getRoot().getContext().getAnnotations() != null && script.getRoot().getContext().getAnnotations().containsKey("path")) {
+									String path = script.getRoot().getContext().getAnnotations().get("path");
+									if (path != null && path.startsWith("/")) {
+										path = path.substring(1);
+									}
+									String fullPath = ScriptUtils.getFullName(script).replace(".", "/") + (path == null ? "" : "/" + path);
+									String operationId = script.getRoot().getContext().getAnnotations().get("operationId");
+									String method = script.getRoot().getContext().getAnnotations().get("method");
+									String input = script.getRoot().getContext().getAnnotations().get("input");
+									String output = script.getRoot().getContext().getAnnotations().get("output");
+									String consumes = script.getRoot().getContext().getAnnotations().get("consumes");
+									if (consumes == null) {
+										consumes = "application/javascript, application/xml";
+									}
+									String produces = script.getRoot().getContext().getAnnotations().get("produces");
+									if (produces == null) {
+										produces = "application/javascript, application/xml";
+									}
+									
+									if (operationId == null) {
+										operationId = ScriptUtils.getFullName(script);
+									}
+									List<Element<?>> pathParameters = new ArrayList<Element<?>>();
+									List<Element<?>> queryParameters = new ArrayList<Element<?>>();
+									List<Element<?>> headerParameters = new ArrayList<Element<?>>();
+
+									Type inputType = analyzeGlue(script.getRoot(), pathParameters, queryParameters, headerParameters);
+									
+									// if you explicitly set an input type, that wins
+									if (input != null) {
+										inputType = DefinedTypeResolverFactory.getInstance().getResolver().resolve(input);
+										if (inputType == null) {
+											throw new RuntimeException("Could not resolve input type: " + input);
+										}
+									}
+									
+									Type outputType = null;
+									if (output != null) {
+										outputType = DefinedTypeResolverFactory.getInstance().getResolver().resolve(output);
+										if (outputType == null) {
+											throw new RuntimeException("Could not resolve output type: " + output);
+										}
+									}
+									
+									if (method == null) {
+										method = inputType == null ? "GET" : "POST";
+									}
+									else {
+										method = method.toUpperCase();
+									}
+									
+									restFragments.add(newFragment(
+										operationId, 
+										fullPath, 
+										method, 
+										Arrays.asList(consumes.split("[\\s]*,[\\s]*")), 
+										Arrays.asList(produces.split("[\\s]*,[\\s]*")), 
+										inputType, 
+										outputType, 
+										queryParameters, 
+										headerParameters, 
+										pathParameters
+									));
+								}
+							}
+						}
+						catch (Exception e) {
+							logger.warn("Could not analyze rest services in script: " + ScriptUtils.getFullName(script), e);
+						}
+					}
+					this.restFragments = restFragments;
+				}
+			}
+		}
+		return restFragments;
+	}
+	
+	private RESTFragment newFragment(String id, String path, String method, List<String> consumes, List<String> produces, Type input, Type output, List<Element<?>> query, List<Element<?>> header, List<Element<?>> paths) {
+		return new RESTFragment() {
+			@Override
+			public String getId() {
+				return id;
+			}
+			@Override
+			public String getPath() {
+				return path;
+			}
+			@Override
+			public String getMethod() {
+				return method;
+			}
+			@Override
+			public List<String> getConsumes() {
+				return consumes;
+			}
+			@Override
+			public List<String> getProduces() {
+				return produces;
+			}
+			@Override
+			public Type getInput() {
+				return input;
+			}
+			@Override
+			public Type getOutput() {
+				return output;
+			}
+			@Override
+			public List<Element<?>> getQueryParameters() {
+				return query;
+			}
+			@Override
+			public List<Element<?>> getHeaderParameters() {
+				return header;
+			}
+			@Override
+			public List<Element<?>> getPathParameters() {
+				return paths;
+			}
+		};
+	}
+	
+	private Type analyzeGlue(ExecutorGroup group, List<Element<?>> pathParameters, List<Element<?>> queryParameters, List<Element<?>> headerParameters) {
+		Type body = null;
+		for (Executor executor : group.getChildren()) {
+			if (executor instanceof AssignmentExecutor && !(((AssignmentExecutor) executor).isOverwriteIfExists()) && executor.getContext() != null && executor.getContext().getAnnotations() != null) {
+				Map<String, String> annotations = executor.getContext().getAnnotations();
+				if (annotations.containsKey("get")) {
+					String name = annotations.get("get");
+					if (name == null) {
+						name = ((AssignmentExecutor) executor).getVariableName();
+					}
+					if (name != null) {
+						queryParameters.add(resolveElement(name, (AssignmentExecutor) executor, true));
+					}
+				}
+				else if (annotations.containsKey("path")) {
+					String name = annotations.get("path");
+					if (name == null) {
+						name = ((AssignmentExecutor) executor).getVariableName();
+					}
+					if (name != null) {
+						pathParameters.add(resolveElement(name, (AssignmentExecutor) executor, true));
+					}
+				}
+				else if (annotations.containsKey("header")) {
+					String name = annotations.get("header");
+					if (name == null) {
+						name = ((AssignmentExecutor) executor).getVariableName();
+					}
+					if (name != null) {
+						headerParameters.add(resolveElement(name, (AssignmentExecutor) executor, true));
+					}
+				}
+				// TODO: check for content, if there is any, check the type, if there is any use that, otherwise we set byte[] and octet stream!
+				else if (annotations.containsKey("content")) {
+					String name = annotations.get("content");
+					if (name == null) {
+						name = ((AssignmentExecutor) executor).getVariableName();
+					}
+					if (name != null && body == null) {
+						body = resolveType(name, false);
+					}
+				}
+			}
+			if (executor instanceof ExecutorGroup) {
+				Type analyzed = analyzeGlue((ExecutorGroup) executor, pathParameters, queryParameters, headerParameters);
+				if (body == null) {
+					body = analyzed;
+				}
+			}
+		}
+		return body;
+	}
+	
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private Element<?> resolveElement(String name, AssignmentExecutor executor, boolean shouldBeSimple) {
+		Type type = resolveType(executor.getOptionalType(), shouldBeSimple);
+		List<Value<?>> values = new ArrayList<Value<?>>();
+		if (executor.isList()) {
+			values.add(new ValueImpl<Integer>(MaxOccursProperty.getInstance(), 0));
+		}
+		String nullable = executor.getContext().getAnnotations().get("null");
+		if (nullable == null || nullable.trim().isEmpty()) {
+			nullable = "true";
+		}
+		if (Boolean.parseBoolean(nullable)) {
+			values.add(new ValueImpl<Integer>(MinOccursProperty.getInstance(), 0));
+		}
+		return type instanceof ComplexType
+			? new ComplexElementImpl(name, (ComplexType) type, null, values.toArray(new Value[0]))
+			: new SimpleElementImpl(name, (SimpleType) type, null, values.toArray(new Value[0]));
+	}
+	
+	private Type resolveType(String typeString, boolean shouldBeSimple) {
+		// any object
+		if (typeString == null) {
+			typeString = shouldBeSimple ? String.class.getName() : Object.class.getName();
+		}
+		else {
+			Class<?> wrapDefault = DefaultOptionalTypeProvider.wrapDefault(typeString);
+			if (wrapDefault != null) {
+				typeString = wrapDefault.getName();
+			}
+			else {
+				throw new RuntimeException("Unknown type: " + typeString);
+			}
+		}
+		Type type = DefinedTypeResolverFactory.getInstance().getResolver().resolve(typeString);
+		if (type == null && repository != null) {
+			try {
+				Script script = repository.getScript(typeString);
+				if (script != null) {
+					type = GlueTypeUtils.toType(ScriptUtils.getFullName(script), ScriptUtils.getInputs(script), new StructureGenerator(), repository, DefinedTypeResolverFactory.getInstance().getResolver());
+				}
+			}
+			catch (Exception e) {
+				throw new RuntimeException("Could not parse script: " + typeString);
+			}
+		}
+		return type;
 	}
 }

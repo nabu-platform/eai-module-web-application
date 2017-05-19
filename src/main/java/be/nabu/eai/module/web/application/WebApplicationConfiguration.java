@@ -18,7 +18,7 @@ import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "languageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "webFragments" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "languageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -47,7 +47,7 @@ public class WebApplicationConfiguration {
 	
 	private String jwtKeyAlias;
 	private KeyStoreArtifact jwtKeyStore;
-	private boolean allowJwtBearer;
+	private boolean allowJwtBearer, allowContentEncoding = true;
 	
 	private DefinedService rateLimiter;
 	
@@ -362,6 +362,14 @@ public class WebApplicationConfiguration {
 	}
 	public void setAllowJwtBearer(boolean allowJwtBearer) {
 		this.allowJwtBearer = allowJwtBearer;
+	}
+	
+	@Advanced
+	public boolean isAllowContentEncoding() {
+		return allowContentEncoding;
+	}
+	public void setAllowContentEncoding(boolean allowContentEncoding) {
+		this.allowContentEncoding = allowContentEncoding;
 	}
 	
 }
