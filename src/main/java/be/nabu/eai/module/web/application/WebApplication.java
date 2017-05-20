@@ -69,6 +69,7 @@ import be.nabu.glue.utils.ScriptUtils;
 import be.nabu.libs.artifacts.api.StartableArtifact;
 import be.nabu.libs.artifacts.api.StoppableArtifact;
 import be.nabu.libs.authentication.api.Authenticator;
+import be.nabu.libs.authentication.api.Device;
 import be.nabu.libs.authentication.api.DeviceValidator;
 import be.nabu.libs.authentication.api.PermissionHandler;
 import be.nabu.libs.authentication.api.RoleHandler;
@@ -85,6 +86,7 @@ import be.nabu.libs.events.api.EventDispatcher;
 import be.nabu.libs.events.api.EventHandler;
 import be.nabu.libs.events.api.EventSubscription;
 import be.nabu.libs.events.filters.AndEventFilter;
+import be.nabu.libs.http.HTTPException;
 import be.nabu.libs.http.api.ContentRewriter;
 import be.nabu.libs.http.api.HTTPRequest;
 import be.nabu.libs.http.api.HTTPResponse;
@@ -94,6 +96,7 @@ import be.nabu.libs.http.api.server.SessionResolver;
 import be.nabu.libs.http.glue.GlueListener;
 import be.nabu.libs.http.glue.GluePostProcessListener;
 import be.nabu.libs.http.glue.GluePreprocessListener;
+import be.nabu.libs.http.glue.GlueScriptCallValidator;
 import be.nabu.libs.http.glue.GlueSessionResolver;
 import be.nabu.libs.http.glue.GlueWebParserProvider;
 import be.nabu.libs.http.glue.HTTPResponseDataSerializer;
@@ -678,6 +681,27 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							}
 						}
 						return language;
+					}
+				});
+			}
+			
+			if (getRateLimiter() != null) {
+				listener.setScriptCallValidator(new GlueScriptCallValidator() {
+					@Override
+					public HTTPResponse validate(HTTPRequest request, Token token, Device device, Script script) {
+						try {
+							String operationId = script.getRoot() != null && script.getRoot().getContext() != null && script.getRoot().getContext().getAnnotations() != null
+								? script.getRoot().getContext().getAnnotations().get("operationId")
+								: null;
+							if (operationId == null) {
+								operationId = ScriptUtils.getFullName(script);
+							}
+							return getRateLimiter().handle(WebApplication.this, request, new SourceImpl(PipelineUtils.getPipeline().getSourceContext()), token, device, operationId, null);
+						}
+						catch (Exception e) {
+							logger.error("Could not check rate limiting for script", e);
+							throw new HTTPException(500, e);
+						}
 					}
 				});
 			}
