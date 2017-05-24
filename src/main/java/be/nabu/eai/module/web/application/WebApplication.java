@@ -9,6 +9,7 @@ import java.security.Key;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -36,6 +37,7 @@ import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.MetricsLevelProvider;
 import be.nabu.eai.repository.api.AuthenticatorProvider;
 import be.nabu.eai.repository.api.CacheProviderArtifact;
+import be.nabu.eai.repository.api.Documented;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.LicenseManager;
 import be.nabu.eai.repository.api.LicensedRepository;
@@ -132,6 +134,7 @@ import be.nabu.libs.services.api.Service;
 import be.nabu.libs.services.fixed.FixedInputService;
 import be.nabu.libs.services.pojo.POJOUtils;
 import be.nabu.libs.types.DefinedTypeResolverFactory;
+import be.nabu.libs.types.SimpleTypeWrapperFactory;
 import be.nabu.libs.types.api.ComplexContent;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
@@ -667,6 +670,16 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					}
 				});
 			}
+			// by default, replace the to-be-translated bits with the original value
+			else {
+				listener.getSubstituterProviders().add(new StringSubstituterProvider() {
+					@Override
+					public StringSubstituter getSubstituter(ScriptRuntime runtime) {
+						return new be.nabu.glue.impl.ImperativeSubstitutor("%", "template("
+							+ "when(\"${value}\" ~ \"^[a-z0-9.]+:.*\", replace(\"^[a-z0-9.]+:(.*)\", \"$1\", \"${value}\"), \"${value}\"))");
+					}
+				});
+			}
 			// set an additional cache key provider that can choose the user language
 			if (languageProvider != null) {
 				listener.addCacheKeyProvider(new CacheKeyProvider() {
@@ -767,26 +780,30 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			environment.put("development", "true");
 		}
 		// always set the id of the web artifact (need it to introspect artifact)
-		String hostName = getConfiguration().getVirtualHost().getConfiguration().getHost();
-		Integer port = getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getPort();
-		boolean secure = getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getKeystore() != null;
+		String hostName = getConfiguration().getVirtualHost() == null ? null : getConfiguration().getVirtualHost().getConfiguration().getHost();
+		Integer port = getConfiguration().getVirtualHost() == null || getConfiguration().getVirtualHost().getConfiguration().getServer() == null ? null :getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getPort();
+		boolean secure = getConfiguration().getVirtualHost() != null && getConfiguration().getVirtualHost().getConfiguration().getServer() != null && getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getKeystore() != null;
 
+		String url = null;
 		String host = null;
 		if (hostName != null) {
 			if (port != null) {
-				hostName += ":" + port;
+				host = hostName + ":" + port;
 			}
-			host = secure ? "https://" : "http://";
-			host += hostName;
+			else {
+				host = hostName;
+			}
+			url = secure ? "https://" : "http://";
+			url += host;
 		}
 		
 		environment.put("mobile", "false");
 		environment.put("web", "true");
 		environment.put("webApplicationId", getId());
 		environment.put("secure", Boolean.toString(secure));
-		environment.put("url", host);
-		environment.put("host", hostName);
-		environment.put("hostName", getConfiguration().getVirtualHost().getConfiguration().getHost());
+		environment.put("url", url);
+		environment.put("host", host);
+		environment.put("hostName", hostName);
 		environment.put("version", getVersion());
 		return environment;
 	}
@@ -1301,11 +1318,11 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 									String output = script.getRoot().getContext().getAnnotations().get("output");
 									String consumes = script.getRoot().getContext().getAnnotations().get("consumes");
 									if (consumes == null) {
-										consumes = "application/javascript, application/xml";
+										consumes = "application/json, application/xml";
 									}
 									String produces = script.getRoot().getContext().getAnnotations().get("produces");
 									if (produces == null) {
-										produces = "application/javascript, application/xml";
+										produces = "application/json, application/xml";
 									}
 									
 									if (operationId == null) {
@@ -1340,6 +1357,28 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 										method = method.toUpperCase();
 									}
 									
+									String description = script.getRoot().getContext().getDescription();
+									String title = script.getRoot().getContext().getAnnotations().get("title");
+									String tags = script.getRoot().getContext().getAnnotations().get("tags");
+									
+									Documented documentation = null;
+									if (description != null || title != null || tags != null) {
+										documentation = new Documented() {
+											@Override
+											public String getTitle() {
+												return title;
+											}
+											@Override
+											public String getDescription() {
+												return description;
+											}
+											@Override
+											public Collection<String> getTags() {
+												return tags == null ? null : Arrays.asList(tags.split("[\\s]*,[\\s]*"));
+											}
+										};
+									}
+									
 									restFragments.add(newFragment(
 										operationId, 
 										fullPath, 
@@ -1350,7 +1389,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 										outputType, 
 										queryParameters, 
 										headerParameters, 
-										pathParameters
+										pathParameters,
+										documentation
 									));
 								}
 							}
@@ -1366,7 +1406,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		return restFragments;
 	}
 	
-	private RESTFragment newFragment(String id, String path, String method, List<String> consumes, List<String> produces, Type input, Type output, List<Element<?>> query, List<Element<?>> header, List<Element<?>> paths) {
+	private RESTFragment newFragment(String id, String path, String method, List<String> consumes, List<String> produces, Type input, Type output, List<Element<?>> query, List<Element<?>> header, List<Element<?>> paths, Documented documentation) {
 		return new RESTFragment() {
 			@Override
 			public String getId() {
@@ -1408,6 +1448,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			public List<Element<?>> getPathParameters() {
 				return paths;
 			}
+			public Documented getDocumentation() {
+				return documentation;
+			}
 		};
 	}
 	
@@ -1445,12 +1488,14 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				}
 				// TODO: check for content, if there is any, check the type, if there is any use that, otherwise we set byte[] and octet stream!
 				else if (annotations.containsKey("content")) {
-					String name = annotations.get("content");
-					if (name == null) {
-						name = ((AssignmentExecutor) executor).getVariableName();
-					}
-					if (name != null && body == null) {
-						body = resolveType(name, false);
+					String optionalType = ((AssignmentExecutor) executor).getOptionalType();
+					if (body == null || body instanceof SimpleType) {
+						if (optionalType != null) {
+							body = resolveType(optionalType, false);
+						}
+						else {
+							body = SimpleTypeWrapperFactory.getInstance().getWrapper().wrap(byte[].class);
+						}
 					}
 				}
 			}
@@ -1492,9 +1537,6 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			Class<?> wrapDefault = DefaultOptionalTypeProvider.wrapDefault(typeString);
 			if (wrapDefault != null) {
 				typeString = wrapDefault.getName();
-			}
-			else {
-				throw new RuntimeException("Unknown type: " + typeString);
 			}
 		}
 		Type type = DefinedTypeResolverFactory.getInstance().getResolver().resolve(typeString);

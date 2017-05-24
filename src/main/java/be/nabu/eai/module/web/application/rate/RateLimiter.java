@@ -55,6 +55,18 @@ public class RateLimiter implements RequestHandler {
 		else {
 			identityKey += "$";
 		}
+		if (action != null) {
+			identityKey += ">" + action;
+		}
+		else {
+			identityKey += ">";
+		}
+		if (context != null) {
+			identityKey += "@" + context;
+		}
+		else {
+			identityKey += "@";
+		}
 		if (!settings.containsKey(identityKey)) {
 			synchronized(settings) {
 				if (!settings.containsKey(identityKey)) {
@@ -64,7 +76,7 @@ public class RateLimiter implements RequestHandler {
 		}
 		RateLimitSettings rateLimitSettings = settings.get(identityKey);
 		// if unlimited, we don't care
-		if (rateLimitSettings.getAmount() == null || rateLimitSettings.getAmount() == 0) {
+		if (rateLimitSettings == null || rateLimitSettings.getAmount() == null || rateLimitSettings.getAmount() == 0) {
 			return null;
 		}
 		HistorySink sink = (HistorySink) provider.getSink(rateLimitSettings.getIdentity() == null ? identityKey : rateLimitSettings.getIdentity(), rateLimitSettings.getContext() == null ? action : rateLimitSettings.getContext());

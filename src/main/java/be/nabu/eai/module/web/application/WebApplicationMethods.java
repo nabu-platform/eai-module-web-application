@@ -6,10 +6,14 @@ import java.util.List;
 
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.ResourceEntry;
+import be.nabu.glue.annotations.GlueParam;
 import be.nabu.libs.artifacts.api.Artifact;
 import be.nabu.libs.evaluator.annotations.MethodProviderClass;
 import be.nabu.libs.resources.ResourceUtils;
 import be.nabu.libs.resources.api.ResourceContainer;
+import be.nabu.libs.types.DefinedTypeResolverFactory;
+import be.nabu.libs.types.api.ComplexContent;
+import be.nabu.libs.types.api.ComplexType;
 
 @MethodProviderClass(namespace = "application")
 public class WebApplicationMethods {
@@ -54,5 +58,9 @@ public class WebApplicationMethods {
 			}
 		}
 		return folders;
+	}
+	
+	public ComplexContent configuration(@GlueParam(name = "type") String type, @GlueParam(name = "path") String path) throws IOException {
+		return application.getConfigurationFor(path == null ? "/" : path, (ComplexType) DefinedTypeResolverFactory.getInstance().getResolver().resolve(type));
 	}
 }
