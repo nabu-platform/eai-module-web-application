@@ -4,11 +4,17 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.glue.annotations.GlueParam;
 import be.nabu.libs.artifacts.api.Artifact;
 import be.nabu.libs.evaluator.annotations.MethodProviderClass;
+import be.nabu.libs.http.api.HTTPRequest;
+import be.nabu.libs.http.api.HTTPResponse;
+import be.nabu.libs.http.glue.impl.RequestMethods;
+import be.nabu.libs.http.glue.impl.UserMethods;
+import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.resources.ResourceUtils;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.types.DefinedTypeResolverFactory;
@@ -62,5 +68,14 @@ public class WebApplicationMethods {
 	
 	public ComplexContent configuration(@GlueParam(name = "type") String type, @GlueParam(name = "path") String path) throws IOException {
 		return application.getConfigurationFor(path == null ? "/" : path, (ComplexType) DefinedTypeResolverFactory.getInstance().getResolver().resolve(type));
+	}
+	
+	public HTTPResponse throttle(String action, String context) throws IOException {
+		if (application.getRateLimiter() == null) {
+			return null;
+		}
+		HTTPRequest request = (HTTPRequest) RequestMethods.entity();
+		SourceImpl source = new SourceImpl(PipelineUtils.getPipeline().getSourceContext());
+		return application.getRateLimiter().handle(application, request, source, UserMethods.token(), UserMethods.device(), action, context);
 	}
 }

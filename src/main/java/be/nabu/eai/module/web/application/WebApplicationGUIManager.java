@@ -632,6 +632,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 						public void changed(ObservableValue<? extends TreeItem<Resource>> observable, TreeItem<Resource> oldValue, TreeItem<Resource> newValue) {
 							TreeCell<Resource> treeCell = tree.getTreeCell(newValue);
 							treeCell.select();
+							treeCell.show();
 						}
 					});
 					TreeCell<Resource> selectedItem = tree.getSelectionModel().getSelectedItem();

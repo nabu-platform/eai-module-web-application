@@ -644,7 +644,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						}
 						// if there is no language provider or it does not have a language for the user, try to detect from browser settings
 						if (language == null) {
-							if (RequestMethods.entity().getContent() != null) {
+							if (RequestMethods.entity() != null && RequestMethods.entity().getContent() != null) {
 								List<String> acceptedLanguages = MimeUtils.getAcceptedLanguages(RequestMethods.entity().getContent().getHeaders());
 								if (!acceptedLanguages.isEmpty()) {
 									language = acceptedLanguages.get(0).replaceAll("-.*$", "");
@@ -778,6 +778,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		Map<String, String> environment = getProperties();
 		if (isDevelopment) {
 			environment.put("development", "true");
+		}
+		else {
+			environment.put("development", "false");
 		}
 		// always set the id of the web artifact (need it to introspect artifact)
 		String hostName = getConfiguration().getVirtualHost() == null ? null : getConfiguration().getVirtualHost().getConfiguration().getHost();
