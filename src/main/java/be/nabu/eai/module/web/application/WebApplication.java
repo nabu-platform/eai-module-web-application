@@ -1379,6 +1379,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 											public Collection<String> getTags() {
 												return tags == null ? null : Arrays.asList(tags.split("[\\s]*,[\\s]*"));
 											}
+											@Override
+											public String getMimeType() {
+												return "text/x-markdown";
+											}
 										};
 									}
 									
