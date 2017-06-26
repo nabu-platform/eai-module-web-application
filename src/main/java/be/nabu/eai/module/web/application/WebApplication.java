@@ -321,6 +321,24 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			
 			EventDispatcher dispatcher = getConfiguration().getVirtualHost().getDispatcher();
 			
+			List<WebFragment> webFragments = getConfiguration().getWebFragments();
+			// new list so we don't affect the original order
+			webFragments = webFragments == null ? new ArrayList<WebFragment>() : new ArrayList<WebFragment>(webFragments);
+			Collections.sort(webFragments, new Comparator<WebFragment>() {
+				@Override
+				public int compare(WebFragment o1, WebFragment o2) {
+					if (o1 == null) {
+						return 1;
+					}
+					else if (o2 == null) {
+						return -1;
+					}
+					else {
+						return o1.getPriority().compareTo(o2.getPriority());
+					}
+				}
+			});
+			
 			// allow custom request handlers, request rewriting & response rewriting are the domain of the glue pre & post processors
 			if (getConfiguration().getRequestSubscriber() != null) {
 				final RequestSubscriber requestSubscriber = POJOUtils.newProxy(RequestSubscriber.class, wrap(getConfiguration().getRequestSubscriber(), getMethod(RequestSubscriber.class, "handle")), getRepository(), SystemPrincipal.ROOT);
@@ -431,6 +449,18 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				EventSubscription<HTTPRequest, HTTPRequest> subscription = dispatcher.subscribe(HTTPRequest.class, preprocessListener);
 				subscription.filter(HTTPServerUtils.limitToPath(serverPath));
 				subscriptions.add(subscription);
+			}
+			
+			// we start the web fragments that have highest priority
+			for (WebFragment fragment : webFragments) {
+				if (fragment != null) {
+					if (fragment.getPriority() == WebFragmentPriority.HIGHEST) {
+						fragment.start(this, null);
+					}
+					else {
+						break;
+					}
+				}
 			}
 			
 			parserProvider = new GlueWebParserProvider(serviceMethodProvider, new StaticJavaMethodProvider(new WebApplicationMethods(this)));
@@ -730,30 +760,14 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			listener.setRealm(realm);
 			// always creating a session can create other issues
 //			listener.setAlwaysCreateSession(true);
-			List<WebFragment> webFragments = getConfiguration().getWebFragments();
-			// new list so we don't affect the original order
-			webFragments = webFragments == null ? new ArrayList<WebFragment>() : new ArrayList<WebFragment>(webFragments);
-			Collections.sort(webFragments, new Comparator<WebFragment>() {
-				@Override
-				public int compare(WebFragment o1, WebFragment o2) {
-					if (o1 == null) {
-						return 1;
-					}
-					else if (o2 == null) {
-						return -1;
-					}
-					else {
-						return o1.getPriority().compareTo(o2.getPriority());
-					}
-				}
-			});
+			
 			// first start everything above normal priority
 			for (WebFragment fragment : webFragments) {
 				if (fragment != null) {
-					if (fragment.getPriority().compareTo(WebFragmentPriority.NORMAL) < 0) {
+					if (fragment.getPriority().compareTo(WebFragmentPriority.NORMAL) < 0 && fragment.getPriority() != WebFragmentPriority.HIGHEST) {
 						fragment.start(this, null);
 					}
-					else {
+					else if (fragment.getPriority().compareTo(WebFragmentPriority.NORMAL) >= 0) {
 						break;
 					}
 				}
