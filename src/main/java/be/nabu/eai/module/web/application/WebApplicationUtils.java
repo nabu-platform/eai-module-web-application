@@ -128,4 +128,26 @@ public class WebApplicationUtils {
 			throw new RuntimeException(e);
 		}
 	}
+	
+	public static String getFragmentPath(WebApplication application, String relativePath, String childPath) {
+		try {
+			String fullPath = application.getServerPath();
+			fullPath = relativize(fullPath, relativePath);
+			fullPath = relativize(fullPath, childPath);
+			return fullPath;
+		}
+		catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
+
+	public static String relativize(String fullPath, String childPath) {
+		if (childPath != null && !childPath.isEmpty() && !childPath.equals("/")) {
+			if (!fullPath.endsWith("/")) {
+				fullPath += "/";
+			}
+			fullPath += childPath.replaceFirst("^[/]+", "");
+		}
+		return fullPath;
+	}
 }

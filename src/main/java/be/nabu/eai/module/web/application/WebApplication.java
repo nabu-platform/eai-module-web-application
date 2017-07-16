@@ -90,6 +90,7 @@ import be.nabu.libs.events.api.EventSubscription;
 import be.nabu.libs.events.filters.AndEventFilter;
 import be.nabu.libs.http.HTTPException;
 import be.nabu.libs.http.api.ContentRewriter;
+import be.nabu.libs.http.api.HTTPEntity;
 import be.nabu.libs.http.api.HTTPRequest;
 import be.nabu.libs.http.api.HTTPResponse;
 import be.nabu.libs.http.api.server.HTTPServer;
@@ -101,8 +102,9 @@ import be.nabu.libs.http.glue.GluePreprocessListener;
 import be.nabu.libs.http.glue.GlueScriptCallValidator;
 import be.nabu.libs.http.glue.GlueSessionResolver;
 import be.nabu.libs.http.glue.GlueWebParserProvider;
-import be.nabu.libs.http.glue.HTTPResponseDataSerializer;
+import be.nabu.libs.http.glue.HTTPEntityDataSerializer;
 import be.nabu.libs.http.glue.api.CacheKeyProvider;
+import be.nabu.libs.http.glue.impl.GlueScriptCacheRefresher;
 import be.nabu.libs.http.glue.impl.RequestMethods;
 import be.nabu.libs.http.glue.impl.UserMethods;
 import be.nabu.libs.http.jwt.JWTSessionProvider;
@@ -285,7 +287,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					getConfiguration().getMaxSessionSize() == null ? 0 : getConfiguration().getMaxSessionSize(),
 					new StringSerializer(),
 					new SerializableSerializer(),
-					// no refreshing logic obviously
+					// no refresher obviously
 					null,
 					// defaults to 1 hour
 					new AccessBasedTimeoutManager(getConfiguration().getSessionTimeout() == null ? 1000l*60*60 : getConfiguration().getSessionTimeout())
@@ -345,6 +347,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, new EventHandler<HTTPRequest, HTTPResponse>() {
 					@Override
 					public HTTPResponse handle(HTTPRequest event) {
+						// if there is no pipeline context, the request is not coming in over http
+						if (PipelineUtils.getPipeline() == null) {
+							return null;
+						}
 						SourceContext sourceContext = PipelineUtils.getPipeline().getSourceContext();
 						return requestSubscriber.handle(getId(), getRealm(), new SourceImpl(sourceContext), event);
 					}
@@ -446,7 +452,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				preprocessListener.setRefresh(isDevelopment);
 				preprocessListener.setTokenValidator(getTokenValidator());
 				preprocessListener.setRealm(realm);
-				EventSubscription<HTTPRequest, HTTPRequest> subscription = dispatcher.subscribe(HTTPRequest.class, preprocessListener);
+				EventSubscription<HTTPRequest, HTTPEntity> subscription = dispatcher.subscribe(HTTPRequest.class, preprocessListener);
 				subscription.filter(HTTPServerUtils.limitToPath(serverPath));
 				subscriptions.add(subscription);
 			}
@@ -537,6 +543,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				new SimpleExecutionEnvironment(environmentName, environment),
 				serverPath
 			);
+			
 			if (getConfig().getCookiePath() != null) {
 				listener.setCookiePath(getConfig().getCookiePath());
 			}
@@ -552,8 +559,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 								cache = cacheProvider.get(getId() + "-script-" + name);
 								if (cache == null) {
 									Long configuredTimeout = null;
+									Script script = null;
 									try {
-										Script script = listener.getRepository().getScript(name);
+										script = listener.getRepository().getScript(name);
 										if (script.getRoot().getContext() != null && script.getRoot().getContext().getAnnotations() != null) {
 											String string = script.getRoot().getContext().getAnnotations().get("cache");
 											if (string != null && !string.trim().isEmpty()) {
@@ -576,14 +584,15 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 									if (configuredTimeout < 0) {
 										return null;
 									}
+									
 									cache = cacheProvider.create(getId() + "-script-" + name, 
 										// defaults to unlimited
 										getConfiguration().getMaxTotalScriptCacheSize() == null ? 0 : getConfiguration().getMaxTotalScriptCacheSize(),
 										// defaults to unlimited
 										getConfiguration().getMaxScriptCacheSize() == null ? 0 : getConfiguration().getMaxScriptCacheSize(),
 										new StringSerializer(Charset.forName("UTF-8")), 
-										new HTTPResponseDataSerializer(), 
-										null, 
+										new HTTPEntityDataSerializer(),
+										new GlueScriptCacheRefresher(listener, name), 
 										// defaults to 1 hour
 										new LastModifiedTimeoutManager(configuredTimeout)
 //										new AccessBasedTimeoutManager(configuredTimeout)
@@ -711,19 +720,19 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				});
 			}
 			// set an additional cache key provider that can choose the user language
-			if (languageProvider != null) {
+			if (getConfiguration().getTranslationService() != null) {
 				listener.addCacheKeyProvider(new CacheKeyProvider() {
 					@Override
 					public String getAdditionalCacheKey(HTTPRequest request, Token token, Script script) {
 						// make sure we mirror the logic above for the substitution cause that will be the actual language in the returned content
-						String language = languageProvider.getLanguage(token);
+						String language = languageProvider == null ? null : languageProvider.getLanguage(token);
 						if (language == null) {
 							List<String> acceptedLanguages = MimeUtils.getAcceptedLanguages(request.getContent().getHeaders());
 							if (!acceptedLanguages.isEmpty()) {
 								language = acceptedLanguages.get(0).replaceAll("-.*$", "");
 							}
 						}
-						return language;
+						return language == null ? null : "lang=" + language;
 					}
 				});
 			}
@@ -813,7 +822,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			url = secure ? "https://" : "http://";
 			url += host;
 		}
-		
+		environment.put("realm", getRealm());
 		environment.put("mobile", "false");
 		environment.put("web", "true");
 		environment.put("webApplicationId", getId());

@@ -28,6 +28,8 @@ import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.resources.api.ResourceFilter;
 import be.nabu.libs.services.api.ExecutionContext;
+import be.nabu.libs.types.api.ComplexType;
+import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.KeyValuePair;
 import be.nabu.utils.io.IOUtils;
 
@@ -165,6 +167,19 @@ public class Services {
 				result.addAll(find((ResourceContainer<?>) child, filter, recursive, childPath));
 		}
 		return result;
+	}
+	
+	@WebResult(name = "configuration")
+	public Object configuration(@NotNull @WebParam(name = "webApplicationId") String id, @NotNull @WebParam(name = "typeId") String typeId, @WebParam(name = "path") String path) throws IOException {
+		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+		if (resolved == null) {
+			throw new IllegalArgumentException("Could not find web application: " + id);
+		}
+		DefinedType resolve = executionContext.getServiceContext().getResolver(DefinedType.class).resolve(typeId);
+		if (!(resolve instanceof ComplexType)) {
+			throw new IllegalArgumentException("Not a valid complex type: " + typeId);
+		}
+		return resolved.getConfigurationFor(path == null ? ".*" : path, (ComplexType) resolve);
 	}
 
 }
