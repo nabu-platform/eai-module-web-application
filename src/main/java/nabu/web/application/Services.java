@@ -2,10 +2,8 @@ package nabu.web.application;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import javax.jws.WebParam;
 import javax.jws.WebResult;
@@ -19,6 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import be.nabu.eai.module.web.application.WebApplication;
+import be.nabu.eai.module.web.application.WebApplicationUtils;
 import be.nabu.eai.module.web.application.WebFragment;
 import be.nabu.glue.api.Script;
 import be.nabu.glue.impl.ImperativeSubstitutor;
@@ -102,24 +101,7 @@ public class Services {
 		if (id != null) {
 			WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
 			if (resolved != null) {
-				WebApplicationInformation information = new WebApplicationInformation();
-				information.setRealm(resolved.getRealm());
-				information.setCharset(resolved.getConfiguration().getCharset() == null ? Charset.defaultCharset() : Charset.forName(resolved.getConfiguration().getCharset()));
-				if (resolved.getConfiguration().getVirtualHost() != null) {
-					information.setHost(resolved.getConfiguration().getVirtualHost().getConfiguration().getHost());
-					information.setAliases(resolved.getConfiguration().getVirtualHost().getConfiguration().getAliases());
-					information.setPort(resolved.getConfiguration().getVirtualHost().getConfiguration().getServer() == null ? null : resolved.getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getPort());
-					information.setSecure(resolved.getConfiguration().getVirtualHost().getConfiguration().getServer() == null ? null : resolved.getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getKeystore() != null);
-				}
-				information.setPath(resolved.getConfiguration().getPath());
-				if (resolved.getConfiguration().getTranslationService() != null) {
-					information.setTranslationService(resolved.getConfiguration().getTranslationService().getId());
-				}
-				Map<String, String> properties = resolved.getListener().getEnvironment().getParameters();
-				for (String key : properties.keySet()) {
-					information.getProperties().add(new PropertyImpl(key, properties.get(key)));
-				}
-				return information;
+				return WebApplicationUtils.getInformation(resolved);
 			}
 		}
 		return null;

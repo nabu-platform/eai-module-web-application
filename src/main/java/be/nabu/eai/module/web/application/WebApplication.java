@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
+import java.net.URI;
 import java.nio.charset.Charset;
 import java.security.Key;
 import java.text.ParseException;
@@ -88,6 +89,7 @@ import be.nabu.libs.events.api.EventDispatcher;
 import be.nabu.libs.events.api.EventHandler;
 import be.nabu.libs.events.api.EventSubscription;
 import be.nabu.libs.events.filters.AndEventFilter;
+import be.nabu.libs.http.HTTPCodes;
 import be.nabu.libs.http.HTTPException;
 import be.nabu.libs.http.api.ContentRewriter;
 import be.nabu.libs.http.api.HTTPEntity;
@@ -96,6 +98,8 @@ import be.nabu.libs.http.api.HTTPResponse;
 import be.nabu.libs.http.api.server.HTTPServer;
 import be.nabu.libs.http.api.server.SessionProvider;
 import be.nabu.libs.http.api.server.SessionResolver;
+import be.nabu.libs.http.core.DefaultHTTPResponse;
+import be.nabu.libs.http.core.HTTPUtils;
 import be.nabu.libs.http.glue.GlueListener;
 import be.nabu.libs.http.glue.GluePostProcessListener;
 import be.nabu.libs.http.glue.GluePreprocessListener;
@@ -158,6 +162,7 @@ import be.nabu.utils.io.api.WritableContainer;
 import be.nabu.utils.mime.api.Header;
 import be.nabu.utils.mime.impl.MimeHeader;
 import be.nabu.utils.mime.impl.MimeUtils;
+import be.nabu.utils.mime.impl.PlainMimeContentPart;
 
 /**
  * TODO: integrate session provider to use same cache as service cache
@@ -201,6 +206,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private boolean rateLimiterResolved;
 	private RateLimiter rateLimiter;
 	private List<RESTFragment> restFragments;
+	
+	private String robotsFile;
 	
 	public WebApplication(String id, ResourceContainer<?> directory, Repository repository) {
 		super(id, directory, repository, "webartifact.xml", WebApplicationConfiguration.class);
@@ -770,6 +777,32 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			// always creating a session can create other issues
 //			listener.setAlwaysCreateSession(true);
 			
+			EventSubscription<HTTPRequest, HTTPResponse> robotSubscription = dispatcher.subscribe(HTTPRequest.class, new EventHandler<HTTPRequest, HTTPResponse>() {
+				@Override
+				public HTTPResponse handle(HTTPRequest request) {
+					String robots = getRobots();
+					if (robots == null) {
+						return null;
+					}
+					try {
+						URI uri = HTTPUtils.getURI(request, false);
+						if (uri.getPath().equals("/robots.txt")) {
+							// should be ascii compliant
+							byte [] content = robots.getBytes(Charset.forName("UTF-8"));
+							return new DefaultHTTPResponse(request, 200, HTTPCodes.getMessage(200), new PlainMimeContentPart(null, IOUtils.wrap(content, true),
+								new MimeHeader("Content-Length", "" + content.length),
+								new MimeHeader("Content-Type", "text/plain")
+							));
+						}
+					}
+					catch (Exception e) {
+						throw new HTTPException(500, e);	
+					}
+					return null;
+				}
+			});
+			subscriptions.add(robotSubscription);
+			
 			// first start everything above normal priority
 			for (WebFragment fragment : webFragments) {
 				if (fragment != null) {
@@ -794,6 +827,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			started = true;
 			logger.info("Started " + subscriptions.size() + " subscriptions");
 		}
+	}
+
+	public String getRobots() {
+		return robotsFile;
+	}
+	public void setRobots(String robotsFile) {
+		this.robotsFile = robotsFile;
 	}
 
 	public Map<String, String> getEnvironmentProperties() throws IOException {

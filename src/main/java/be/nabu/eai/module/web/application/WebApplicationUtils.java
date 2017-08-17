@@ -1,9 +1,12 @@
 package be.nabu.eai.module.web.application;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Map;
 
+import nabu.web.application.types.PropertyImpl;
+import nabu.web.application.types.WebApplicationInformation;
 import be.nabu.eai.module.http.virtual.api.Source;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.web.application.rate.RateLimiter;
@@ -28,6 +31,27 @@ public class WebApplicationUtils {
 	public static Source getSource() {
 		Pipeline pipeline = PipelineUtils.getPipeline();
 		return pipeline == null ? null : new SourceImpl(pipeline.getSourceContext());
+	}
+
+	public static WebApplicationInformation getInformation(WebApplication application) {
+		WebApplicationInformation information = new WebApplicationInformation();
+		information.setRealm(application.getRealm());
+		information.setCharset(application.getConfig().getCharset() == null ? Charset.defaultCharset() : Charset.forName(application.getConfig().getCharset()));
+		if (application.getConfig().getVirtualHost() != null) {
+			information.setHost(application.getConfig().getVirtualHost().getConfig().getHost());
+			information.setAliases(application.getConfig().getVirtualHost().getConfig().getAliases());
+			information.setPort(application.getConfig().getVirtualHost().getConfig().getServer() == null ? null : application.getConfig().getVirtualHost().getConfig().getServer().getConfig().getPort());
+			information.setSecure(application.getConfig().getVirtualHost().getConfig().getServer() == null ? null : application.getConfig().getVirtualHost().getConfig().getServer().getConfig().getKeystore() != null);
+		}
+		information.setPath(application.getConfig().getPath());
+		if (application.getConfig().getTranslationService() != null) {
+			information.setTranslationService(application.getConfig().getTranslationService().getId());
+		}
+		Map<String, String> properties = application.getListener().getEnvironment().getParameters();
+		for (String key : properties.keySet()) {
+			information.getProperties().add(new PropertyImpl(key, properties.get(key)));
+		}
+		return information;
 	}
 	
 	public static Session getSession(WebApplication application, HTTPRequest request) {
