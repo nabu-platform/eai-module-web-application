@@ -18,7 +18,7 @@ import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "languageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "languageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -34,7 +34,7 @@ public class WebApplicationConfiguration {
 	private boolean addCacheHeaders = true;
 	
 	private DefinedService passwordAuthenticationService, secretAuthenticationService;
-	private DefinedService permissionService;
+	private DefinedService permissionService, potentialPermissionService;
 	private DefinedService roleService;
 	private DefinedService tokenValidatorService;
 	private DefinedService translationService;
@@ -59,7 +59,7 @@ public class WebApplicationConfiguration {
 	public void setPath(String path) {
 		this.path = path;
 	}
-
+	
 	@Advanced
 	@Comment(title = "The encoding used for the response content")
 	public String getCharset() {
@@ -129,6 +129,16 @@ public class WebApplicationConfiguration {
 		this.roleService = roleService;
 	}
 
+	@Comment(title = "This service is responsible for checking if a user potentially has a permission regardless of the context. Once a context is known, the permission handler might still not grant the permission though.")
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	@InterfaceFilter(implement = "be.nabu.libs.authentication.api.PotentialPermissionHandler.hasPotentialPermission")
+	public DefinedService getPotentialPermissionService() {
+		return potentialPermissionService;
+	}
+	public void setPotentialPermissionService(DefinedService potentialPermissionService) {
+		this.potentialPermissionService = potentialPermissionService;
+	}
+	
 	@Advanced
 	@Comment(title = "This service is responsible for checking if a previously granted token is still valid")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)

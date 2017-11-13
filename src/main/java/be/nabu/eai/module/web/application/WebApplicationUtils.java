@@ -16,6 +16,7 @@ import be.nabu.libs.authentication.api.DeviceValidator;
 import be.nabu.libs.authentication.api.RoleHandler;
 import be.nabu.libs.authentication.api.Token;
 import be.nabu.libs.authentication.api.TokenValidator;
+import be.nabu.libs.events.api.EventSubscription;
 import be.nabu.libs.http.HTTPException;
 import be.nabu.libs.http.api.HTTPRequest;
 import be.nabu.libs.http.api.HTTPResponse;
@@ -23,16 +24,47 @@ import be.nabu.libs.http.api.server.AuthenticationHeader;
 import be.nabu.libs.http.api.server.Session;
 import be.nabu.libs.http.core.HTTPUtils;
 import be.nabu.libs.http.glue.GlueListener;
+import be.nabu.libs.http.server.HTTPServerUtils;
 import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.nio.api.Pipeline;
+import be.nabu.utils.mime.impl.MimeUtils;
 
 public class WebApplicationUtils {
+	
+	public static void limitToApplication(EventSubscription<HTTPRequest, ?> subscription, WebApplication application) {
+		if (application.getConfig().getPath() != null) {
+			subscription.filter(HTTPServerUtils.limitToPath(application.getConfig().getPath()));
+		}
+	}
 	
 	public static Source getSource() {
 		Pipeline pipeline = PipelineUtils.getPipeline();
 		return pipeline == null ? null : new SourceImpl(pipeline.getSourceContext());
 	}
 
+	public static String getLanguage(WebApplication application, HTTPRequest request) throws IOException {
+		String language = null;
+		// first get it from the language provider (if any)
+		if (application.getLanguageProvider() != null) {
+			language = application.getLanguageProvider().getLanguage(getToken(application, request));
+		}
+		// then try to get it from cookies, this mechanism can be used for anonymous users with a personal preference
+		if (language == null) {
+			Map<String, List<String>> cookies = HTTPUtils.getCookies(request.getContent().getHeaders());
+			if (cookies != null && cookies.get("language") != null && !cookies.get("language").isEmpty()) {
+				language = cookies.get("language").get(0);
+			}
+		}
+		// try to get it from the browser preferences, this can be used for anonymous users without a personal preference
+		if (language == null) {
+			List<String> acceptedLanguages = MimeUtils.getAcceptedLanguages(request.getContent().getHeaders());
+			if (!acceptedLanguages.isEmpty()) {
+				language = acceptedLanguages.get(0).replaceAll("-.*$", "");
+			}
+		}
+		return language;
+	}
+	
 	public static WebApplicationInformation getInformation(WebApplication application) {
 		WebApplicationInformation information = new WebApplicationInformation();
 		information.setRealm(application.getRealm());

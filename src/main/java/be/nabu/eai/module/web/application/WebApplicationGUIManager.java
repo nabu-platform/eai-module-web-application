@@ -52,6 +52,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.input.TransferMode;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -84,9 +85,13 @@ import be.nabu.jfx.control.tree.TreeCell;
 import be.nabu.jfx.control.tree.TreeItem;
 import be.nabu.jfx.control.tree.TreeUtils;
 import be.nabu.jfx.control.tree.TreeUtils.TreeItemCreator;
+import be.nabu.jfx.control.tree.drag.TreeDragDrop;
+import be.nabu.jfx.control.tree.drag.TreeDragListener;
+import be.nabu.jfx.control.tree.drag.TreeDropListener;
 import be.nabu.jfx.control.tree.Updateable;
 import be.nabu.libs.authentication.api.DeviceValidator;
 import be.nabu.libs.authentication.api.PermissionHandler;
+import be.nabu.libs.authentication.api.PotentialPermissionHandler;
 import be.nabu.libs.authentication.api.RoleHandler;
 import be.nabu.libs.authentication.api.TokenValidator;
 import be.nabu.libs.property.api.Property;
@@ -322,6 +327,12 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getPermissionService(), method));
 		}
 		
+		// potential permission handler
+		if (artifact.getConfig().getPotentialPermissionService() != null) {
+			Method method = WebApplication.getMethod(PotentialPermissionHandler.class, "hasPotentialPermission");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getPotentialPermissionService(), method));
+		}
+		
 		// device validator
 		if (artifact.getConfig().getDeviceValidatorService() != null) {
 			Method method = WebApplication.getMethod(DeviceValidator.class, "isAllowed");
@@ -398,6 +409,59 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		});
 		tree.rootProperty().set(new ResourceTreeItem(null, container));
 
+		TreeDragDrop.makeDraggable(tree, new TreeDragListener<Resource>() {
+			@Override
+			public TransferMode getTransferMode() {
+				return TransferMode.MOVE;
+			}
+			@Override
+			public boolean canDrag(TreeCell<Resource> item) {
+				String path = TreeUtils.getPath(item.getItem());
+				return item.getItem().getParent().itemProperty().get() instanceof ManageableContainer && !path.equals("web") && !path.equals("web/public") && !path.equals("web/private");
+			}
+			@Override
+			public String getDataType(TreeCell<Resource> item) {
+				return "resource";
+			}
+			@Override
+			public void drag(TreeCell<Resource> cell) {
+				// do nothing
+			}
+			@Override
+			public void stopDrag(TreeCell<Resource> cell, boolean droppedSuccessfully) {
+				// do nothing
+			}
+		});
+		TreeDragDrop.makeDroppable(tree, new TreeDropListener<Resource>() {
+			@Override
+			public boolean canDrop(String dataType, TreeCell<Resource> target, TreeCell<?> dragged, TransferMode transferMode) {
+				return !dragged.equals(target)
+						&& dragged.getItem().itemProperty().get() instanceof Resource
+						&& "resource".equals(dataType)
+						// can not be in the root of the resources, it's a virtual container
+						&& target.getParent() != null 
+						&& target.getItem().itemProperty().get() instanceof ManageableContainer
+						// nothing with that name must exist in the target
+						&& ((ResourceContainer) target.getItem().itemProperty().get()).getChild(((Resource) dragged.getItem().itemProperty().get()).getName()) == null
+						&& transferMode == TransferMode.MOVE;
+			}
+			@Override
+			public void drop(String dataType, TreeCell<Resource> target, TreeCell<?> dragged, TransferMode transferMode) {
+				Resource source = (Resource) dragged.getItem().itemProperty().get();
+				try {
+					ResourceUtils.copy(source, ((ManageableContainer) target.getItem().itemProperty().get()));
+					if (TransferMode.MOVE == transferMode) {
+						((ManageableContainer) source.getParent()).delete(source.getName());
+					}
+					target.getParent().refresh();
+					dragged.getParent().refresh();
+				}
+				catch (IOException e) {
+					MainController.getInstance().notify(e);
+				}
+			}
+		});
+		
 		final TabPane editors = new TabPane();
 		editors.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<Tab>() {
 			@Override
@@ -671,7 +735,12 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 //				}
 				else if (event.getCode() == KeyCode.E && event.isControlDown()) {
 					if (tree.getSelectionModel().getSelectedItem() != null) {
-						tree.getSelectionModel().getSelectedItem().expandAll();
+						if (event.isShiftDown()) {
+							tree.getSelectionModel().getSelectedItem().collapseAll();	
+						}
+						else {
+							tree.getSelectionModel().getSelectedItem().expandAll();
+						}
 					}
 				}
 			}
@@ -739,17 +808,17 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			String parentPath = TreeUtils.getPath(parent);
 			editableProperty.set(parent != null && parent.itemProperty().get() instanceof ManageableContainer && !"web".equals(parentPath));
 			itemProperty.set(resource);
-			refresh(true);
+			refresh(true, false);
 		}
 		
 		@Override
 		public void refresh() {
-			refresh(true);			
+			refresh(true, true);
 		}
 		
 		@SuppressWarnings({ "unchecked", "rawtypes" })
-		private void refresh(boolean includeChildren) {
-			if (itemProperty.get() instanceof CacheableResource) {
+		private void refresh(boolean includeChildren, boolean resetCache) {
+			if (resetCache && itemProperty.get() instanceof CacheableResource) {
 				try {
 					((CacheableResource) itemProperty.get()).resetCache();
 				}

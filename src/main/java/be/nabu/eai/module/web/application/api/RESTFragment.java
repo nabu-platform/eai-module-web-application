@@ -21,4 +21,14 @@ public interface RESTFragment extends Artifact {
 	public default Documented getDocumentation() {
 		return null;
 	}
+	// the roles that are allowed to execute this rest fragment
+	public default List<String> getAllowedRoles() {
+		return null;
+	}
+	public default String getPermissionAction() {
+		return null;
+	}
+	public default String getPermissionContext() {
+		return null;
+	}
 }

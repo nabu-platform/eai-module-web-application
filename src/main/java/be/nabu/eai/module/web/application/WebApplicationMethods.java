@@ -9,6 +9,9 @@ import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.glue.annotations.GlueParam;
 import be.nabu.libs.artifacts.api.Artifact;
+import be.nabu.libs.authentication.api.Authenticator;
+import be.nabu.libs.authentication.api.PermissionHandler;
+import be.nabu.libs.authentication.api.RoleHandler;
 import be.nabu.libs.evaluator.annotations.MethodProviderClass;
 import be.nabu.libs.http.api.HTTPRequest;
 import be.nabu.libs.http.api.HTTPResponse;
@@ -77,5 +80,21 @@ public class WebApplicationMethods {
 		HTTPRequest request = (HTTPRequest) RequestMethods.entity();
 		SourceImpl source = new SourceImpl(PipelineUtils.getPipeline().getSourceContext());
 		return application.getRateLimiter().handle(application, request, source, UserMethods.token(), UserMethods.device(), action, context);
+	}
+	
+	public RoleHandler roleHandler() throws IOException {
+		return application.getRoleHandler();
+	}
+	
+	public PermissionHandler permissionHandler() throws IOException {
+		return application.getPermissionHandler();
+	}
+	
+	public Authenticator authenticator() {
+		return application.getAuthenticator();
+	}
+	
+	public String language() throws IOException {
+		return WebApplicationUtils.getLanguage(application, (HTTPRequest) RequestMethods.entity());
 	}
 }

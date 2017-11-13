@@ -52,8 +52,10 @@ import be.nabu.eai.repository.impl.CacheSessionProvider;
 import be.nabu.eai.repository.util.CombinedAuthenticator;
 import be.nabu.eai.repository.util.SystemPrincipal;
 import be.nabu.glue.api.AssignmentExecutor;
+import be.nabu.glue.api.ExecutionContext;
 import be.nabu.glue.api.Executor;
 import be.nabu.glue.api.ExecutorGroup;
+import be.nabu.glue.api.ParserProvider;
 import be.nabu.glue.api.Script;
 import be.nabu.glue.api.ScriptRepository;
 import be.nabu.glue.api.StringSubstituter;
@@ -63,6 +65,7 @@ import be.nabu.glue.core.impl.methods.v2.HashMethods;
 import be.nabu.glue.core.impl.parsers.GlueParserProvider;
 import be.nabu.glue.core.impl.providers.StaticJavaMethodProvider;
 import be.nabu.glue.core.repositories.ScannableScriptRepository;
+import be.nabu.glue.impl.ForkedExecutionContext;
 import be.nabu.glue.impl.SimpleExecutionEnvironment;
 import be.nabu.glue.services.ServiceMethodProvider;
 import be.nabu.glue.types.GlueTypeUtils;
@@ -75,6 +78,7 @@ import be.nabu.libs.authentication.api.Authenticator;
 import be.nabu.libs.authentication.api.Device;
 import be.nabu.libs.authentication.api.DeviceValidator;
 import be.nabu.libs.authentication.api.PermissionHandler;
+import be.nabu.libs.authentication.api.PotentialPermissionHandler;
 import be.nabu.libs.authentication.api.RoleHandler;
 import be.nabu.libs.authentication.api.Token;
 import be.nabu.libs.authentication.api.TokenValidator;
@@ -191,8 +195,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private CombinedAuthenticator authenticator;
 	private RoleHandler roleHandler;
 	
-	private boolean authenticatorResolved, roleHandlerResolved, permissionHandlerResolved, tokenValidatorResolved, languageProviderResolved, deviceValidatorResolved;
+	private boolean authenticatorResolved, roleHandlerResolved, permissionHandlerResolved, potentialPermissionHandlerResolved, tokenValidatorResolved, languageProviderResolved, deviceValidatorResolved;
 	private PermissionHandler permissionHandler;
+	private PotentialPermissionHandler potentialPermissionHandler;
 	private TokenValidator tokenValidator;
 	private UserLanguageProvider userLanguageProvider;
 	private DeviceValidator deviceValidator;
@@ -262,12 +267,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			ResourceContainer<?> publicDirectory = (ResourceContainer<?>) getDirectory().getChild(EAIResourceRepository.PUBLIC);
 			ResourceContainer<?> privateDirectory = (ResourceContainer<?>) getDirectory().getChild(EAIResourceRepository.PRIVATE);
 			
-			serviceMethodProvider = new ServiceMethodProvider(getRepository(), getRepository());
-			
 			ResourceContainer<?> meta = privateDirectory == null ? null : (ResourceContainer<?>) privateDirectory.getChild("meta");
 			ScriptRepository metaRepository = null;
 			if (meta != null) {
-				metaRepository = new ScannableScriptRepository(null, meta, new GlueParserProvider(serviceMethodProvider), Charset.defaultCharset());
+				metaRepository = new ScannableScriptRepository(null, meta, getParserProvider(), Charset.defaultCharset());
 			}
 			
 			repository = new MultipleRepository(null);
@@ -367,16 +370,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			
 			// before the base authentication required authenticate header rewriter, add a rewriter for the response (if applicable)
 			if (metaRepository != null) {
-				GluePostProcessListener postprocessListener = new GluePostProcessListener(
-					metaRepository, 
-					new SimpleExecutionEnvironment(environmentName, environment),
-					serverPath
-				);
-				postprocessListener.setRefresh(isDevelopment);
-				postprocessListener.setRealm(realm);
-				EventSubscription<HTTPResponse, HTTPResponse> subscription = dispatcher.subscribe(HTTPResponse.class, postprocessListener);
-				subscription.filter(HTTPServerUtils.limitToRequestPath(serverPath));
-				subscriptions.add(subscription);
+				subscriptions.add(registerPostProcessor(metaRepository, environment, environmentName));
 			}
 			
 			// ie caches everything by default, including the responses from rest services
@@ -449,19 +443,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			
 			// after the base authentication but before anything else, allow for rewriting
 			if (metaRepository != null) {
-				GluePreprocessListener preprocessListener = new GluePreprocessListener(
-					authenticator,
-					sessionProvider, 
-					metaRepository, 
-					new SimpleExecutionEnvironment(environmentName, environment),
-					serverPath
-				);
-				preprocessListener.setRefresh(isDevelopment);
-				preprocessListener.setTokenValidator(getTokenValidator());
-				preprocessListener.setRealm(realm);
-				EventSubscription<HTTPRequest, HTTPEntity> subscription = dispatcher.subscribe(HTTPRequest.class, preprocessListener);
-				subscription.filter(HTTPServerUtils.limitToPath(serverPath));
-				subscriptions.add(subscription);
+				subscriptions.add(registerPreProcessor(metaRepository, environment, environmentName));
 			}
 			
 			// we start the web fragments that have highest priority
@@ -476,7 +458,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				}
 			}
 			
-			parserProvider = new GlueWebParserProvider(serviceMethodProvider, new StaticJavaMethodProvider(new WebApplicationMethods(this)));
+			ParserProvider parserProvider = getParserProvider();
 			ResourceContainer<?> resources = null;
 			if (publicDirectory != null) {
 				// check if there is a resource directory
@@ -687,8 +669,19 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							Token token = UserMethods.token();
 							// the token may be null then the provider can send back a default language
 							language = languageProvider.getLanguage(token);
+							ExecutionContext executionContext = ScriptRuntime.getRuntime().getExecutionContext();
+							while (executionContext instanceof ForkedExecutionContext) {
+								executionContext = ((ForkedExecutionContext) executionContext).getParent();
+							}
 						}
-						// if there is no language provider or it does not have a language for the user, try to detect from browser settings
+						// if there is no language yet, check if a language cookie has been set
+						if (language == null && RequestMethods.entity() != null && RequestMethods.entity().getContent() != null) {
+							Map<String, List<String>> cookies = HTTPUtils.getCookies(RequestMethods.entity().getContent().getHeaders());
+							if (cookies != null && cookies.get("language") != null && !cookies.get("language").isEmpty()) {
+								language = cookies.get("language").get(0);
+							}
+						}
+						// if there is no language yet, try to detect from browser settings
 						if (language == null) {
 							if (RequestMethods.entity() != null && RequestMethods.entity().getContent() != null) {
 								List<String> acceptedLanguages = MimeUtils.getAcceptedLanguages(RequestMethods.entity().getContent().getHeaders());
@@ -699,15 +692,18 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						}
 						try {
 							if (additional != null) {
+								// in the olden days instead of null as default category, we passed in: \"page:" + ScriptUtils.getFullName(runtime.getScript()) + "\")
+								// however, because of concatting and possible other processing, the runtime script name rarely has a relation to the context anymore
+								// it is clearer to work without a context then allowing for cross-context translations
 								return new be.nabu.glue.impl.ImperativeSubstitutor("%", "template(" + getConfiguration().getTranslationService().getId() 
-										+ "(when(\"${value}\" ~ \"^[a-z0-9.]+:.*\", replace(\"^([a-z0-9.]+):.*\", \"$1\", \"${value}\"), \"page:" + ScriptUtils.getFullName(runtime.getScript()) + "\"), "
-										+ "when(\"${value}\" ~ \"^[a-z0-9.]+:.*\", replace(\"^[a-z0-9.]+:(.*)\", \"$1\", \"${value}\"), \"${value}\"), " + (language == null ? "null" : "\"" + language + "\"")
+										+ "(when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", replace(\"^([a-zA-Z0-9.]+):.*\", \"$1\", \"${value}\"), null), "
+										+ "when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", replace(\"^[a-zA-Z0-9.]+:(.*)\", \"$1\", \"${value}\"), \"${value}\"), " + (language == null ? "null" : "\"" + language + "\"")
 										+ ", " + key + ": json.objectify('" + additional + "'))/translation)");
 							}
 							else {
 								return new be.nabu.glue.impl.ImperativeSubstitutor("%", "template(" + getConfiguration().getTranslationService().getId() 
-										+ "(when(\"${value}\" ~ \"^[a-z0-9.]+:.*\", replace(\"^([a-z0-9.]+):.*\", \"$1\", \"${value}\"), \"page:" + ScriptUtils.getFullName(runtime.getScript()) + "\"), "
-										+ "when(\"${value}\" ~ \"^[a-z0-9.]+:.*\", replace(\"^[a-z0-9.]+:(.*)\", \"$1\", \"${value}\"), \"${value}\"), " + (language == null ? "null" : "\"" + language + "\"") + ")/translation)");
+										+ "(when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", replace(\"^([a-zA-Z0-9.]+):.*\", \"$1\", \"${value}\"), null), "
+										+ "when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", replace(\"^[a-zA-Z0-9.]+:(.*)\", \"$1\", \"${value}\"), \"${value}\"), " + (language == null ? "null" : "\"" + language + "\"") + ")/translation)");
 							}
 						}
 						catch (IOException e) {
@@ -722,7 +718,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					@Override
 					public StringSubstituter getSubstituter(ScriptRuntime runtime) {
 						return new be.nabu.glue.impl.ImperativeSubstitutor("%", "template("
-							+ "when(\"${value}\" ~ \"^[a-z0-9.]+:.*\", replace(\"^[a-z0-9.]+:(.*)\", \"$1\", \"${value}\"), \"${value}\"))");
+							+ "when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", replace(\"^[a-zA-Z0-9.]+:(.*)\", \"$1\", \"${value}\"), \"${value}\"))");
 					}
 				});
 			}
@@ -827,6 +823,55 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			started = true;
 			logger.info("Started " + subscriptions.size() + " subscriptions");
 		}
+	}
+
+	public EventSubscription<HTTPResponse, HTTPResponse> registerPostProcessor(ScriptRepository metaRepository) {
+		try {
+			return this.registerPostProcessor(metaRepository, getEnvironmentProperties(), "root");
+		}
+		catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	private EventSubscription<HTTPResponse, HTTPResponse> registerPostProcessor(ScriptRepository metaRepository, Map<String, String> environment, String environmentName) throws IOException {
+		String serverPath = getServerPath();
+		GluePostProcessListener postprocessListener = new GluePostProcessListener(
+			metaRepository, 
+			new SimpleExecutionEnvironment(environmentName, environment),
+			serverPath
+		);
+		postprocessListener.setRefresh(EAIResourceRepository.isDevelopment());
+		postprocessListener.setRealm(getRealm());
+		EventSubscription<HTTPResponse, HTTPResponse> subscription = getDispatcher().subscribe(HTTPResponse.class, postprocessListener);
+		subscription.filter(HTTPServerUtils.limitToRequestPath(serverPath));
+		return subscription;
+	}
+	
+	public EventSubscription<HTTPRequest, HTTPEntity> registerPreProcessor(ScriptRepository repository) {
+		try {
+			return this.registerPreProcessor(repository, getEnvironmentProperties(), "root");
+		}
+		catch (IOException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	private EventSubscription<HTTPRequest, HTTPEntity> registerPreProcessor(ScriptRepository metaRepository, Map<String, String> environment, String environmentName) throws IOException {
+		String serverPath = getServerPath();
+		GluePreprocessListener preprocessListener = new GluePreprocessListener(
+			authenticator,
+			sessionProvider, 
+			metaRepository, 
+			new SimpleExecutionEnvironment(environmentName, environment),
+			serverPath
+		);
+		preprocessListener.setRefresh(EAIResourceRepository.isDevelopment());
+		preprocessListener.setTokenValidator(getTokenValidator());
+		preprocessListener.setRealm(getRealm());
+		EventSubscription<HTTPRequest, HTTPEntity> subscription = getDispatcher().subscribe(HTTPRequest.class, preprocessListener);
+		subscription.filter(HTTPServerUtils.limitToPath(getServerPath()));
+		return subscription;
 	}
 
 	public String getRobots() {
@@ -1119,6 +1164,20 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 		}
 		return permissionHandler;
+	}
+	
+	public PotentialPermissionHandler getPotentialPermissionHandler() throws IOException {
+		if (!potentialPermissionHandlerResolved) {
+			synchronized(this) {
+				if (!potentialPermissionHandlerResolved) {
+					potentialPermissionHandlerResolved = true;
+					if (getConfiguration().getPotentialPermissionService() != null) {
+						potentialPermissionHandler = POJOUtils.newProxy(PotentialPermissionHandler.class, wrap(getConfiguration().getPotentialPermissionService(), getMethod(PotentialPermissionHandler.class, "hasPotentialPermission")), getRepository(), SystemPrincipal.ROOT);
+					}
+				}
+			}
+		}
+		return potentialPermissionHandler;
 	}
 	
 	public RateLimiter getRateLimiter() throws IOException {
@@ -1426,6 +1485,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 									String description = script.getRoot().getContext().getDescription();
 									String title = script.getRoot().getContext().getAnnotations().get("title");
 									String tags = script.getRoot().getContext().getAnnotations().get("tags");
+									String roles = script.getRoot().getContext().getAnnotations().get("role");
+									String permissionAction = script.getRoot().getContext().getAnnotations().get("action");
+									String permissionContext = script.getRoot().getContext().getAnnotations().get("context");
 									
 									Documented documentation = null;
 									if (description != null || title != null || tags != null) {
@@ -1460,7 +1522,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 										queryParameters, 
 										headerParameters, 
 										pathParameters,
-										documentation
+										documentation,
+										roles == null || roles.isEmpty() ? null : Arrays.asList(roles.split("[\\s]*,[\\s]*")),
+										permissionAction,
+										permissionContext
 									));
 								}
 							}
@@ -1476,7 +1541,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		return restFragments;
 	}
 	
-	private RESTFragment newFragment(String id, String path, String method, List<String> consumes, List<String> produces, Type input, Type output, List<Element<?>> query, List<Element<?>> header, List<Element<?>> paths, Documented documentation) {
+	private RESTFragment newFragment(String id, String path, String method, List<String> consumes, List<String> produces, Type input, Type output, List<Element<?>> query, List<Element<?>> header, List<Element<?>> paths, Documented documentation, List<String> allowedRoles, String permissionAction, String permissionContext) {
 		return new RESTFragment() {
 			@Override
 			public String getId() {
@@ -1520,6 +1585,18 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 			public Documented getDocumentation() {
 				return documentation;
+			}
+			@Override
+			public List<String> getAllowedRoles() {
+				return allowedRoles;
+			}
+			@Override
+			public String getPermissionAction() {
+				return permissionAction;
+			}
+			@Override
+			public String getPermissionContext() {
+				return permissionContext;
 			}
 		};
 	}
@@ -1623,4 +1700,19 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		}
 		return type;
 	}
+
+	public ServiceMethodProvider getServiceMethodProvider() {
+		if (serviceMethodProvider == null) {
+			serviceMethodProvider = new ServiceMethodProvider(getRepository(), getRepository());
+		}
+		return serviceMethodProvider;
+	}
+	
+	public GlueParserProvider getParserProvider() {
+		if (parserProvider == null) {
+			parserProvider = new GlueWebParserProvider(getServiceMethodProvider(), new StaticJavaMethodProvider(new WebApplicationMethods(this))); 
+		}
+		return parserProvider;
+	}
+	
 }

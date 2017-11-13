@@ -1,7 +1,6 @@
 package nabu.web.application;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -19,10 +18,14 @@ import org.slf4j.LoggerFactory;
 import be.nabu.eai.module.web.application.WebApplication;
 import be.nabu.eai.module.web.application.WebApplicationUtils;
 import be.nabu.eai.module.web.application.WebFragment;
-import be.nabu.glue.api.Script;
+import be.nabu.eai.module.web.application.WebFragmentProvider;
+import be.nabu.eai.repository.EAIResourceRepository;
+import be.nabu.eai.repository.api.Entry;
+import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.glue.impl.ImperativeSubstitutor;
-import be.nabu.glue.utils.ScriptUtils;
+import be.nabu.libs.artifacts.api.Artifact;
 import be.nabu.libs.authentication.api.Permission;
+import be.nabu.libs.resources.api.ReadableResource;
 import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.resources.api.ResourceFilter;
@@ -31,6 +34,8 @@ import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.KeyValuePair;
 import be.nabu.utils.io.IOUtils;
+import be.nabu.utils.io.api.ByteBuffer;
+import be.nabu.utils.io.api.ReadableContainer;
 
 @WebService
 public class Services {
@@ -64,36 +69,91 @@ public class Services {
 	}
 	
 	@WebResult(name = "translationKeys")
-	public List<KeyValuePair> translationKeys(@NotNull @WebParam(name = "webApplicationId") String id) {
+	public List<KeyValuePair> translationKeys(@NotNull @WebParam(name = "webApplicationId") String id) throws IOException {
 		List<KeyValuePair> properties = new ArrayList<KeyValuePair>();
 		if (id != null) {
 			WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
 			if (resolved != null) {
-				for (Script script : resolved.getListener().getRepository()) {
-					String fullName = ScriptUtils.getFullName(script);
-					try {
-						InputStream input = script.getSource();
-						try {
-							byte[] bytes = IOUtils.toBytes(IOUtils.wrap(input));
-							String source = new String(bytes, script.getCharset());
-							for (String key : ImperativeSubstitutor.getValues("%", source)) {
-								properties.add(new PropertyImpl("page:" + fullName, key));
-							}
-						}
-						finally {
-							input.close();
-						}
-					}
-					catch (IOException e) {
-						logger.error("Could not load source code for script: " + fullName);
-					}
-				}
+				List<String> uniques = new ArrayList<String>();
+				translationKeys(resolved, properties, uniques);
+//				for (Script script : resolved.getListener().getRepository()) {
+//					String fullName = ScriptUtils.getFullName(script);
+//					try {
+//						InputStream input = script.getSource();
+//						try {
+//							byte[] bytes = IOUtils.toBytes(IOUtils.wrap(input));
+//							String source = new String(bytes, script.getCharset());
+//							for (String key : ImperativeSubstitutor.getValues("%", source)) {
+//								properties.add(new PropertyImpl("page:" + fullName, key));
+//							}
+//						}
+//						finally {
+//							input.close();
+//						}
+//					}
+//					catch (IOException e) {
+//						logger.error("Could not load source code for script: " + fullName);
+//					}
+//				}
 			}
 			else {
 				throw new IllegalArgumentException("Can not find web artifact: " + id);
 			}
 		}
 		return properties;
+	}
+	
+	private void translationKeys(Artifact provider, List<KeyValuePair> keys, List<String> uniques) throws IOException {
+		Entry entry = EAIResourceRepository.getInstance().getEntry(provider.getId());
+		if (entry instanceof ResourceEntry) {
+			ResourceContainer<?> container = ((ResourceEntry) entry).getContainer();
+			translationKeys(container, keys, false, uniques);
+			translationKeys((ResourceContainer<?>) container.getChild(EAIResourceRepository.PUBLIC), keys, true, uniques);
+			translationKeys((ResourceContainer<?>) container.getChild(EAIResourceRepository.PRIVATE), keys, true, uniques);
+			translationKeys((ResourceContainer<?>) container.getChild(EAIResourceRepository.PROTECTED), keys, true, uniques);
+		}
+		if (provider instanceof WebFragmentProvider) {
+			List<WebFragment> webFragments = ((WebFragmentProvider) provider).getWebFragments();
+			if (webFragments != null) {
+				for (WebFragment fragment : webFragments) {
+					if (fragment instanceof Artifact) {
+						translationKeys(fragment, keys, uniques);
+					}
+				}
+			}
+		}
+	}
+	
+	private void translationKeys(ResourceContainer<?> container, List<KeyValuePair> keys, boolean recursive, List<String> uniques) throws IOException {
+		if (container != null) {
+			for (Resource resource : container) {
+				if (resource instanceof ReadableResource && resource.getName().matches(".*\\.(tpl|js|css|gcss|glue)")) {
+					ReadableContainer<ByteBuffer> readable = ((ReadableResource) resource).getReadable();
+					try {
+						byte[] bytes = IOUtils.toBytes(readable);
+						String source = new String(bytes, "UTF-8");
+						for (String key : ImperativeSubstitutor.getValues("%", source)) {
+							String category = null;
+							if (key.matches("^[\\w.]+:.*")) {
+								category = key.replaceAll("^([\\w.]+):.*", "$1");
+								key = key.substring(category.length() + 1);
+							}
+							String unique = category + ":" + key;
+							if (!uniques.contains(unique)) {
+								uniques.add(unique);
+								keys.add(new PropertyImpl(category, key));
+							}
+						}
+					}
+					finally {
+						readable.close();
+					}
+				}
+				if (recursive && resource instanceof ResourceContainer) {
+					translationKeys((ResourceContainer<?>) resource, keys, recursive, uniques);
+				}
+			}
+		}
 	}
 	
 	@WebResult(name = "information")
@@ -164,4 +224,29 @@ public class Services {
 		return resolved.getConfigurationFor(path == null ? ".*" : path, (ComplexType) resolve);
 	}
 
+	@WebResult(name = "has")
+	public boolean hasFragment(@NotNull @WebParam(name = "webApplicationId") String id, @NotNull @WebParam(name = "fragmentId") String fragmentId) {
+		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+		if (resolved == null) {
+			throw new IllegalArgumentException("Could not find web application: " + id);
+		}
+		return hasFragment(resolved, fragmentId);
+	}
+
+	private boolean hasFragment(WebFragmentProvider provider, String fragmentId) {
+		if (provider.getWebFragments() != null) {
+			for (WebFragment fragment : provider.getWebFragments()) {
+				if (fragment != null && fragmentId.equals(fragment.getId())) {
+					return true;
+				}
+				else if (fragment instanceof WebFragmentProvider) {
+					boolean result = hasFragment((WebFragmentProvider) fragment, fragmentId);
+					if (result) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
+	}
 }
