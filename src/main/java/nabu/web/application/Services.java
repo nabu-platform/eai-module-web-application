@@ -11,10 +11,6 @@ import javax.validation.constraints.NotNull;
 
 import nabu.web.application.types.PropertyImpl;
 import nabu.web.application.types.WebApplicationInformation;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import be.nabu.eai.module.web.application.WebApplication;
 import be.nabu.eai.module.web.application.WebApplicationUtils;
 import be.nabu.eai.module.web.application.WebFragment;
@@ -25,6 +21,7 @@ import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.glue.impl.ImperativeSubstitutor;
 import be.nabu.libs.artifacts.api.Artifact;
 import be.nabu.libs.authentication.api.Permission;
+import be.nabu.libs.authentication.api.Token;
 import be.nabu.libs.resources.api.ReadableResource;
 import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
@@ -39,7 +36,6 @@ import be.nabu.utils.io.api.ReadableContainer;
 
 @WebService
 public class Services {
-	private Logger logger = LoggerFactory.getLogger(getClass());
 	private ExecutionContext executionContext;
 	
 	@WebResult(name = "permissions")
@@ -52,6 +48,24 @@ public class Services {
 			}
 		}
 		return permissions;
+	}
+	
+	public boolean hasRole(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "token") Token token, @WebParam(name = "role") String role) throws IOException {
+		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+		if (resolved == null) {
+			throw new IllegalArgumentException("Invalid web application: " + id);
+		}
+		// if there is no role handler, it is always ok
+		return resolved.getRoleHandler() == null ? true : resolved.getRoleHandler().hasRole(token, role);
+	}
+	
+	public boolean hasPermission(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "token") Token token, @WebParam(name = "context") String context, @WebParam(name = "action") String action) throws IOException {
+		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+		if (resolved == null) {
+			throw new IllegalArgumentException("Invalid web application: " + id);
+		}
+		// if there is no role handler, it is always ok
+		return resolved.getPermissionHandler() == null ? true : resolved.getPermissionHandler().hasPermission(token, context, action);
 	}
 	
 	private void permissions(WebApplication application, List<Permission> permissions) {
@@ -165,6 +179,24 @@ public class Services {
 			}
 		}
 		return null;
+	}
+	
+	@WebResult(name = "applications")
+	public List<WebApplicationInformation> list(@WebParam(name = "id") String id, @WebParam(name = "realm") String realm) {
+		List<WebApplicationInformation> results = new ArrayList<WebApplicationInformation>();
+		List<WebApplication> artifacts = EAIResourceRepository.getInstance().getArtifacts(WebApplication.class);
+		if (artifacts != null) {
+			for (WebApplication application : artifacts) {
+				if (id != null && !id.equals(application.getId())) {
+					continue;
+				}
+				if (realm != null && !realm.equals(application.getRealm())) {
+					continue;
+				}
+				results.add(WebApplicationUtils.getInformation(application));
+			}
+		}
+		return results;
 	}
 	
 	public void set(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "properties") List<KeyValuePair> properties) {

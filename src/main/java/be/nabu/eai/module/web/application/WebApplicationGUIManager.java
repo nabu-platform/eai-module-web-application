@@ -398,9 +398,15 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			@Override
 			public Resource update(TreeCell<Resource> treeCell, String text) {
 				try {
-					Resource renamed = ResourceUtils.rename(treeCell.getItem().itemProperty().get(), text);
-					treeCell.getParent().refresh();
-					return renamed;
+					// only rename if nothing exists yet by that name
+					if (text != null && !text.trim().isEmpty() && treeCell.getItem().itemProperty().get().getParent() != null && treeCell.getItem().itemProperty().get().getParent().getChild(text) == null) {
+						Resource renamed = ResourceUtils.rename(treeCell.getItem().itemProperty().get(), text);
+						treeCell.getParent().refresh();
+						return renamed;
+					}
+					else {
+						return treeCell.getItem().itemProperty().get();
+					}
 				}
 				catch (IOException e) {
 					throw new RuntimeException(e);

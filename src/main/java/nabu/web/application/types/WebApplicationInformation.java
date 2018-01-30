@@ -10,17 +10,24 @@ import javax.xml.bind.annotation.XmlType;
 import be.nabu.libs.types.api.KeyValuePair;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "realm", "path", "charset", "host", "aliases", "port", "secure", "translationService", "properties" })
+@XmlType(propOrder = { "id", "realm", "path", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties" })
 public class WebApplicationInformation {
-	private String realm, path;
+	private String id, realm, path;
 	private Charset charset;
 	private String host;
 	private List<String> aliases;
 	private Integer port;
 	private Boolean secure;
 	private String translationService;
+	private String scriptCacheProviderId;
 	private List<KeyValuePair> properties;
 
+	public String getId() {
+		return id;
+	}
+	public void setId(String id) {
+		this.id = id;
+	}
 	public String getRealm() {
 		return realm;
 	}
@@ -78,5 +85,10 @@ public class WebApplicationInformation {
 	public void setTranslationService(String translationService) {
 		this.translationService = translationService;
 	}
-	
+	public String getScriptCacheProviderId() {
+		return scriptCacheProviderId;
+	}
+	public void setScriptCacheProviderId(String scriptCacheProviderId) {
+		this.scriptCacheProviderId = scriptCacheProviderId;
+	}
 }

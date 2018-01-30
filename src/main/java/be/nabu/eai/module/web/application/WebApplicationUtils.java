@@ -7,6 +7,7 @@ import java.util.Map;
 
 import nabu.web.application.types.PropertyImpl;
 import nabu.web.application.types.WebApplicationInformation;
+import be.nabu.eai.module.http.server.HTTPServerArtifact;
 import be.nabu.eai.module.http.virtual.api.Source;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.web.application.rate.RateLimiter;
@@ -67,13 +68,17 @@ public class WebApplicationUtils {
 	
 	public static WebApplicationInformation getInformation(WebApplication application) {
 		WebApplicationInformation information = new WebApplicationInformation();
+		information.setId(application.getId());
 		information.setRealm(application.getRealm());
 		information.setCharset(application.getConfig().getCharset() == null ? Charset.defaultCharset() : Charset.forName(application.getConfig().getCharset()));
 		if (application.getConfig().getVirtualHost() != null) {
 			information.setHost(application.getConfig().getVirtualHost().getConfig().getHost());
 			information.setAliases(application.getConfig().getVirtualHost().getConfig().getAliases());
-			information.setPort(application.getConfig().getVirtualHost().getConfig().getServer() == null ? null : application.getConfig().getVirtualHost().getConfig().getServer().getConfig().getPort());
-			information.setSecure(application.getConfig().getVirtualHost().getConfig().getServer() == null ? null : application.getConfig().getVirtualHost().getConfig().getServer().getConfig().getKeystore() != null);
+			if (application.getConfig().getVirtualHost().getConfig().getServer() != null) {
+				HTTPServerArtifact server = application.getConfig().getVirtualHost().getConfig().getServer();
+				information.setPort(server.getConfig().isProxied() ? server.getConfig().getProxyPort() : server.getConfig().getPort());
+				information.setSecure(server.getConfig().isProxied() ? server.getConfig().isProxySecure() : server.getConfig().getKeystore() != null);
+			}
 		}
 		information.setPath(application.getConfig().getPath());
 		if (application.getConfig().getTranslationService() != null) {
@@ -82,6 +87,9 @@ public class WebApplicationUtils {
 		Map<String, String> properties = application.getListener().getEnvironment().getParameters();
 		for (String key : properties.keySet()) {
 			information.getProperties().add(new PropertyImpl(key, properties.get(key)));
+		}
+		if (application.getConfig().getScriptCacheProvider() != null) {
+			information.setScriptCacheProviderId(application.getConfig().getScriptCacheProvider().getId());
 		}
 		return information;
 	}

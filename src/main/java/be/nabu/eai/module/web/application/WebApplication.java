@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import be.nabu.eai.authentication.api.PasswordAuthenticator;
 import be.nabu.eai.authentication.api.SecretAuthenticator;
+import be.nabu.eai.module.http.server.HTTPServerArtifact;
 import be.nabu.eai.module.http.server.RepositoryExceptionFormatter;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.keystore.KeyStoreArtifact;
@@ -729,6 +730,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					public String getAdditionalCacheKey(HTTPRequest request, Token token, Script script) {
 						// make sure we mirror the logic above for the substitution cause that will be the actual language in the returned content
 						String language = languageProvider == null ? null : languageProvider.getLanguage(token);
+						// if there is no language yet, check if a language cookie has been set
+						if (language == null && request != null && request.getContent() != null) {
+							Map<String, List<String>> cookies = HTTPUtils.getCookies(request.getContent().getHeaders());
+							if (cookies != null && cookies.get("language") != null && !cookies.get("language").isEmpty()) {
+								language = cookies.get("language").get(0);
+							}
+						}
 						if (language == null) {
 							List<String> acceptedLanguages = MimeUtils.getAcceptedLanguages(request.getContent().getHeaders());
 							if (!acceptedLanguages.isEmpty()) {
@@ -892,8 +900,15 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		}
 		// always set the id of the web artifact (need it to introspect artifact)
 		String hostName = getConfiguration().getVirtualHost() == null ? null : getConfiguration().getVirtualHost().getConfiguration().getHost();
-		Integer port = getConfiguration().getVirtualHost() == null || getConfiguration().getVirtualHost().getConfiguration().getServer() == null ? null :getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getPort();
-		boolean secure = getConfiguration().getVirtualHost() != null && getConfiguration().getVirtualHost().getConfiguration().getServer() != null && getConfiguration().getVirtualHost().getConfiguration().getServer().getConfiguration().getKeystore() != null;
+		
+		Integer port = null;
+		boolean secure = false;
+		
+		if (getConfiguration().getVirtualHost() != null && getConfiguration().getVirtualHost().getConfiguration().getServer() != null) {
+			HTTPServerArtifact server = getConfiguration().getVirtualHost().getConfiguration().getServer();
+			port = server.getConfig().isProxied() ? server.getConfig().getProxyPort() : server.getConfiguration().getPort();
+			secure = server.getConfig().isProxied() ? server.getConfig().isProxySecure() : server.getConfiguration().getKeystore() != null;
+		}
 
 		String url = null;
 		String host = null;
