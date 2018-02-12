@@ -17,15 +17,22 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javafx.application.Platform;
+import javafx.beans.binding.BooleanBinding;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.StringProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
+import javafx.collections.ListChangeListener;
 import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.event.Event;
@@ -63,6 +70,7 @@ import be.nabu.eai.authentication.api.SecretAuthenticator;
 import be.nabu.eai.developer.ComplexContentEditor;
 import be.nabu.eai.developer.ComplexContentEditor.ValueWrapper;
 import be.nabu.eai.developer.MainController;
+import be.nabu.eai.developer.managers.base.BaseArtifactGUIInstance;
 import be.nabu.eai.developer.managers.base.BaseJAXBGUIManager;
 import be.nabu.eai.developer.managers.util.SimpleProperty;
 import be.nabu.eai.developer.managers.util.SimplePropertyUpdater;
@@ -74,6 +82,8 @@ import be.nabu.eai.module.web.application.api.RateLimitSettingsProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
+import be.nabu.eai.repository.api.Entry;
+import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.eai.repository.api.Translator;
 import be.nabu.eai.repository.api.UserLanguageProvider;
 import be.nabu.eai.repository.resources.RepositoryEntry;
@@ -151,7 +161,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		scroll.setContent(vbox);
 		vbox.prefWidthProperty().bind(scroll.widthProperty().subtract(100));
 		
-		TabPane tabs = new TabPane();
+		tabs = new TabPane();
 		tabs.setTabClosingPolicy(TabClosingPolicy.UNAVAILABLE);
 		tabs.setSide(Side.RIGHT);
 		Tab tab = new Tab("Configuration");
@@ -159,7 +169,8 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		tab.setClosable(false);
 		tabs.getTabs().add(tab);
 		try {
-			tabs.getTabs().add(buildEditingTab(artifact));
+			editingTab.set(buildEditingTab(artifact));
+			tabs.getTabs().add(editingTab.get().getTab());
 		}
 		catch (Exception e) {
 			throw new RuntimeException(e);
@@ -360,7 +371,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 	}
 	
 	@SuppressWarnings({ "unchecked", "rawtypes" })
-	private Tab buildEditingTab(final WebApplication artifact) throws IOException, URISyntaxException {
+	private EditingTab buildEditingTab(final WebApplication artifact) throws IOException, URISyntaxException {
 		ResourceContainer<?> publicDirectory = (ResourceContainer<?>) artifact.getDirectory().getChild(EAIResourceRepository.PUBLIC);
 		if (publicDirectory == null && artifact.getDirectory() instanceof ManageableContainer) {
 			publicDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) artifact.getDirectory()).create(EAIResourceRepository.PUBLIC, Resource.CONTENT_TYPE_DIRECTORY);
@@ -383,11 +394,36 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		if (privateDirectory != null) {
 			container.addChild(privateDirectory.getName(), privateDirectory);
 		}
-		return buildEditingTab(container);
+		return buildEditingTab(artifact.getId(), container);
+	}
+	
+	public static class EditingTab {
+		private Tab tab;
+		private Tree<Resource> tree;
+		private TabPane editors;
+		private ResourceContainer<?> root;
+		public EditingTab(Tab tab, Tree<Resource> tree, TabPane editors, ResourceContainer<?> root) {
+			this.tab = tab;
+			this.tree = tree;
+			this.editors = editors;
+			this.root = root;
+		}
+		public Tab getTab() {
+			return tab;
+		}
+		public Tree<Resource> getTree() {
+			return tree;
+		}
+		public TabPane getEditors() {
+			return editors;
+		}
+		public ResourceContainer<?> getRoot() {
+			return root;
+		}
 	}
 	
 	@SuppressWarnings({ "rawtypes" })
-	public static Tab buildEditingTab(ResourceContainer<?> container) throws URISyntaxException, IOException {
+	public static EditingTab buildEditingTab(String id, ResourceContainer<?> container) throws URISyntaxException, IOException {
 		Tab tab = new Tab("Resources");
 		Tree<Resource> tree = new Tree<Resource>(new Marshallable<Resource>() {
 			@Override
@@ -399,9 +435,16 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			public Resource update(TreeCell<Resource> treeCell, String text) {
 				try {
 					// only rename if nothing exists yet by that name
-					if (text != null && !text.trim().isEmpty() && treeCell.getItem().itemProperty().get().getParent() != null && treeCell.getItem().itemProperty().get().getParent().getChild(text) == null) {
+					if (MainController.getInstance().connectedProperty().get() && text != null && !text.trim().isEmpty() && treeCell.getItem().itemProperty().get().getParent() != null && treeCell.getItem().itemProperty().get().getParent().getChild(text) == null) {
+						String fromPath = TreeUtils.getPath(treeCell.getItem());
+						String toPath = fromPath.replaceAll("/[^/]+$", text);
+						
 						Resource renamed = ResourceUtils.rename(treeCell.getItem().itemProperty().get(), text);
 						treeCell.getParent().refresh();
+						
+						MainController.getInstance().getCollaborationClient().deleted(id + ":" + fromPath, "Deleted");
+						MainController.getInstance().getCollaborationClient().created(id + ":" + toPath, "Renamed");
+						
 						return renamed;
 					}
 					else {
@@ -413,7 +456,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 				}
 			}
 		});
-		tree.rootProperty().set(new ResourceTreeItem(null, container));
+		tree.rootProperty().set(new ResourceTreeItem(null, container, id));
 
 		TreeDragDrop.makeDraggable(tree, new TreeDragListener<Resource>() {
 			@Override
@@ -453,22 +496,31 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			}
 			@Override
 			public void drop(String dataType, TreeCell<Resource> target, TreeCell<?> dragged, TransferMode transferMode) {
-				Resource source = (Resource) dragged.getItem().itemProperty().get();
-				try {
-					ResourceUtils.copy(source, ((ManageableContainer) target.getItem().itemProperty().get()));
-					if (TransferMode.MOVE == transferMode) {
-						((ManageableContainer) source.getParent()).delete(source.getName());
+				if (MainController.getInstance().connectedProperty().get()) {
+					Resource source = (Resource) dragged.getItem().itemProperty().get();
+					try {
+						ResourceUtils.copy(source, ((ManageableContainer) target.getItem().itemProperty().get()));
+						if (TransferMode.MOVE == transferMode) {
+							((ManageableContainer) source.getParent()).delete(source.getName());
+						}
+						target.getParent().refresh();
+						dragged.getParent().refresh();
 					}
-					target.getParent().refresh();
-					dragged.getParent().refresh();
+					catch (IOException e) {
+						MainController.getInstance().notify(e);
+					}
+					if (TransferMode.MOVE == transferMode) {
+						MainController.getInstance().getCollaborationClient().deleted(id + ":" + TreeUtils.getPath(dragged.getItem()), "Deleted");
+					}
+					MainController.getInstance().getCollaborationClient().created(id + ":" + TreeUtils.getPath(target.getItem()), "Copied");
 				}
-				catch (IOException e) {
-					MainController.getInstance().notify(e);
+				else {
+					MainController.getInstance().showNotification(Severity.ERROR, "Disconnected", "Can not move resources while disconnected from the server");
 				}
 			}
 		});
 		
-		final TabPane editors = new TabPane();
+		TabPane editors = new TabPane();
 		editors.getSelectionModel().selectedItemProperty().addListener(new ChangeListener<Tab>() {
 			@Override
 			public void changed(ObservableValue<? extends Tab> arg0, Tab arg1, Tab arg2) {
@@ -490,7 +542,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			public void handle(MouseEvent event) {
 				if (event.getClickCount() == 2) {
 					if (tree.getSelectionModel().getSelectedItem() != null) {
-						open(editors, tree.getSelectionModel().getSelectedItem());
+						open(id, editors, tree.getSelectionModel().getSelectedItem());
 					}
 				}
 				else if (event.getButton().equals(MouseButton.SECONDARY)) {
@@ -510,29 +562,36 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 									EAIDeveloperUtils.buildPopup(MainController.getInstance(), updater, "Add Page", new EventHandler<ActionEvent>() {
 										@Override
 										public void handle(ActionEvent arg0) {
-											String name = updater.getValue("Name");
-											try {
-												if (((ResourceContainer) selectedItem.getItem().itemProperty().get()).getChild(name + ".eglue") == null) {
-													Resource create = ((ManageableContainer<?>) selectedItem.getItem().itemProperty().get()).create(name + ".eglue", "text/x-eglue");
-													WritableContainer<ByteBuffer> writable = ((WritableResource) create).getWritable();
-													try {
-														writable.write(IOUtils.wrap(("<html>\n"
-															+ "\t<head>\n"
-															+ "\t\t<title>My Page</title>\n"
-															+ "\t</head>\n"
-															+ "\t<body>\n"
-															+ "\t\t<p>Hello World!</p>\n"
-															+ "\t</body>\n"
-															+ "</html>").getBytes("UTF-8"), true));
-													}
-													finally {
-														writable.close();
-													}
-													selectedItem.getParent().refresh();
-												}
+											if (!MainController.getInstance().connectedProperty().get()) {
+												MainController.getInstance().showNotification(Severity.ERROR, "Disconnected", "Can not create resources while disconnected from the server");
 											}
-											catch (IOException e) {
-												MainController.getInstance().notify(e);
+											else {
+												String name = updater.getValue("Name");
+												try {
+													if (((ResourceContainer) selectedItem.getItem().itemProperty().get()).getChild(name + ".eglue") == null) {
+														Resource create = ((ManageableContainer<?>) selectedItem.getItem().itemProperty().get()).create(name + ".eglue", "text/x-eglue");
+														WritableContainer<ByteBuffer> writable = ((WritableResource) create).getWritable();
+														try {
+															writable.write(IOUtils.wrap(("<html>\n"
+																+ "\t<head>\n"
+																+ "\t\t<title>My Page</title>\n"
+																+ "\t</head>\n"
+																+ "\t<body>\n"
+																+ "\t\t<p>Hello World!</p>\n"
+																+ "\t</body>\n"
+																+ "</html>").getBytes("UTF-8"), true));
+														}
+														finally {
+															writable.close();
+														}
+														selectedItem.getParent().refresh();
+														
+														MainController.getInstance().getCollaborationClient().created(id + ":" + TreeUtils.getPath(selectedItem.getItem()) + "/" + name + ".eglue", "Created Page");
+													}
+												}
+												catch (IOException e) {
+													MainController.getInstance().notify(e);
+												}
 											}
 										}
 									});
@@ -553,13 +612,20 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 									EAIDeveloperUtils.buildPopup(MainController.getInstance(), updater, "Create New Folder", new EventHandler<ActionEvent>() {
 										@Override
 										public void handle(ActionEvent arg0) {
-											String name = updater.getValue("Name");
-											try {
-												((ManageableContainer) resource).create(name, Resource.CONTENT_TYPE_DIRECTORY);
-												selectedItem.getParent().refresh();
+											if (MainController.getInstance().connectedProperty().get()) {
+												String name = updater.getValue("Name");
+												try {
+													((ManageableContainer) resource).create(name, Resource.CONTENT_TYPE_DIRECTORY);
+													selectedItem.getParent().refresh();
+													
+													MainController.getInstance().getCollaborationClient().created(id + ":" + TreeUtils.getPath(selectedItem.getItem()) + "/" + name, "Folder created");
+												}
+												catch (IOException e) {
+													MainController.getInstance().notify(new ValidationMessage(Severity.ERROR, "Cannot create a directory by the name of '" + name + "': " + e.getMessage()));
+												}
 											}
-											catch (IOException e) {
-												MainController.getInstance().notify(new ValidationMessage(Severity.ERROR, "Cannot create a directory by the name of '" + name + "': " + e.getMessage()));
+											else {
+												MainController.getInstance().showNotification(Severity.ERROR, "Disconnected", "Can not create resources while disconnected from the server");
 											}
 										}
 									});
@@ -578,13 +644,20 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 									EAIDeveloperUtils.buildPopup(MainController.getInstance(), updater, "Create New File", new EventHandler<ActionEvent>() {
 										@Override
 										public void handle(ActionEvent arg0) {
-											String name = updater.getValue("Name");
-											try {
-												((ManageableContainer) resource).create(name, URLConnection.guessContentTypeFromName(name));
-												selectedItem.getParent().refresh();
+											if (MainController.getInstance().connectedProperty().get()) {
+												String name = updater.getValue("Name");
+												try {
+													((ManageableContainer) resource).create(name, URLConnection.guessContentTypeFromName(name));
+													selectedItem.getParent().refresh();
+													
+													MainController.getInstance().getCollaborationClient().created(id + ":" + TreeUtils.getPath(selectedItem.getItem()) + "/" + name, "Folder created");
+												}
+												catch (IOException e) {
+													MainController.getInstance().notify(new ValidationMessage(Severity.ERROR, "Cannot create a file by the name of '" + name + "': " + e.getMessage()));
+												}
 											}
-											catch (IOException e) {
-												MainController.getInstance().notify(new ValidationMessage(Severity.ERROR, "Cannot create a file by the name of '" + name + "': " + e.getMessage()));
+											else {
+												MainController.getInstance().showNotification(Severity.ERROR, "Disconnected", "Can not create resources while disconnected from the server");
 											}
 										}
 									});
@@ -604,33 +677,40 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 									EAIDeveloperUtils.buildPopup(MainController.getInstance(), updater, "Create New File", new EventHandler<ActionEvent>() {
 										@Override
 										public void handle(ActionEvent arg0) {
-											File file = updater.getValue("File");
-											if (file != null) {
-												String name = updater.getValue("Name");
-												if (name == null) {
-													name = file.getName();
-												}
-												try {
-													Resource create = ((ManageableContainer) resource).create(name, URLConnection.guessContentTypeFromName(name));
-													WritableContainer<ByteBuffer> writable = ((WritableResource) create).getWritable();
+											if (MainController.getInstance().connectedProperty().get()) {
+												File file = updater.getValue("File");
+												if (file != null) {
+													String name = updater.getValue("Name");
+													if (name == null) {
+														name = file.getName();
+													}
 													try {
-														Container<ByteBuffer> wrap = IOUtils.wrap(file);
+														Resource create = ((ManageableContainer) resource).create(name, URLConnection.guessContentTypeFromName(name));
+														WritableContainer<ByteBuffer> writable = ((WritableResource) create).getWritable();
 														try {
-															IOUtils.copyBytes(wrap, writable);
+															Container<ByteBuffer> wrap = IOUtils.wrap(file);
+															try {
+																IOUtils.copyBytes(wrap, writable);
+															}
+															finally {
+																wrap.close();
+															}
 														}
 														finally {
-															wrap.close();
+															writable.close();
 														}
+														selectedItem.getParent().refresh();
+														
+														MainController.getInstance().getCollaborationClient().created(id + ":" + TreeUtils.getPath(selectedItem.getItem()) + "/" + name, "Folder created");
 													}
-													finally {
-														writable.close();
+													catch (IOException e) {
+														MainController.getInstance().notify(new ValidationMessage(Severity.ERROR, "Cannot create a file by the name of '" + name + "': " + e.getMessage()));
 													}
-													selectedItem.getParent().refresh();
+													
 												}
-												catch (IOException e) {
-													MainController.getInstance().notify(new ValidationMessage(Severity.ERROR, "Cannot create a file by the name of '" + name + "': " + e.getMessage()));
-												}
-												
+											}
+											else {
+												MainController.getInstance().showNotification(Severity.ERROR, "Disconnected", "Can not create resources while disconnected from the server");
 											}
 										}
 									});
@@ -640,16 +720,23 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 							contextMenu.getItems().addAll(menu, uploadFile);
 						}
 						if (selectedItem.getItem().editableProperty().get()) {
+							String path = TreeUtils.getPath(selectedItem.getItem());
 							MenuItem item = new MenuItem("Delete");
 							item.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
 								@Override
 								public void handle(ActionEvent arg0) {
-									try {
-										((ManageableContainer) resource.getParent()).delete(resource.getName());
-										selectedItem.getParent().refresh();
+									if (!MainController.getInstance().connectedProperty().get()) {
+										MainController.getInstance().showNotification(Severity.ERROR, "Disconnected", "Can not delete resources while disconnected from the server");
 									}
-									catch (IOException e) {
-										MainController.getInstance().notify(new ValidationMessage(Severity.ERROR, "Cannot delete resource '" + resource.getName() + "': " + e.getMessage()));
+									else {
+										try {
+											((ManageableContainer) resource.getParent()).delete(resource.getName());
+											selectedItem.getParent().refresh();
+										}
+										catch (IOException e) {
+											MainController.getInstance().notify(new ValidationMessage(Severity.ERROR, "Cannot delete resource '" + resource.getName() + "': " + e.getMessage()));
+										}
+										MainController.getInstance().getCollaborationClient().deleted(id + ":" + path, "Deleted");
 									}
 								}
 							});
@@ -687,7 +774,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			public void handle(KeyEvent event) {
 				if (event.getCode() == KeyCode.ENTER) {
 					if (tree.getSelectionModel().getSelectedItem() != null) {
-						open(editors, tree.getSelectionModel().getSelectedItem());
+						open(id, editors, tree.getSelectionModel().getSelectedItem());
 					}
 				}
 				else if (event.getCode() == KeyCode.F && event.isControlDown() && !event.isShiftDown()) {
@@ -781,7 +868,8 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		AnchorPane.setBottomAnchor(split, 0d);
 		
 		tab.setContent(split);
-		return tab;
+		
+		return new EditingTab(tab, tree, editors, container);
 	}
 	
 	private static Collection<TreeItem<Resource>> getResources(TreeItem<Resource> resource) {
@@ -801,9 +889,11 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		private BooleanProperty leafProperty = new SimpleBooleanProperty(false);
 		private ObservableList<TreeItem<Resource>> children = FXCollections.observableArrayList();
 		private TreeItem<Resource> parent;
+		private String id;
 
-		public ResourceTreeItem(TreeItem<Resource> parent, Resource resource) {
+		public ResourceTreeItem(TreeItem<Resource> parent, Resource resource, String id) {
 			this.parent = parent;
+			this.id = id;
 			if (resource instanceof ResourceContainer) {
 				graphicProperty.set(MainController.loadFixedSizeGraphic("folder.png"));
 			}
@@ -819,7 +909,8 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		
 		@Override
 		public void refresh() {
-			refresh(true, true);
+			// we don't reset the cache anymore as collaboration will automatically reset the required parts
+			refresh(true, false);
 		}
 		
 		@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -856,7 +947,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 				TreeUtils.refreshChildren(new TreeItemCreator<Resource>() {
 					@Override
 					public TreeItem<Resource> create(TreeItem<Resource> parent, Resource child) {
-						return new ResourceTreeItem(parent, child);
+						return new ResourceTreeItem(parent, child, id);
 					}
 				}, this, collection);
 			}
@@ -909,7 +1000,14 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		public boolean remove() {
 			if (editableProperty.get()) {
 				try {
-					((ManageableContainer<?>) parent.itemProperty().get()).delete(getName());
+					if (!MainController.getInstance().connectedProperty().get()) {
+						MainController.getInstance().showNotification(Severity.ERROR, "Disconnected", "Can not delete resources while disconnected from the server");
+					}
+					else {
+						((ManageableContainer<?>) parent.itemProperty().get()).delete(getName());
+						String path = TreeUtils.getPath(this);
+						MainController.getInstance().getCollaborationClient().deleted(id + ":" + path, "Deleted");
+					}
 					return true;
 				}
 				catch (IOException e) {
@@ -921,7 +1019,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		
 	}
 	
-	private static void open(final TabPane editors, TreeCell<Resource> newValue) {
+	private static void open(final String id, final TabPane editors, TreeCell<Resource> newValue) {
 		String path = TreeUtils.getPath(newValue.getItem());
 		boolean found = false;
 		for (Tab tab : editors.getTabs()) {
@@ -933,102 +1031,156 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		}
 		if (!found) {
 			final Resource resource = newValue.getItem().itemProperty().get();
-			if (resource instanceof ReadableResource) {
-				final Tab tab = new Tab(path.replaceAll("^.*/", ""));
-				tab.setId(path);
-				editors.getTabs().add(tab);
-				byte[] bytes;
+			open(id, editors, path, resource);
+		}
+	}
+
+	private static void open(final String id, final TabPane editors, String path, final Resource resource) {
+		if (resource instanceof ReadableResource) {
+			final Tab tab = new Tab(path.replaceAll("^.*/", ""));
+			tab.setId(path);
+			editors.getTabs().add(tab);
+			byte[] bytes;
+			try {
+				ReadableContainer<ByteBuffer> readable = ((ReadableResource) resource).getReadable();
 				try {
-					ReadableContainer<ByteBuffer> readable = ((ReadableResource) resource).getReadable();
-					try {
-						bytes = IOUtils.toBytes(readable);
-					}
-					finally {
-						readable.close();
-					}
+					bytes = IOUtils.toBytes(readable);
 				}
-				catch (IOException e) {
-					throw new RuntimeException(e);
+				finally {
+					readable.close();
 				}
-				if (resource.getContentType() != null && resource.getContentType().startsWith("image")) {
-					ImageView image = new ImageView(new Image(new ByteArrayInputStream(bytes)));
-					ScrollPane scroll = new ScrollPane();
-					scroll.setContent(image);
-					tab.setContent(scroll);
-					// intercept close for these tabs as well
-					scroll.addEventHandler(KeyEvent.KEY_PRESSED, new EventHandler<KeyEvent>() {
-						@Override
-						public void handle(KeyEvent event) {
-							if (!event.isConsumed() && event.getCode() == KeyCode.W && event.isControlDown()) {
-								editors.getTabs().remove(tab);
-								// put focus on remaining tab (if any)
-								if (editors.getSelectionModel().getSelectedItem() != null) {
-									editors.getSelectionModel().getSelectedItem().getContent().requestFocus();
+			}
+			catch (IOException e) {
+				throw new RuntimeException(e);
+			}
+			if (resource.getContentType() != null && resource.getContentType().startsWith("image")) {
+				ImageView image = new ImageView(new Image(new ByteArrayInputStream(bytes)));
+				ScrollPane scroll = new ScrollPane();
+				scroll.setContent(image);
+				tab.setContent(scroll);
+				// intercept close for these tabs as well
+				scroll.addEventHandler(KeyEvent.KEY_PRESSED, new EventHandler<KeyEvent>() {
+					@Override
+					public void handle(KeyEvent event) {
+						if (!event.isConsumed() && event.getCode() == KeyCode.W && event.isControlDown()) {
+							editors.getTabs().remove(tab);
+							// put focus on remaining tab (if any)
+							if (editors.getSelectionModel().getSelectedItem() != null) {
+								editors.getSelectionModel().getSelectedItem().getContent().requestFocus();
+							}
+							event.consume();
+						}
+					}
+				});
+			}
+			else {
+				final AceEditor aceEditor = new AceEditor();
+				aceEditor.setContent(resource.getContentType(), new String(bytes, Charset.forName("UTF-8")));
+				// initially locked
+				tab.setGraphic(MainController.loadGraphic("status/locked.png"));
+				aceEditor.setReadOnly(true);
+				
+				tab.setContent(aceEditor.getWebView());
+				tab.setUserData(aceEditor);
+				
+				final String lockId = id + ":" + path;
+				
+				BooleanProperty locked = MainController.getInstance().hasLock(lockId);
+				locked.addListener(new ChangeListener<Boolean>() {
+					@Override
+					public void changed(ObservableValue<? extends Boolean> arg0, Boolean arg1, Boolean arg2) {
+						if (arg2 != null && arg2) {
+							MainController.getInstance().getCollaborationClient().lock(lockId, "Opened");
+							tab.setGraphic(MainController.loadGraphic("status/unlocked.png"));
+							aceEditor.setReadOnly(false);
+						}
+						else {
+							tab.setGraphic(MainController.loadGraphic("status/locked.png"));
+							aceEditor.setReadOnly(true);
+						}
+					}
+				});
+				MainController.getInstance().tryLock(lockId, new SimpleBooleanProperty() {
+					@Override
+					public boolean get() {
+						return editors.getTabs().contains(tab);
+					}
+				});
+				
+				// make sure we release the lock
+				editors.getTabs().addListener(new ListChangeListener<Tab>() {
+					@Override
+					public void onChanged(javafx.collections.ListChangeListener.Change<? extends Tab> change) {
+						while (change.next()) {
+							if (change.wasRemoved()) {
+								if (change.getRemoved().contains(tab)) {
+									MainController.getInstance().getCollaborationClient().unlock(lockId, "Closed");
+									editors.getTabs().removeListener(this);
 								}
-								event.consume();
 							}
 						}
-					});
-				}
-				else {
-					final AceEditor aceEditor = new AceEditor();
-					aceEditor.setContent(resource.getContentType(), new String(bytes, Charset.forName("UTF-8")));
-					tab.setContent(aceEditor.getWebView());
-					aceEditor.subscribe(AceEditor.CLOSE_ALL, new EventHandler<Event>() {
-						@Override
-						public void handle(Event arg0) {
-							final Iterator<Tab> iterator = editors.getTabs().iterator();
-							while(iterator.hasNext()) {
-								Tab child = iterator.next();
-								if (child.getText().endsWith("*")) {
-									Confirm.confirm(ConfirmType.QUESTION, "Unsaved Changes", "Do you want to discard all pending changes?", new EventHandler<ActionEvent>() {
-										@Override
-										public void handle(ActionEvent arg0) {
-											iterator.remove();
-										}
-									});
-								}
-								else {
-									iterator.remove();
-								}
-							}
-						}
-					});
-					aceEditor.subscribe(AceEditor.CLOSE, new EventHandler<Event>() {
-						@Override
-						public void handle(Event event) {
-							if (tab.getText().endsWith("*")) {
+					};
+				});
+				
+				aceEditor.subscribe(AceEditor.CLOSE_ALL, new EventHandler<Event>() {
+					@Override
+					public void handle(Event arg0) {
+						final Iterator<Tab> iterator = editors.getTabs().iterator();
+						while(iterator.hasNext()) {
+							Tab child = iterator.next();
+							if (child.getText().endsWith("*")) {
 								Confirm.confirm(ConfirmType.QUESTION, "Unsaved Changes", "Do you want to discard all pending changes?", new EventHandler<ActionEvent>() {
 									@Override
 									public void handle(ActionEvent arg0) {
-										editors.getTabs().remove(tab);
-										// put focus on remaining tab (if any)
-										if (editors.getSelectionModel().getSelectedItem() != null) {
-											editors.getSelectionModel().getSelectedItem().getContent().requestFocus();
-										}
+										iterator.remove();
 									}
 								});
 							}
 							else {
-								editors.getTabs().remove(tab);
-								// put focus on remaining tab (if any)
-								if (editors.getSelectionModel().getSelectedItem() != null) {
-									editors.getSelectionModel().getSelectedItem().getContent().requestFocus();
+								iterator.remove();
+							}
+						}
+					}
+				});
+				aceEditor.subscribe(AceEditor.CLOSE, new EventHandler<Event>() {
+					@Override
+					public void handle(Event event) {
+						if (tab.getText().endsWith("*")) {
+							Confirm.confirm(ConfirmType.QUESTION, "Unsaved Changes", "Do you want to discard all pending changes?", new EventHandler<ActionEvent>() {
+								@Override
+								public void handle(ActionEvent arg0) {
+									editors.getTabs().remove(tab);
+									// put focus on remaining tab (if any)
+									if (editors.getSelectionModel().getSelectedItem() != null) {
+										editors.getSelectionModel().getSelectedItem().getContent().requestFocus();
+									}
 								}
+							});
+						}
+						else {
+							editors.getTabs().remove(tab);
+							// put focus on remaining tab (if any)
+							if (editors.getSelectionModel().getSelectedItem() != null) {
+								editors.getSelectionModel().getSelectedItem().getContent().requestFocus();
 							}
 						}
-					});
-					aceEditor.subscribe(AceEditor.CHANGE, new EventHandler<Event>() {
-						@Override
-						public void handle(Event arg0) {
-							if (!tab.getText().endsWith("*")) {
-								tab.setText(tab.getText() + " *");
-							}
+					}
+				});
+				aceEditor.subscribe(AceEditor.CHANGE, new EventHandler<Event>() {
+					@Override
+					public void handle(Event arg0) {
+						if (!tab.getText().endsWith("*")) {
+							tab.setText(tab.getText() + " *");
 						}
-					});
-					aceEditor.subscribe(AceEditor.SAVE, new EventHandler<Event>() {
-						@Override
-						public void handle(Event arg0) {
+					}
+				});
+				aceEditor.subscribe(AceEditor.SAVE, new EventHandler<Event>() {
+					@Override
+					public void handle(Event arg0) {
+						if (!MainController.getInstance().connectedProperty().get()) {
+							MainController.getInstance().showNotification(Severity.ERROR, "Disconnected", "Can not save resources while disconnected from the server");
+						}
+						else {
 							if (resource instanceof WritableResource) {
 								try {
 									WritableContainer<ByteBuffer> writable = ((WritableResource) resource).getWritable();
@@ -1046,24 +1198,27 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 								if (tab.getText().endsWith("*")) {
 									tab.setText(tab.getText().replace(" *", ""));
 								}
+								MainController.getInstance().getCollaborationClient().updated(lockId, "Updated");
 							}
 						}
-					});
-					aceEditor.subscribe(AceEditor.FULL_SCREEN, new EventHandler<Event>() {
-						@Override
-						public void handle(Event arg0) {
-							toggleFullScreen(editors);
-						}
-					});
-				}
-				editors.getSelectionModel().select(tab);
-				tab.getContent().requestFocus();
+					}
+				});
+				aceEditor.subscribe(AceEditor.FULL_SCREEN, new EventHandler<Event>() {
+					@Override
+					public void handle(Event arg0) {
+						toggleFullScreen(editors);
+					}
+				});
 			}
+			editors.getSelectionModel().select(tab);
+			tab.getContent().requestFocus();
 		}
 	}
 	
 	private static List<Node> content;
 	private static Scene scene;
+	private TabPane tabs;
+	private static TabPane editors;
 	private static void toggleFullScreen(TabPane contentToShow) {
 		if (content == null) {
 			int index = contentToShow.getTabs().indexOf(contentToShow.getSelectionModel().getSelectedItem());
@@ -1093,4 +1248,14 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			contentToShow.getSelectionModel().select(index);
 		}
 	}
+
+	private Logger logger = LoggerFactory.getLogger(getClass());
+	private ObjectProperty<EditingTab> editingTab = new SimpleObjectProperty<EditingTab>();
+
+	@Override
+	protected BaseArtifactGUIInstance<WebApplication> newGUIInstance(Entry entry) {
+		return new WebApplicationGUIInstance<WebApplication>(this, entry, editingTab);
+	}
+	
+	
 }
