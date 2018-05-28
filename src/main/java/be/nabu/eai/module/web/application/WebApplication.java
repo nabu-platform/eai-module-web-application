@@ -144,6 +144,7 @@ import be.nabu.libs.resources.api.WritableResource;
 import be.nabu.libs.services.api.Service;
 import be.nabu.libs.services.fixed.FixedInputService;
 import be.nabu.libs.services.pojo.POJOUtils;
+import be.nabu.libs.types.ComplexContentWrapperFactory;
 import be.nabu.libs.types.DefinedTypeResolverFactory;
 import be.nabu.libs.types.SimpleTypeWrapperFactory;
 import be.nabu.libs.types.api.ComplexContent;
@@ -196,12 +197,14 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private CombinedAuthenticator authenticator;
 	private RoleHandler roleHandler;
 	
-	private boolean authenticatorResolved, roleHandlerResolved, permissionHandlerResolved, potentialPermissionHandlerResolved, tokenValidatorResolved, languageProviderResolved, deviceValidatorResolved;
+	private boolean authenticatorResolved, roleHandlerResolved, permissionHandlerResolved, potentialPermissionHandlerResolved, tokenValidatorResolved, languageProviderResolved, deviceValidatorResolved,
+		translatorResolved;
 	private PermissionHandler permissionHandler;
 	private PotentialPermissionHandler potentialPermissionHandler;
 	private TokenValidator tokenValidator;
 	private UserLanguageProvider userLanguageProvider;
 	private DeviceValidator deviceValidator;
+	private Translator translator;
 	
 	// typeId > regex > content
 	private Map<String, Map<String, ComplexContent>> fragmentConfigurations;
@@ -384,7 +387,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							return null;
 						}
 						Header lastModified = MimeUtils.getHeader("Last-Modified", event.getContent().getHeaders());
-						if (lastModified == null) {
+						Header etag = MimeUtils.getHeader("ETag", event.getContent().getHeaders());
+						if (lastModified == null && etag == null) {
 							Header cacheControl = MimeUtils.getHeader("Cache-Control", event.getContent().getHeaders());
 							if (cacheControl == null) {
 								String contentType = MimeUtils.getContentType(event.getContent().getHeaders());
@@ -496,6 +500,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						resources = resources == null ? (ResourceContainer<?>) resolve : new CombinedContainer(null, "resources", resources, (ResourceContainer<?>) resolve);
 					}
 				}
+//				ResourceContainer<?> providedPublicResources = (ResourceContainer<?>) publicDirectory.getChild("provided/resources");
+//				if (providedPublicResources != null) {
+//					resources = resources == null ? (ResourceContainer<?>) providedPublicResources : new CombinedContainer(null, "resources", resources, (ResourceContainer<?>) providedPublicResources);
+//				}
 				ResourceContainer<?> pages = (ResourceContainer<?>) publicDirectory.getChild("pages");
 				if (pages != null) {
 					logger.debug("Adding public scripts found in: " + pages);
@@ -504,6 +512,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					scannableScriptRepository.setGroup(GlueListener.PUBLIC);
 					repository.add(scannableScriptRepository);
 				}
+//				ResourceContainer<?> providedArtifacts = (ResourceContainer<?>) publicDirectory.getChild("provided/artifacts");
+//				if (providedArtifacts != null) {
+//					repository.add(new ScannableScriptRepository(repository, (ResourceContainer<?>) providedArtifacts, parserProvider, Charset.defaultCharset()));
+//				}
 			}
 
 			String resourcePath = serverPath.equals("/") ? "/resources" : serverPath + "/resources";
@@ -1245,6 +1257,20 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		return userLanguageProvider;
 	}
 	
+	public Translator getTranslator() throws IOException {
+		if (!translatorResolved) {
+			synchronized(this) {
+				if (!translatorResolved) {
+					translatorResolved = true;
+					if (getConfig().getTranslationService() != null) {
+						translator = POJOUtils.newProxy(Translator.class, wrap(getConfiguration().getTranslationService(), getMethod(Translator.class, "translate")), getRepository(), SystemPrincipal.ROOT);
+					}
+				}
+			}
+		}
+		return translator;
+	}
+	
 	public GlueListener getListener() {
 		return listener;
 	}
@@ -1730,4 +1756,21 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		return parserProvider;
 	}
 	
+	@SuppressWarnings("unchecked")
+	public void putConfiguration(Object object, String path, boolean environmentSpecific) {
+		Map<String, Map<String, ComplexContent>> fragmentConfigurations = getFragmentConfigurations();
+		if (!(object instanceof ComplexContent)) {
+			object = ComplexContentWrapperFactory.getInstance().getWrapper().wrap(object);
+		}
+		String id = ((DefinedType) ((ComplexContent) object).getType()).getId();
+		synchronized(this) {
+			if (!fragmentConfigurations.containsKey(id)) {
+				fragmentConfigurations.put(id, new HashMap<String, ComplexContent>());
+			}
+			fragmentConfigurations.get(id).put(path, (ComplexContent) object);
+			if (environmentSpecific) {
+				environmentSpecificConfigurations.add((ComplexContent) object);
+			}
+		}
+	}
 }

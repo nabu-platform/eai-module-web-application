@@ -49,6 +49,15 @@ public class Services {
 		}
 		return permissions;
 	}
+
+	@WebResult(name = "translation")
+	public String translate(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "category") String category, @NotNull @WebParam(name = "key") String key, @WebParam(name = "language") String language) throws IOException {
+		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+		if (resolved == null) {
+			throw new IllegalArgumentException("Invalid web application: " + id);
+		}
+		return resolved.getTranslator() == null ? key : resolved.getTranslator().translate(category, key, language);
+	}
 	
 	public boolean hasRole(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "token") Token token, @WebParam(name = "role") String role) throws IOException {
 		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
@@ -254,6 +263,17 @@ public class Services {
 			throw new IllegalArgumentException("Not a valid complex type: " + typeId);
 		}
 		return resolved.getConfigurationFor(path == null ? ".*" : path, (ComplexType) resolve);
+	}
+	
+	public void configure(@NotNull @WebParam(name = "webApplicationId") String id, @NotNull @WebParam(name = "configuration") Object configuration, @WebParam(name = "path") String path, @WebParam(name = "environmentSpecific") Boolean environmentSpecific) throws IOException {
+		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+		if (resolved == null) {
+			throw new IllegalArgumentException("Could not find web application: " + id);
+		}
+		resolved.putConfiguration(configuration, path, environmentSpecific != null && environmentSpecific);
+		resolved.save(resolved.getDirectory());
+		// reload the artifact
+		//EAIResourceRepository.getInstance().reload(resolved.getId());
 	}
 
 	@WebResult(name = "has")

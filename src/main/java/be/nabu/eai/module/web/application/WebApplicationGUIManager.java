@@ -17,18 +17,12 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import javafx.application.Platform;
-import javafx.beans.binding.BooleanBinding;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.property.SimpleObjectProperty;
-import javafx.beans.property.StringProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
@@ -65,6 +59,10 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
 import javafx.stage.WindowEvent;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import be.nabu.eai.authentication.api.PasswordAuthenticator;
 import be.nabu.eai.authentication.api.SecretAuthenticator;
 import be.nabu.eai.developer.ComplexContentEditor;
@@ -83,7 +81,6 @@ import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
-import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.eai.repository.api.Translator;
 import be.nabu.eai.repository.api.UserLanguageProvider;
 import be.nabu.eai.repository.resources.RepositoryEntry;
@@ -95,10 +92,10 @@ import be.nabu.jfx.control.tree.TreeCell;
 import be.nabu.jfx.control.tree.TreeItem;
 import be.nabu.jfx.control.tree.TreeUtils;
 import be.nabu.jfx.control.tree.TreeUtils.TreeItemCreator;
+import be.nabu.jfx.control.tree.Updateable;
 import be.nabu.jfx.control.tree.drag.TreeDragDrop;
 import be.nabu.jfx.control.tree.drag.TreeDragListener;
 import be.nabu.jfx.control.tree.drag.TreeDropListener;
-import be.nabu.jfx.control.tree.Updateable;
 import be.nabu.libs.authentication.api.DeviceValidator;
 import be.nabu.libs.authentication.api.PermissionHandler;
 import be.nabu.libs.authentication.api.PotentialPermissionHandler;
@@ -379,6 +376,8 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		ResourceUtils.mkdirs(publicDirectory, "pages");
 		ResourceUtils.mkdirs(publicDirectory, "resources");
 		ResourceUtils.mkdirs(publicDirectory, "artifacts");
+//		ResourceUtils.mkdirs(publicDirectory, "provided/artifacts");
+//		ResourceUtils.mkdirs(publicDirectory, "provided/resources");
 		ResourceContainer<?> privateDirectory = (ResourceContainer<?>) artifact.getDirectory().getChild(EAIResourceRepository.PRIVATE);
 		if (privateDirectory == null && artifact.getDirectory() instanceof ManageableContainer) {
 			privateDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) artifact.getDirectory()).create(EAIResourceRepository.PRIVATE, Resource.CONTENT_TYPE_DIRECTORY);
@@ -911,6 +910,11 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		public void refresh() {
 			// we don't reset the cache anymore as collaboration will automatically reset the required parts
 			refresh(true, false);
+		}
+		
+		@Override
+		public void refresh(boolean hard) {
+			refresh(true, hard);
 		}
 		
 		@SuppressWarnings({ "unchecked", "rawtypes" })
