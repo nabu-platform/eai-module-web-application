@@ -34,6 +34,7 @@ import be.nabu.eai.module.web.application.api.RESTFragment;
 import be.nabu.eai.module.web.application.api.RESTFragmentProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.module.web.application.rate.RateLimiter;
+import be.nabu.eai.module.web.application.resource.WebApplicationResourceResolver;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.MetricsLevelProvider;
@@ -133,6 +134,7 @@ import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.nio.api.SourceContext;
 import be.nabu.libs.property.api.Value;
 import be.nabu.libs.resources.CombinedContainer;
+import be.nabu.libs.resources.ResourceFactory;
 import be.nabu.libs.resources.ResourceReadableContainer;
 import be.nabu.libs.resources.ResourceUtils;
 import be.nabu.libs.resources.api.ManageableContainer;
@@ -141,6 +143,7 @@ import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.resources.api.TimestampedResource;
 import be.nabu.libs.resources.api.WritableResource;
+import be.nabu.libs.services.ServiceRuntime;
 import be.nabu.libs.services.api.Service;
 import be.nabu.libs.services.fixed.FixedInputService;
 import be.nabu.libs.services.pojo.POJOUtils;
@@ -249,9 +252,24 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		}
 	}
 
+	private static volatile boolean registeredResolver;
+	
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
 	public void start() throws IOException {
+		// the factory only picks up new resolvers initially
+		// but the nabu repository uses the resource system to actually load everything
+		// so by the time all the modules are loaded, the resolver instance does not accept any newcomers
+		// so we manually register it here
+		// TODO: maybe use a better process?
+		if (!registeredResolver) {
+			synchronized(this) {
+				if (!registeredResolver) {
+					ResourceFactory.getInstance().addResourceResolver(new WebApplicationResourceResolver());
+					registeredResolver = true;
+				}
+			}
+		}
 		boolean licensed = true;
 		if (getRepository() instanceof LicensedRepository) {
 			LicenseManager licenseManager = ((LicensedRepository) getRepository()).getLicenseManager();
@@ -831,7 +849,22 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				}
 			}
 			// start the glue listener
-			EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, listener);
+			//EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, listener);
+			EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, new EventHandler<HTTPRequest, HTTPResponse>() {
+				@Override
+				public HTTPResponse handle(HTTPRequest event) {
+					try {
+						// set it globally
+						ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
+						ServiceRuntime.getGlobalContext().put("service.context", getId());
+						return listener.handle(event);
+					}
+					finally {
+						// unset it
+						ServiceRuntime.setGlobalContext(null);	
+					}
+				}
+			});
 			subscription.filter(HTTPServerUtils.limitToPath(serverPath));
 			subscriptions.add(subscription);
 			// start remaining fragments
