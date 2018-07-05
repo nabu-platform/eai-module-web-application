@@ -10,9 +10,9 @@ import javax.xml.bind.annotation.XmlType;
 import be.nabu.libs.types.api.KeyValuePair;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "id", "realm", "path", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties" })
+@XmlType(propOrder = { "id", "realm", "path", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties" })
 public class WebApplicationInformation {
-	private String id, realm, path;
+	private String id, realm, path, scheme;
 	private Charset charset;
 	private String host;
 	private List<String> aliases;
@@ -90,5 +90,11 @@ public class WebApplicationInformation {
 	}
 	public void setScriptCacheProviderId(String scriptCacheProviderId) {
 		this.scriptCacheProviderId = scriptCacheProviderId;
+	}
+	public String getScheme() {
+		return scheme;
+	}
+	public void setScheme(String scheme) {
+		this.scheme = scheme;
 	}
 }

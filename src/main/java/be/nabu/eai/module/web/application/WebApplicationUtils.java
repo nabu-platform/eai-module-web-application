@@ -78,6 +78,7 @@ public class WebApplicationUtils {
 				HTTPServerArtifact server = application.getConfig().getVirtualHost().getConfig().getServer();
 				information.setPort(server.getConfig().isProxied() ? server.getConfig().getProxyPort() : server.getConfig().getPort());
 				information.setSecure(server.getConfig().isProxied() ? server.getConfig().isProxySecure() : server.getConfig().getKeystore() != null);
+				information.setScheme(information.getSecure() ? "https" : "http");
 			}
 		}
 		information.setPath(application.getConfig().getPath());

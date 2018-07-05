@@ -1,8 +1,11 @@
 package be.nabu.eai.module.web.application;
 
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.net.URLConnection;
@@ -17,6 +20,7 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
@@ -115,6 +119,7 @@ import be.nabu.libs.types.api.ComplexContent;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.Element;
+import be.nabu.libs.types.base.ValueImpl;
 import be.nabu.libs.validator.api.ValidationMessage;
 import be.nabu.libs.validator.api.ValidationMessage.Severity;
 import be.nabu.utils.io.IOUtils;
@@ -737,6 +742,44 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 										}
 										MainController.getInstance().getCollaborationClient().deleted(id + ":" + path, "Deleted");
 									}
+								}
+							});
+							contextMenu.getItems().add(item);
+						}
+						if (resource instanceof ReadableResource) {
+							MenuItem item = new MenuItem("Download");
+							item.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
+								@SuppressWarnings("unchecked")
+								@Override
+								public void handle(ActionEvent arg0) {
+									SimpleProperty<File> fileProperty = new SimpleProperty<File>("File", File.class, true);
+									Set properties = new LinkedHashSet(Arrays.asList(new Property [] { fileProperty }));
+									final SimplePropertyUpdater updater = new SimplePropertyUpdater(true, properties, 
+										new ValueImpl<File>(fileProperty, new File(resource.getName())));
+									EAIDeveloperUtils.buildPopup(MainController.getInstance(), updater, "Download " + resource.getName(), new EventHandler<ActionEvent>() {
+										@Override
+										public void handle(ActionEvent arg0) {
+											try {
+												File file = updater.getValue("File");
+												ReadableContainer<ByteBuffer> readable = ((ReadableResource) resource).getReadable();
+												try {
+													OutputStream output = new BufferedOutputStream(new FileOutputStream(file));
+													try {
+														IOUtils.copyBytes(readable, IOUtils.wrap(output));
+													}
+													finally {
+														output.close();
+													}
+												}
+												finally {
+													readable.close();
+												}
+											}
+											catch (Exception e) {
+												MainController.getInstance().notify(new ValidationMessage(Severity.ERROR, "Cannot download resource '" + resource.getName() + "': " + e.getMessage()));
+											}
+										}
+									});
 								}
 							});
 							contextMenu.getItems().add(item);

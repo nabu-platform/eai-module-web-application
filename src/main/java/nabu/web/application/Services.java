@@ -196,7 +196,7 @@ public class Services {
 		List<WebApplication> artifacts = EAIResourceRepository.getInstance().getArtifacts(WebApplication.class);
 		if (artifacts != null) {
 			for (WebApplication application : artifacts) {
-				if (id != null && !id.equals(application.getId())) {
+				if (id != null && !application.getId().equals(id) && !application.getId().startsWith(id + ".")) {
 					continue;
 				}
 				if (realm != null && !realm.equals(application.getRealm())) {
