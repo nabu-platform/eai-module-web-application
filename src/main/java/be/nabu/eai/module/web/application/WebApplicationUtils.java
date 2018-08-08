@@ -85,9 +85,12 @@ public class WebApplicationUtils {
 		if (application.getConfig().getTranslationService() != null) {
 			information.setTranslationService(application.getConfig().getTranslationService().getId());
 		}
-		Map<String, String> properties = application.getListener().getEnvironment().getParameters();
-		for (String key : properties.keySet()) {
-			information.getProperties().add(new PropertyImpl(key, properties.get(key)));
+		// if the application has not been started (e.g. no virtual host or it is stopped), there is no listener
+		if (application.getListener() != null) {
+			Map<String, String> properties = application.getListener().getEnvironment().getParameters();
+			for (String key : properties.keySet()) {
+				information.getProperties().add(new PropertyImpl(key, properties.get(key)));
+			}
 		}
 		if (application.getConfig().getScriptCacheProvider() != null) {
 			information.setScriptCacheProviderId(application.getConfig().getScriptCacheProvider().getId());

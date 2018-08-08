@@ -2,6 +2,7 @@ package nabu.web.application;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 import javax.jws.WebParam;
@@ -15,6 +16,7 @@ import be.nabu.eai.module.web.application.WebApplication;
 import be.nabu.eai.module.web.application.WebApplicationUtils;
 import be.nabu.eai.module.web.application.WebFragment;
 import be.nabu.eai.module.web.application.WebFragmentProvider;
+import be.nabu.eai.module.web.application.api.PermissionWithRole;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.ResourceEntry;
@@ -39,7 +41,7 @@ public class Services {
 	private ExecutionContext executionContext;
 	
 	@WebResult(name = "permissions")
-	public List<Permission> permissions(@NotNull @WebParam(name = "webApplicationId") String id) {
+	public List<Permission> permissions(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "role") String role) {
 		List<Permission> permissions = new ArrayList<Permission>();
 		if (id != null) {
 			WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
@@ -47,7 +49,47 @@ public class Services {
 				permissions(resolved, permissions);
 			}
 		}
+		if (role != null) {
+			Iterator<Permission> iterator = permissions.iterator();
+			while (iterator.hasNext()) {
+				Permission next = iterator.next();
+				boolean keep = false;
+				// we are listing permissions in this service, a permission consists of at least an action
+				// if there is no action, we don't report it
+				if (next.getAction() != null && next instanceof PermissionWithRole) {
+					keep = (((PermissionWithRole) next).getRoles() != null && ((PermissionWithRole) next).getRoles().contains(role));
+				}
+				if (!keep) {
+					iterator.remove();
+				}
+			}
+		}
 		return permissions;
+	}
+	
+	@WebResult(name = "roles")
+	public List<String> roles(@NotNull @WebParam(name = "webApplicationId") String id) {
+		List<Permission> permissions = new ArrayList<Permission>();
+		if (id != null) {
+			WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+			if (resolved != null) {
+				permissions(resolved, permissions);
+			}
+		}
+		List<String> roles = new ArrayList<String>();
+		for (Permission permission : permissions) {
+			if (permission instanceof PermissionWithRole) {
+				List<String> possible = ((PermissionWithRole) permission).getRoles();
+				if (possible != null) {
+					for (String role : possible) {
+						if (!roles.contains(role)) {
+							roles.add(role);
+						}
+					}
+				}
+			}
+		}
+		return roles;
 	}
 
 	@WebResult(name = "translation")
