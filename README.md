@@ -1,0 +1,1 @@
+This project provides everything necessary to build web applications with the nabu development platform.
