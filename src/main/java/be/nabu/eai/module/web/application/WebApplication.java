@@ -242,7 +242,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			((RepositoryExceptionFormatter) server.getExceptionFormatter()).unregister(getId());
 		}
 		if (getConfiguration().getSessionCacheProvider() != null) {
-			getConfiguration().getSessionCacheProvider().remove(getId() + "-session");
+			getConfiguration().getSessionCacheProvider().remove(getConfig().getSessionCacheId() != null ? getConfig().getSessionCacheId() : getId() + "-session");
 		}
 		List<WebFragment> webFragments = getConfiguration().getWebFragments();
 		if (webFragments != null) {
@@ -311,8 +311,20 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			// TODO: if we have a jwt token, register a listener early on that can spot a Authorization: Bearer <token> header
 			// and transform it into a security header
 
+			// reuse the sessions from another application
+			if (licensed && getConfig().getSessionProviderApplication() != null) {
+				String providerPath = getConfig().getSessionProviderApplication().getConfig().getPath();
+				String currentPath = getConfig().getPath();
+				if (currentPath == null) {
+					logger.warn("The application " + getId() + " does not have a path, this means it will live on the root. Make sure you do response rewriting to share session cookies with: " + getConfig().getSessionProviderApplication().getId());
+				}
+				else if (providerPath != null && !currentPath.startsWith(providerPath)) {
+					logger.warn("The application " + getId() + " does not share a path with the provider application " + getConfig().getSessionProviderApplication().getId() + ". Make sure you do response rewriting to share session cookies.");
+				}
+				sessionProvider = getConfig().getSessionProviderApplication().getSessionProvider();
+			}
 			// create session provider
-			if (licensed && getConfiguration().getSessionCacheProvider() != null) {
+			else if (licensed && getConfiguration().getSessionCacheProvider() != null) {
 				Cache sessionCache = getConfiguration().getSessionCacheProvider().create(
 					getConfig().getSessionCacheId() == null ? getId() + "-session" : getConfig().getSessionCacheId(),
 					// defaults to unlimited

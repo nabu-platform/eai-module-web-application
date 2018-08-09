@@ -18,7 +18,7 @@ import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "languageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "languageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -44,6 +44,8 @@ public class WebApplicationConfiguration {
 	private Boolean allowBasicAuthentication;
 	private List<WebFragment> webFragments;
 	private ListableSinkProviderArtifact rateLimiterDatabase;
+	// you can reuse the sessions from another application
+	private WebApplication sessionProviderApplication;
 	
 	private String jwtKeyAlias;
 	private KeyStoreArtifact jwtKeyStore;
@@ -381,5 +383,16 @@ public class WebApplicationConfiguration {
 	public void setAllowContentEncoding(boolean allowContentEncoding) {
 		this.allowContentEncoding = allowContentEncoding;
 	}
+	
+	@Advanced
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	@Comment(title = "You can configure an application if you want to reuse the sessions that already exist in that application", description = "If a session provider application is set, the other session parameters are ignored in this application")
+	public WebApplication getSessionProviderApplication() {
+		return sessionProviderApplication;
+	}
+	public void setSessionProviderApplication(WebApplication sessionProviderApplication) {
+		this.sessionProviderApplication = sessionProviderApplication;
+	}
+
 	
 }
