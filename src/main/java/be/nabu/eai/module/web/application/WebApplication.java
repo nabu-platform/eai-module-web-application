@@ -912,6 +912,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			logger.info("Started " + subscriptions.size() + " subscriptions");
 		}
 	}
+	
+	private String getFragmentPath() {
+		return getConfig().getPath() == null ? "/" : getConfig().getPath();
+	}
 
 	public EventSubscription<HTTPResponse, HTTPResponse> registerPostProcessor(ScriptRepository metaRepository) {
 		try {
@@ -931,7 +935,21 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		);
 		postprocessListener.setRefresh(EAIResourceRepository.isDevelopment());
 		postprocessListener.setRealm(getRealm());
-		EventSubscription<HTTPResponse, HTTPResponse> subscription = getDispatcher().subscribe(HTTPResponse.class, postprocessListener);
+		EventSubscription<HTTPResponse, HTTPResponse> subscription = getDispatcher().subscribe(HTTPResponse.class, new EventHandler<HTTPResponse, HTTPResponse>() {
+			@Override
+			public HTTPResponse handle(HTTPResponse event) {
+				try {
+					// set it globally
+					ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
+					ServiceRuntime.getGlobalContext().put("service.context", getId());
+					return postprocessListener.handle(event);
+				}
+				finally {
+					// unset it
+					ServiceRuntime.setGlobalContext(null);	
+				}
+			}
+		});
 		subscription.filter(HTTPServerUtils.limitToRequestPath(serverPath));
 		return subscription;
 	}
@@ -957,7 +975,21 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		preprocessListener.setRefresh(EAIResourceRepository.isDevelopment());
 		preprocessListener.setTokenValidator(getTokenValidator());
 		preprocessListener.setRealm(getRealm());
-		EventSubscription<HTTPRequest, HTTPEntity> subscription = getDispatcher().subscribe(HTTPRequest.class, preprocessListener);
+		EventSubscription<HTTPRequest, HTTPEntity> subscription = getDispatcher().subscribe(HTTPRequest.class, new EventHandler<HTTPRequest, HTTPEntity>() {
+			@Override
+			public HTTPEntity handle(HTTPRequest event) {
+				try {
+					// set it globally
+					ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
+					ServiceRuntime.getGlobalContext().put("service.context", getId());
+					return preprocessListener.handle(event);
+				}
+				finally {
+					// unset it
+					ServiceRuntime.setGlobalContext(null);	
+				}
+			}
+		});
 		subscription.filter(HTTPServerUtils.limitToPath(getServerPath()));
 		return subscription;
 	}

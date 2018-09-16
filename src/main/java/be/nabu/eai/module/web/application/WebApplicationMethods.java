@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
+import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.glue.annotations.GlueParam;
@@ -96,5 +97,12 @@ public class WebApplicationMethods {
 	
 	public String language() throws IOException {
 		return WebApplicationUtils.getLanguage(application, (HTTPRequest) RequestMethods.entity());
+	}
+	
+	public void stop(String id, String path) {
+		Artifact resolve = application.getRepository().resolve(id);
+		if (resolve instanceof WebFragment) {
+			((WebFragment) resolve).stop(application, path);
+		}
 	}
 }

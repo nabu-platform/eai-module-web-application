@@ -4,12 +4,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import javax.jws.WebParam;
 import javax.jws.WebResult;
 import javax.jws.WebService;
 import javax.validation.constraints.NotNull;
 
+import nabu.web.application.types.Cookie;
 import nabu.web.application.types.PropertyImpl;
 import nabu.web.application.types.WebApplicationInformation;
 import be.nabu.eai.module.web.application.WebApplication;
@@ -24,10 +26,13 @@ import be.nabu.glue.impl.ImperativeSubstitutor;
 import be.nabu.libs.artifacts.api.Artifact;
 import be.nabu.libs.authentication.api.Permission;
 import be.nabu.libs.authentication.api.Token;
+import be.nabu.libs.http.api.server.Session;
+import be.nabu.libs.http.core.HTTPUtils;
 import be.nabu.libs.resources.api.ReadableResource;
 import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.resources.api.ResourceFilter;
+import be.nabu.libs.services.ServiceRuntime;
 import be.nabu.libs.services.api.ExecutionContext;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
@@ -35,10 +40,24 @@ import be.nabu.libs.types.api.KeyValuePair;
 import be.nabu.utils.io.IOUtils;
 import be.nabu.utils.io.api.ByteBuffer;
 import be.nabu.utils.io.api.ReadableContainer;
+import be.nabu.utils.mime.api.Header;
 
 @WebService
 public class Services {
 	private ExecutionContext executionContext;
+
+	@WebResult(name = "cookies")
+	public List<Cookie> cookies(@WebParam(name = "headers") List<Header> headers) {
+		Map<String, List<String>> cookies = HTTPUtils.getCookies(headers.toArray(new Header[0]));
+		List<Cookie> list = new ArrayList<Cookie>();
+		for (Map.Entry<String, List<String>> entry : cookies.entrySet()) {
+			Cookie cookie = new Cookie();
+			cookie.setName(entry.getKey());
+			cookie.setValues(entry.getValue());
+			list.add(cookie);
+		}
+		return list;
+	}
 	
 	@WebResult(name = "permissions")
 	public List<Permission> permissions(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "role") String role) {
@@ -319,22 +338,42 @@ public class Services {
 	}
 
 	@WebResult(name = "has")
-	public boolean hasFragment(@NotNull @WebParam(name = "webApplicationId") String id, @NotNull @WebParam(name = "fragmentId") String fragmentId) {
+	public boolean hasFragment(@NotNull @WebParam(name = "webApplicationId") String id, @NotNull @WebParam(name = "fragmentId") String fragmentId, @WebParam(name = "active") Boolean active) {
 		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
 		if (resolved == null) {
 			throw new IllegalArgumentException("Could not find web application: " + id);
 		}
-		return hasFragment(resolved, fragmentId);
+		return hasFragment(resolved, resolved, fragmentId, active, null);
 	}
 
-	private boolean hasFragment(WebFragmentProvider provider, String fragmentId) {
+	private boolean hasFragment(WebApplication application, WebFragmentProvider provider, String fragmentId, Boolean active, String path) {
 		if (provider.getWebFragments() != null) {
 			for (WebFragment fragment : provider.getWebFragments()) {
 				if (fragment != null && fragmentId.equals(fragment.getId())) {
-					return true;
+					// we don't care if it is active or inactive, just that it is mounted
+					if (active == null) {
+						return true;
+					}
+					else {
+						boolean isActive = fragment.isStarted(application, path);
+						if (active) {
+							return isActive;
+						}
+						else {
+							return !isActive;
+						}
+					}
 				}
 				else if (fragment instanceof WebFragmentProvider) {
-					boolean result = hasFragment((WebFragmentProvider) fragment, fragmentId);
+					String childPath = path;
+					if (((WebFragmentProvider) fragment).getRelativePath() != null) {
+						if (childPath == null) {
+							childPath = "";
+						}
+						childPath += "/" + ((WebFragmentProvider) fragment).getRelativePath();
+						childPath = childPath.replaceAll("[/]{2,}", "/");
+					}
+					boolean result = hasFragment(application, (WebFragmentProvider) fragment, fragmentId, active, childPath);
 					if (result) {
 						return true;
 					}
@@ -342,5 +381,30 @@ public class Services {
 			}
 		}
 		return false;
+	}
+	
+	public void setSession(@NotNull @WebParam(name = "key") String key, @WebParam(name = "value") Object value) {
+		ServiceRuntime runtime = ServiceRuntime.getRuntime();
+		if (runtime == null) {
+			throw new IllegalStateException("No runtime found");
+		}
+		Object session = runtime.getContext().get("session");
+		if (!(session instanceof Session)) {
+			throw new IllegalStateException("Could not find session");
+		}
+		((Session) session).set(key, value);
+	}
+	
+	@WebResult(name = "value")
+	public Object getSession(@NotNull @WebParam(name = "key") String key) {
+		ServiceRuntime runtime = ServiceRuntime.getRuntime();
+		if (runtime == null) {
+			throw new IllegalStateException("No runtime found");
+		}
+		Object session = runtime.getContext().get("session");
+		if (!(session instanceof Session)) {
+			throw new IllegalStateException("Could not find session");
+		}
+		return ((Session) session).get(key);
 	}
 }

@@ -5,14 +5,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.xml.bind.annotation.XmlRootElement;
+import javax.xml.bind.annotation.XmlTransient;
 import javax.xml.bind.annotation.XmlType;
 
 import be.nabu.libs.types.api.KeyValuePair;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "id", "realm", "path", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties" })
+@XmlType(propOrder = { "id", "realm", "path", "root", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties" })
 public class WebApplicationInformation {
-	private String id, realm, path, scheme;
+	// root is slightly different from path: path is the actual configured path
+	// root is the interpreted path guaranteed to end in a "/" for concatenation
+	private String id, realm, path, scheme, root;
 	private Charset charset;
 	private String host;
 	private List<String> aliases;
@@ -96,5 +99,21 @@ public class WebApplicationInformation {
 	}
 	public void setScheme(String scheme) {
 		this.scheme = scheme;
+	}
+	public String getRoot() {
+		if (root == null) {
+			String path = getPath();
+			if (path == null) {
+				path = "/";
+			}
+			if (!path.endsWith("/")) {
+				path += "/";
+			}
+			root = path;
+		}
+		return root;
+	}
+	public void setRoot(String root) {
+		this.root = root;
 	}
 }
