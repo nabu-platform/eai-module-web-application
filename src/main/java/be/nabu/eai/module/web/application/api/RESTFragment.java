@@ -31,4 +31,7 @@ public interface RESTFragment extends Artifact {
 	public default String getPermissionContext() {
 		return null;
 	}
+	public default boolean isCacheable() {
+		return false;
+	}
 }

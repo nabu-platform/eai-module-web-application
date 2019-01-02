@@ -1,5 +1,6 @@
 package be.nabu.eai.module.web.application.resource;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.URI;
 
@@ -50,7 +51,11 @@ public class WebApplicationResource implements ReadableResource {
 	@Override
 	public ReadableContainer<ByteBuffer> getReadable() throws IOException {
 		HTTPResponse response = getResponse();
-		return ((ContentPart) response.getContent()).getReadable();
+		ModifiablePart content = response.getContent();
+		if (content == null) {
+			throw new FileNotFoundException("Could not find: " + uri);
+		}
+		return ((ContentPart) content).getReadable();
 	}
 
 	private HTTPResponse getResponse() {

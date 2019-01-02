@@ -18,7 +18,7 @@ import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "languageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments", "html5Mode" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -37,7 +37,7 @@ public class WebApplicationConfiguration {
 	private DefinedService permissionService, potentialPermissionService;
 	private DefinedService roleService;
 	private DefinedService tokenValidatorService;
-	private DefinedService translationService;
+	private DefinedService translationService, supportedLanguagesService;
 	private DefinedService languageProviderService;
 	private DefinedService deviceValidatorService;
 	private DefinedService requestSubscriber;
@@ -49,7 +49,7 @@ public class WebApplicationConfiguration {
 	
 	private String jwtKeyAlias;
 	private KeyStoreArtifact jwtKeyStore;
-	private boolean allowJwtBearer, allowContentEncoding = true;
+	private boolean allowJwtBearer, allowContentEncoding = true, html5Mode;
 	
 	private DefinedService rateLimiter;
 	
@@ -79,6 +79,16 @@ public class WebApplicationConfiguration {
 	}
 	public void setTranslationService(DefinedService translationService) {
 		this.translationService = translationService;
+	}
+	
+	@Comment(title = "List all of the available languages")
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	@InterfaceFilter(implement = "be.nabu.eai.repository.api.LanguageProvider.getSupportedLanguages")
+	public DefinedService getSupportedLanguagesService() {
+		return supportedLanguagesService;
+	}
+	public void setSupportedLanguagesService(DefinedService supportedLanguagesService) {
+		this.supportedLanguagesService = supportedLanguagesService;
 	}
 	
 	@Comment(title = "This service is responsible for indicating which language a user wants based on e.g. profile settings")
@@ -163,7 +173,6 @@ public class WebApplicationConfiguration {
 	}
 	
 	@Advanced
-	@EnvironmentSpecific
 	public Boolean getAllowBasicAuthentication() {
 		return allowBasicAuthentication;
 	}
@@ -187,7 +196,6 @@ public class WebApplicationConfiguration {
 	}
 
 	@Advanced
-	@EnvironmentSpecific
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	public CacheProviderArtifact getSessionCacheProvider() {
 		return sessionCacheProvider;
@@ -197,7 +205,6 @@ public class WebApplicationConfiguration {
 	}
 	
 	@Comment(title = "The script cache provider is used to temporarily cache page results, _always_ use a serializing cache for this and _never_ cache a page with user-specific content on it!", description = "You can set an '@cache <timeout>' at the top of a script to enable caching. The timeout is optional and can be set to 0 for indefinite cached values.")
-	@EnvironmentSpecific
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	public CacheProviderArtifact getScriptCacheProvider() {
 		return scriptCacheProvider;
@@ -207,7 +214,6 @@ public class WebApplicationConfiguration {
 	}
 	
 	@Advanced
-	@EnvironmentSpecific
 	public Long getMaxTotalSessionSize() {
 		return maxTotalSessionSize;
 	}
@@ -216,7 +222,6 @@ public class WebApplicationConfiguration {
 	}
 
 	@Advanced
-	@EnvironmentSpecific
 	public Long getMaxSessionSize() {
 		return maxSessionSize;
 	}
@@ -225,7 +230,6 @@ public class WebApplicationConfiguration {
 	}
 
 	@Advanced
-	@EnvironmentSpecific
 	public Long getSessionTimeout() {
 		return sessionTimeout;
 	}
@@ -392,6 +396,15 @@ public class WebApplicationConfiguration {
 	}
 	public void setSessionProviderApplication(WebApplication sessionProviderApplication) {
 		this.sessionProviderApplication = sessionProviderApplication;
+	}
+	
+	@Advanced
+	@Comment(title = "All 404 that accept text/html will be served with the index page, assuming html5 mode in the frontend")
+	public boolean isHtml5Mode() {
+		return html5Mode;
+	}
+	public void setHtml5Mode(boolean html5Mode) {
+		this.html5Mode = html5Mode;
 	}
 
 	

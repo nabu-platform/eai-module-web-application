@@ -11,7 +11,7 @@ import javax.xml.bind.annotation.XmlType;
 import be.nabu.libs.types.api.KeyValuePair;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "id", "realm", "path", "root", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties" })
+@XmlType(propOrder = { "id", "realm", "path", "root", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties", "html5Mode" })
 public class WebApplicationInformation {
 	// root is slightly different from path: path is the actual configured path
 	// root is the interpreted path guaranteed to end in a "/" for concatenation
@@ -24,6 +24,7 @@ public class WebApplicationInformation {
 	private String translationService;
 	private String scriptCacheProviderId;
 	private List<KeyValuePair> properties;
+	private boolean html5Mode;
 
 	public String getId() {
 		return id;
@@ -115,5 +116,11 @@ public class WebApplicationInformation {
 	}
 	public void setRoot(String root) {
 		this.root = root;
+	}
+	public boolean isHtml5Mode() {
+		return html5Mode;
+	}
+	public void setHtml5Mode(boolean html5Mode) {
+		this.html5Mode = html5Mode;
 	}
 }

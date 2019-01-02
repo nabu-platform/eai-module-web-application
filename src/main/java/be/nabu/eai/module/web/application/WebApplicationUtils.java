@@ -11,6 +11,7 @@ import be.nabu.eai.module.http.server.HTTPServerArtifact;
 import be.nabu.eai.module.http.virtual.api.Source;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.web.application.rate.RateLimiter;
+import be.nabu.eai.repository.api.LanguageProvider;
 import be.nabu.libs.authentication.api.Authenticator;
 import be.nabu.libs.authentication.api.Device;
 import be.nabu.libs.authentication.api.DeviceValidator;
@@ -46,8 +47,8 @@ public class WebApplicationUtils {
 	public static String getLanguage(WebApplication application, HTTPRequest request) throws IOException {
 		String language = null;
 		// first get it from the language provider (if any)
-		if (application.getLanguageProvider() != null) {
-			language = application.getLanguageProvider().getLanguage(getToken(application, request));
+		if (application.getUserLanguageProvider() != null) {
+			language = application.getUserLanguageProvider().getLanguage(getToken(application, request));
 		}
 		// then try to get it from cookies, this mechanism can be used for anonymous users with a personal preference
 		if (language == null) {
@@ -60,7 +61,15 @@ public class WebApplicationUtils {
 		if (language == null) {
 			List<String> acceptedLanguages = MimeUtils.getAcceptedLanguages(request.getContent().getHeaders());
 			if (!acceptedLanguages.isEmpty()) {
-				language = acceptedLanguages.get(0).replaceAll("-.*$", "");
+				LanguageProvider provider = application.getLanguageProvider();
+				List<String> supportedLanguages = provider == null ? null : provider.getSupportedLanguages();
+				for (String acceptedLanguage : acceptedLanguages) {
+					String potential = acceptedLanguage.replaceAll("-.*$", "");
+					if (supportedLanguages == null || supportedLanguages.contains(potential)) {
+						language = potential;
+						break;
+					}
+				}
 			}
 		}
 		return language;
@@ -70,6 +79,7 @@ public class WebApplicationUtils {
 		WebApplicationInformation information = new WebApplicationInformation();
 		information.setId(application.getId());
 		information.setRealm(application.getRealm());
+		information.setHtml5Mode(application.getConfig().isHtml5Mode());
 		information.setCharset(application.getConfig().getCharset() == null ? Charset.defaultCharset() : Charset.forName(application.getConfig().getCharset()));
 		if (application.getConfig().getVirtualHost() != null) {
 			information.setHost(application.getConfig().getVirtualHost().getConfig().getHost());
@@ -146,7 +156,7 @@ public class WebApplicationUtils {
 				device = GlueListener.newDevice(application.getRealm(), request.getContent().getHeaders());
 			}
 			if (deviceValidator != null && !deviceValidator.isAllowed(token, device)) {
-				throw new HTTPException(token == null ? 401 : 403, "User '" + (token == null ? Authenticator.ANONYMOUS : token.getName()) + "' is using an unauthorized device '" + device.getDeviceId() + "'");
+				throw new HTTPException(token == null ? 401 : 403, "User '" + (token == null ? Authenticator.ANONYMOUS : token.getName()) + "' is using an unauthorized device '" + device.getDeviceId() + "'", token);
 			}
 			return device;
 		}
@@ -171,7 +181,7 @@ public class WebApplicationUtils {
 					}
 				}
 				if (!hasRole) {
-					throw new HTTPException(token == null ? 401 : 403, "User '" + (token == null ? Authenticator.ANONYMOUS : token.getName()) + "' does not have one of the allowed roles '" + roles + "'");
+					throw new HTTPException(token == null ? 401 : 403, "User '" + (token == null ? Authenticator.ANONYMOUS : token.getName()) + "' does not have one of the allowed roles '" + roles + "'", token);
 				}
 			}
 		}

@@ -2,6 +2,8 @@ package be.nabu.eai.module.web.application;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,7 +11,12 @@ import org.slf4j.LoggerFactory;
 import javafx.application.Platform;
 import javafx.beans.property.ObjectProperty;
 import javafx.scene.control.Tab;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.AnchorPane;
+import be.nabu.eai.developer.MainController;
+import be.nabu.eai.developer.api.ArtifactGUIInstanceWithChildren;
 import be.nabu.eai.developer.api.CRUDArtifactGUIInstance;
 import be.nabu.eai.developer.managers.base.BaseArtifactGUIInstance;
 import be.nabu.eai.developer.managers.base.BaseGUIManager;
@@ -22,11 +29,12 @@ import be.nabu.libs.resources.ResourceUtils;
 import be.nabu.libs.resources.api.ReadableResource;
 import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.features.CacheableResource;
+import be.nabu.libs.validator.api.Validation;
 import be.nabu.utils.io.IOUtils;
 import be.nabu.utils.io.api.ByteBuffer;
 import be.nabu.utils.io.api.ReadableContainer;
 
-public class WebApplicationGUIInstance<T extends Artifact> extends BaseArtifactGUIInstance<T> implements CRUDArtifactGUIInstance {
+public class WebApplicationGUIInstance<T extends Artifact> extends BaseArtifactGUIInstance<T> implements CRUDArtifactGUIInstance, ArtifactGUIInstanceWithChildren {
 
 	private Logger logger = LoggerFactory.getLogger(getClass());
 	private ObjectProperty<EditingTab> editingTab;
@@ -137,6 +145,19 @@ public class WebApplicationGUIInstance<T extends Artifact> extends BaseArtifactG
 		// note that the configuration tab will not update but very few things are susceptible to external change apart from configuration at the bottom
 		// and that is already a bit wonky anyway...
 		// to be revisited perhaps
+	}
+
+	@Override
+	public List<Validation<?>> saveChildren() throws IOException {
+		for (Tab tab : editingTab.get().getEditors().getTabs()) {
+			AceEditor editor = (AceEditor) tab.getUserData();
+			String lockId = getArtifact().getId() + ":" + tab.getId();
+			// trigger a save if we have the lock
+			if (MainController.getInstance().hasLock(lockId).get()) {
+				editor.trigger(AceEditor.SAVE);
+			}
+		}
+		return new ArrayList<Validation<?>>();
 	}
 
 }

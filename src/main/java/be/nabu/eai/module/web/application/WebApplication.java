@@ -43,6 +43,7 @@ import be.nabu.eai.repository.api.AuthenticatorProvider;
 import be.nabu.eai.repository.api.CacheProviderArtifact;
 import be.nabu.eai.repository.api.Documented;
 import be.nabu.eai.repository.api.Entry;
+import be.nabu.eai.repository.api.LanguageProvider;
 import be.nabu.eai.repository.api.LicenseManager;
 import be.nabu.eai.repository.api.LicensedRepository;
 import be.nabu.eai.repository.api.Node;
@@ -104,6 +105,7 @@ import be.nabu.libs.http.api.HTTPResponse;
 import be.nabu.libs.http.api.server.HTTPServer;
 import be.nabu.libs.http.api.server.SessionProvider;
 import be.nabu.libs.http.api.server.SessionResolver;
+import be.nabu.libs.http.core.DefaultHTTPRequest;
 import be.nabu.libs.http.core.DefaultHTTPResponse;
 import be.nabu.libs.http.core.HTTPUtils;
 import be.nabu.libs.http.glue.GlueListener;
@@ -202,7 +204,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private CombinedAuthenticator authenticator;
 	private RoleHandler roleHandler;
 	
-	private boolean authenticatorResolved, roleHandlerResolved, permissionHandlerResolved, potentialPermissionHandlerResolved, tokenValidatorResolved, languageProviderResolved, deviceValidatorResolved,
+	private boolean authenticatorResolved, roleHandlerResolved, permissionHandlerResolved, potentialPermissionHandlerResolved, tokenValidatorResolved, languageProviderResolved, userLanguageProviderResolved, deviceValidatorResolved,
 		translatorResolved;
 	private PermissionHandler permissionHandler;
 	private PotentialPermissionHandler potentialPermissionHandler;
@@ -222,6 +224,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private List<RESTFragment> restFragments;
 	
 	private String robotsFile;
+	private LanguageProvider languageProvider;
 	
 	public WebApplication(String id, ResourceContainer<?> directory, Repository repository) {
 		super(id, directory, repository, "webartifact.xml", WebApplicationConfiguration.class);
@@ -599,6 +602,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				serverPath
 			);
 			
+			listener.setSecureCookiesOnly(isSecure());
+			
 			if (getConfig().getCookiePath() != null) {
 				listener.setCookiePath(getConfig().getCookiePath());
 			}
@@ -703,7 +708,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				listener.setMetrics(metricInstance);
 			}
 			
-			final UserLanguageProvider languageProvider = getLanguageProvider();
+			final UserLanguageProvider languageProvider = getUserLanguageProvider();
 			if (getConfiguration().getTranslationService() != null) {
 				final Map<String, ComplexContent> translatorValues = getInputValues(getConfig().getTranslationService(), getMethod(Translator.class, "translate"));
 				final String additional;
@@ -729,10 +734,17 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				listener.getSubstituterProviders().add(new StringSubstituterProvider() {
 					@Override
 					public StringSubstituter getSubstituter(ScriptRuntime runtime) {
-						String language = null;
+						Token token = UserMethods.token();
+						String languageKey = "userLanguage";
+						if (token == null) {
+							languageKey += "-anonymous";
+						}
+						else {
+							languageKey += "-" + token.getRealm() + "-" + token.getName();
+						}
+						String language = (String) runtime.getContext().get(languageKey);
 						// if we have a language provider, try to get it from there
-						if (languageProvider != null) {
-							Token token = UserMethods.token();
+						if (language == null && languageProvider != null) {
 							// the token may be null then the provider can send back a default language
 							language = languageProvider.getLanguage(token);
 							ExecutionContext executionContext = ScriptRuntime.getRuntime().getExecutionContext();
@@ -752,24 +764,35 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							if (RequestMethods.entity() != null && RequestMethods.entity().getContent() != null) {
 								List<String> acceptedLanguages = MimeUtils.getAcceptedLanguages(RequestMethods.entity().getContent().getHeaders());
 								if (!acceptedLanguages.isEmpty()) {
-									language = acceptedLanguages.get(0).replaceAll("-.*$", "");
+									LanguageProvider provider = getLanguageProvider();
+									List<String> supportedLanguages = provider == null ? null : provider.getSupportedLanguages();
+									for (String acceptedLanguage : acceptedLanguages) {
+										String potential = acceptedLanguage.replaceAll("-.*$", "");
+										if (supportedLanguages == null || supportedLanguages.contains(potential)) {
+											language = potential;
+											break;
+										}
+									}
 								}
 							}
+						}
+						if (language != null) {
+							runtime.getContext().put(languageKey, language);
 						}
 						try {
 							if (additional != null) {
 								// in the olden days instead of null as default category, we passed in: \"page:" + ScriptUtils.getFullName(runtime.getScript()) + "\")
 								// however, because of concatting and possible other processing, the runtime script name rarely has a relation to the context anymore
 								// it is clearer to work without a context then allowing for cross-context translations
-								return new be.nabu.glue.impl.ImperativeSubstitutor("%", "template(" + getConfiguration().getTranslationService().getId() 
-										+ "(when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", replace(\"^([a-zA-Z0-9.]+):.*\", \"$1\", \"${value}\"), null), "
-										+ "when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", replace(\"^[a-zA-Z0-9.]+:(.*)\", \"$1\", \"${value}\"), \"${value}\"), " + (language == null ? "null" : "\"" + language + "\"")
+								return new be.nabu.glue.impl.ImperativeSubstitutor("%", "script.template(" + getConfiguration().getTranslationService().getId() 
+										+ "(control.when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", string.replace(\"^([a-zA-Z0-9.]+):.*\", \"$1\", \"${value}\"), null), "
+										+ "control.when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", string.replace(\"^[a-zA-Z0-9.]+:(.*)\", \"$1\", \"${value}\"), \"${value}\"), " + (language == null ? "null" : "\"" + language + "\"")
 										+ ", " + key + ": json.objectify('" + additional + "'))/translation)");
 							}
 							else {
-								return new be.nabu.glue.impl.ImperativeSubstitutor("%", "template(" + getConfiguration().getTranslationService().getId() 
-										+ "(when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", replace(\"^([a-zA-Z0-9.]+):.*\", \"$1\", \"${value}\"), null), "
-										+ "when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", replace(\"^[a-zA-Z0-9.]+:(.*)\", \"$1\", \"${value}\"), \"${value}\"), " + (language == null ? "null" : "\"" + language + "\"") + ")/translation)");
+								return new be.nabu.glue.impl.ImperativeSubstitutor("%", "script.template(" + getConfiguration().getTranslationService().getId() 
+										+ "(control.when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", string.replace(\"^([a-zA-Z0-9.]+):.*\", \"$1\", \"${value}\"), null), "
+										+ "control.when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", string.replace(\"^[a-zA-Z0-9.]+:(.*)\", \"$1\", \"${value}\"), \"${value}\"), " + (language == null ? "null" : "\"" + language + "\"") + ")/translation)");
 							}
 						}
 						catch (IOException e) {
@@ -828,7 +851,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						}
 						catch (Exception e) {
 							logger.error("Could not check rate limiting for script", e);
-							throw new HTTPException(500, e);
+							HTTPException httpException = new HTTPException(500, e, token);
+							httpException.getContext().add(getId());
+							throw httpException;
 						}
 					}
 				});
@@ -865,7 +890,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						}
 					}
 					catch (Exception e) {
-						throw new HTTPException(500, e);	
+						HTTPException httpException = new HTTPException(500, e);
+						httpException.getContext().add(getId());
+						throw httpException;	
 					}
 					return null;
 				}
@@ -894,6 +921,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						ServiceRuntime.getGlobalContext().put("service.context", getId());
 						return listener.handle(event);
 					}
+					catch (HTTPException e) {
+						e.getContext().add(getId());
+						throw e;
+					}
 					finally {
 						// unset it
 						ServiceRuntime.setGlobalContext(null);	
@@ -908,6 +939,67 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					fragment.start(this, null);
 				}
 			}
+			
+			// if we have enabled html 5 mode, return the index for all calls that allow for text/html and have no response
+			if (getConfig().isHtml5Mode()) {
+				EventSubscription<HTTPRequest, HTTPResponse> html5Subscription = dispatcher.subscribe(HTTPRequest.class, new EventHandler<HTTPRequest, HTTPResponse>() {
+					@Override
+					public HTTPResponse handle(HTTPRequest event) {
+						// if we get here without a response, send back the index page
+						if (event.getContent() != null && event.getMethod().equalsIgnoreCase("get")) {
+							List<String> acceptedContentTypes = MimeUtils.getAcceptedContentTypes(event.getContent().getHeaders());
+							if (acceptedContentTypes.contains("text/html") || acceptedContentTypes.contains("text/*") || acceptedContentTypes.contains("*/*")) {
+								// set it globally
+								try {
+									URI uri = HTTPUtils.getURI(event, false);
+									// if we find an extension, only html is supported
+									// otherwise we might intercept resources that are being requested and not found (e.g. favicon.ico)
+									if (!uri.getPath().endsWith("/")) {
+										String fileName = uri.getPath().replaceAll("^.*/([^/]+$)", "$1");
+										if (fileName.contains(".") && !fileName.endsWith(".html")) {
+											return null;
+										}
+									}
+									// check if we are at all interested
+									if (uri.getPath().startsWith(getServerPath())) {
+										// check that there aren't any other web applications with better matching paths
+										for (WebApplication application : EAIResourceRepository.getInstance().getArtifacts(WebApplication.class)) {
+											if (!application.equals(this) && application.getConfig().getVirtualHost() != null
+													&& application.getConfig().getVirtualHost().equals(getConfig().getVirtualHost())
+													&& (uri.getPath().startsWith(application.getServerPath() + "/") || uri.getPath().equals(application.getServerPath())) 
+													&& application.getServerPath().length() > getServerPath().length()) {
+												return null;
+											}
+										}
+										uri = new URI(null, null, null, -1, getServerPath(), uri.getQuery(), uri.getFragment());
+										DefaultHTTPRequest rewritten = new DefaultHTTPRequest(
+											"GET", 
+											uri.toASCIIString(), 
+											event.getContent(),
+											event.getVersion()
+										);
+										ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
+										ServiceRuntime.getGlobalContext().put("service.context", getId());
+										return listener.handle(rewritten);
+									}
+									return null;
+								}
+								catch (Exception e) {
+									HTTPException httpException = new HTTPException(500, e);
+									httpException.getContext().add(getId());
+									throw httpException;
+								}
+								finally {
+									ServiceRuntime.setGlobalContext(null);
+								}
+							}
+						}
+						return null;
+					}
+				});
+				subscriptions.add(html5Subscription);
+			}
+			
 			started = true;
 			logger.info("Started " + subscriptions.size() + " subscriptions");
 		}
@@ -943,6 +1035,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
 					ServiceRuntime.getGlobalContext().put("service.context", getId());
 					return postprocessListener.handle(event);
+				}
+				catch (HTTPException e) {
+					e.getContext().add(getId());
+					throw e;
 				}
 				finally {
 					// unset it
@@ -984,6 +1080,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					ServiceRuntime.getGlobalContext().put("service.context", getId());
 					return preprocessListener.handle(event);
 				}
+				catch (HTTPException e) {
+					e.getContext().add(getId());
+					throw e;
+				}
 				finally {
 					// unset it
 					ServiceRuntime.setGlobalContext(null);	
@@ -1000,6 +1100,15 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	public void setRobots(String robotsFile) {
 		this.robotsFile = robotsFile;
 	}
+	
+	public boolean isSecure() {
+		boolean secure = false;
+		if (getConfig().getVirtualHost() != null && getConfig().getVirtualHost().getConfig().getServer() != null) {
+			HTTPServerArtifact server = getConfig().getVirtualHost().getConfig().getServer();
+			secure = server.getConfig().isProxied() ? server.getConfig().isProxySecure() : server.getConfig().getKeystore() != null;
+		}
+		return secure;
+	}
 
 	public Map<String, String> getEnvironmentProperties() throws IOException {
 		boolean isDevelopment = EAIResourceRepository.isDevelopment();
@@ -1014,12 +1123,11 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		String hostName = getConfiguration().getVirtualHost() == null ? null : getConfiguration().getVirtualHost().getConfiguration().getHost();
 		
 		Integer port = null;
-		boolean secure = false;
+		boolean secure = isSecure();
 		
 		if (getConfiguration().getVirtualHost() != null && getConfiguration().getVirtualHost().getConfiguration().getServer() != null) {
 			HTTPServerArtifact server = getConfiguration().getVirtualHost().getConfiguration().getServer();
 			port = server.getConfig().isProxied() ? server.getConfig().getProxyPort() : server.getConfiguration().getPort();
-			secure = server.getConfig().isProxied() ? server.getConfig().isProxySecure() : server.getConfiguration().getKeystore() != null;
 		}
 
 		String url = null;
@@ -1214,7 +1322,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		throw new IllegalArgumentException("Can not find method '" + name + "' in class: " + clazz);
 	}
 	
-	public Service wrap(Service service, Method method) throws IOException {
+	public Service wrap(Service service, Method method) {
 		Map<String, ComplexContent> inputs = getInputValues(service, method);
 		if (inputs.isEmpty()) {
 			return service;
@@ -1228,7 +1336,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		}
 	}
 
-	private Map<String, ComplexContent> getInputValues(Service service, Method method) throws IOException {
+	private Map<String, ComplexContent> getInputValues(Service service, Method method) {
 		List<Element<?>> inputExtensions = EAIRepositoryUtils.getInputExtensions(service, method);
 		Map<String, ComplexContent> inputs = new HashMap<String, ComplexContent>();
 		for (Element<?> inputExtension : inputExtensions) {
@@ -1343,11 +1451,11 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		return tokenValidator;
 	}
 	
-	public UserLanguageProvider getLanguageProvider() throws IOException {
-		if (!languageProviderResolved) {
+	public UserLanguageProvider getUserLanguageProvider() throws IOException {
+		if (!userLanguageProviderResolved) {
 			synchronized(this) {
-				if (!languageProviderResolved) {
-					languageProviderResolved = true;
+				if (!userLanguageProviderResolved) {
+					userLanguageProviderResolved = true;
 					if (getConfiguration().getLanguageProviderService() != null) {
 						userLanguageProvider = POJOUtils.newProxy(UserLanguageProvider.class, wrap(getConfiguration().getLanguageProviderService(), getMethod(UserLanguageProvider.class, "getLanguage")), getRepository(), SystemPrincipal.ROOT);
 					}
@@ -1369,6 +1477,20 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 		}
 		return translator;
+	}
+	
+	public LanguageProvider getLanguageProvider() {
+		if (!languageProviderResolved) {
+			synchronized(this) {
+				if (!languageProviderResolved) {
+					languageProviderResolved = true;
+					if (getConfig().getSupportedLanguagesService() != null) {
+						languageProvider = POJOUtils.newProxy(LanguageProvider.class, wrap(getConfig().getSupportedLanguagesService(), getMethod(LanguageProvider.class, "getSupportedLanguages")), getRepository(), SystemPrincipal.ROOT);
+					}
+				}
+			}
+		}
+		return languageProvider;
 	}
 	
 	public GlueListener getListener() {
@@ -1583,6 +1705,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 									String input = script.getRoot().getContext().getAnnotations().get("input");
 									String output = script.getRoot().getContext().getAnnotations().get("output");
 									String consumes = script.getRoot().getContext().getAnnotations().get("consumes");
+									String cache = script.getRoot().getContext().getAnnotations().get("cache");
 									if (consumes == null) {
 										consumes = "application/json, application/xml";
 									}
@@ -1610,7 +1733,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 									
 									Type outputType = null;
 									if (output != null) {
-										outputType = DefinedTypeResolverFactory.getInstance().getResolver().resolve(output);
+										outputType = SimpleTypeWrapperFactory.getInstance().getWrapper().getByName(output);
+										if (outputType == null) {
+											outputType = DefinedTypeResolverFactory.getInstance().getResolver().resolve(output);
+										}
 										if (outputType == null) {
 											throw new RuntimeException("Could not resolve output type: " + output);
 										}
@@ -1666,7 +1792,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 										documentation,
 										roles == null || roles.isEmpty() ? null : Arrays.asList(roles.split("[\\s]*,[\\s]*")),
 										permissionAction,
-										permissionContext
+										permissionContext,
+										cache != null
 									));
 								}
 							}
@@ -1682,7 +1809,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		return restFragments;
 	}
 	
-	private RESTFragment newFragment(String id, String path, String method, List<String> consumes, List<String> produces, Type input, Type output, List<Element<?>> query, List<Element<?>> header, List<Element<?>> paths, Documented documentation, List<String> allowedRoles, String permissionAction, String permissionContext) {
+	private RESTFragment newFragment(String id, String path, String method, List<String> consumes, List<String> produces, Type input, Type output, List<Element<?>> query, List<Element<?>> header, List<Element<?>> paths, Documented documentation, List<String> allowedRoles, String permissionAction, String permissionContext, boolean isCacheable) {
 		return new RESTFragment() {
 			@Override
 			public String getId() {
@@ -1738,6 +1865,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			@Override
 			public String getPermissionContext() {
 				return permissionContext;
+			}
+			@Override
+			public boolean isCacheable() {
+				return isCacheable;
 			}
 		};
 	}

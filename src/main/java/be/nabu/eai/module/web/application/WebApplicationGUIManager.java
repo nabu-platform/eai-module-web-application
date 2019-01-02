@@ -85,6 +85,7 @@ import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
+import be.nabu.eai.repository.api.LanguageProvider;
 import be.nabu.eai.repository.api.Translator;
 import be.nabu.eai.repository.api.UserLanguageProvider;
 import be.nabu.eai.repository.resources.RepositoryEntry;
@@ -322,10 +323,16 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getTokenValidatorService(), method));
 		}
 		
-		// language provider
+		// user language provider
 		if (artifact.getConfig().getLanguageProviderService() != null) {
 			Method method = WebApplication.getMethod(UserLanguageProvider.class, "getLanguage");
 			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getLanguageProviderService(), method));
+		}
+
+		// language provider
+		if (artifact.getConfig().getSupportedLanguagesService() != null) {
+			Method method = WebApplication.getMethod(LanguageProvider.class, "getSupportedLanguages");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getSupportedLanguagesService(), method));
 		}
 		
 		// role handler
@@ -1147,12 +1154,35 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 						}
 					}
 				});
+				
+				MenuItem menu = new MenuItem("Request Lock");
+				menu.disableProperty().bind(locked);
+				ContextMenu contextMenu = new ContextMenu(menu);
+				tab.setContextMenu(contextMenu);
+				menu.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
+					@Override
+					public void handle(ActionEvent arg0) {
+						if (MainController.getInstance().lock(lockId).get() == null) {
+							MainController.getInstance().getCollaborationClient().lock(lockId, "Locking");
+						}
+						else {
+							System.out.println("Requesting lock for: " + lockId);
+							MainController.getInstance().getCollaborationClient().requestLock(lockId);
+						}
+					}
+				});
+				
+				// possible race condition, check maincontroller for more info
+				/*
 				MainController.getInstance().tryLock(lockId, new SimpleBooleanProperty() {
 					@Override
 					public boolean get() {
 						return editors.getTabs().contains(tab);
 					}
 				});
+				*/
+				
+				MainController.getInstance().tryLock(lockId, null);
 				
 				// make sure we release the lock
 				editors.getTabs().addListener(new ListChangeListener<Tab>() {
@@ -1297,7 +1327,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 	}
 
 	private Logger logger = LoggerFactory.getLogger(getClass());
-	private ObjectProperty<EditingTab> editingTab = new SimpleObjectProperty<EditingTab>();
+	protected ObjectProperty<EditingTab> editingTab = new SimpleObjectProperty<EditingTab>();
 
 	@Override
 	protected BaseArtifactGUIInstance<WebApplication> newGUIInstance(Entry entry) {

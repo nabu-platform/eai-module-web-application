@@ -1,6 +1,5 @@
 package be.nabu.eai.module.web.application.rate;
 
-import java.io.IOException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -101,12 +100,7 @@ public class RateLimiter implements RequestHandler {
 		if (!providers.containsKey(application.getId())) {
 			synchronized(this) {
 				if (!providers.containsKey(application.getId())) {
-					try {
-						providers.put(application.getId(), POJOUtils.newProxy(RateLimitSettingsProvider.class, application.wrap(service, WebApplication.getMethod(RateLimitSettingsProvider.class, "settings")), repository, SystemPrincipal.ROOT));
-					}
-					catch (IOException e) {
-						throw new RuntimeException(e);
-					}
+					providers.put(application.getId(), POJOUtils.newProxy(RateLimitSettingsProvider.class, application.wrap(service, WebApplication.getMethod(RateLimitSettingsProvider.class, "settings")), repository, SystemPrincipal.ROOT));
 				}
 			}
 		}
