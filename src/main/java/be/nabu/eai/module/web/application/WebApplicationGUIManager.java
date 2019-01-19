@@ -72,6 +72,7 @@ import be.nabu.eai.authentication.api.SecretAuthenticator;
 import be.nabu.eai.developer.ComplexContentEditor;
 import be.nabu.eai.developer.ComplexContentEditor.ValueWrapper;
 import be.nabu.eai.developer.MainController;
+import be.nabu.eai.developer.api.FindFilter;
 import be.nabu.eai.developer.managers.base.BaseArtifactGUIInstance;
 import be.nabu.eai.developer.managers.base.BaseJAXBGUIManager;
 import be.nabu.eai.developer.managers.util.SimpleProperty;
@@ -80,6 +81,7 @@ import be.nabu.eai.developer.util.Confirm;
 import be.nabu.eai.developer.util.Confirm.ConfirmType;
 import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.developer.util.Find;
+import be.nabu.eai.developer.util.FindInFiles;
 import be.nabu.eai.module.web.application.api.RateLimitSettingsProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.repository.EAIRepositoryUtils;
@@ -839,6 +841,45 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 							TreeCell<Resource> treeCell = tree.getTreeCell(newValue);
 							treeCell.select();
 							treeCell.show();
+						}
+					});
+					TreeCell<Resource> selectedItem = tree.getSelectionModel().getSelectedItem();
+					find.show(selectedItem == null ? getResources(tree.rootProperty().get()) : getResources(selectedItem.getItem()));
+					event.consume();
+				}
+				else if (event.getCode() == KeyCode.F && event.isControlDown() && event.isShiftDown()) {
+					FindInFiles<TreeItem<Resource>> find = new FindInFiles<TreeItem<Resource>>(new Marshallable<TreeItem<Resource>>() {
+						@Override
+						public String marshal(TreeItem<Resource> instance) {
+							return TreeUtils.getPath(instance).replaceFirst("^[/]+", "").replace("/", ".");
+						}
+					}, new FindFilter<TreeItem<Resource>>() {
+						@Override
+						public boolean accept(TreeItem<Resource> item, String newValue) {
+							Resource resource = item.itemProperty().get();
+							if (resource instanceof ReadableResource) {
+								try {
+									boolean regex = !newValue.matches("[\\w\\s.:-]+");
+									if (regex) {
+										newValue = newValue.toLowerCase().replace("*", ".*");
+									}
+									return MainController.grep((ReadableResource) resource, newValue, regex);
+								}
+								catch (IOException e) {
+									// ignore
+								}
+							}
+							return false;
+						}
+					});
+					find.selectedItemProperty().addListener(new ChangeListener<TreeItem<Resource>>() {
+						@Override
+						public void changed(ObservableValue<? extends TreeItem<Resource>> observable, TreeItem<Resource> oldValue, TreeItem<Resource> newValue) {
+							if (newValue != null) {
+								TreeCell<Resource> treeCell = tree.getTreeCell(newValue);
+								treeCell.select();
+								treeCell.show();
+							}
 						}
 					});
 					TreeCell<Resource> selectedItem = tree.getSelectionModel().getSelectedItem();
