@@ -999,7 +999,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				});
 				subscriptions.add(html5Subscription);
 			}
-			
+						
 			started = true;
 			logger.info("Started " + subscriptions.size() + " subscriptions");
 		}
@@ -1151,6 +1151,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		environment.put("host", host);
 		environment.put("hostName", hostName);
 		environment.put("version", getVersion());
+		environment.put("cookiePath", getCookiePath());
+		environment.put("serverPath", getServerPath());
 		return environment;
 	}
 

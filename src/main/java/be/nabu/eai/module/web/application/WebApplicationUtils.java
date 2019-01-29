@@ -81,6 +81,7 @@ public class WebApplicationUtils {
 		information.setRealm(application.getRealm());
 		information.setHtml5Mode(application.getConfig().isHtml5Mode());
 		information.setCharset(application.getConfig().getCharset() == null ? Charset.defaultCharset() : Charset.forName(application.getConfig().getCharset()));
+		information.setCookiePath(application.getCookiePath());
 		if (application.getConfig().getVirtualHost() != null) {
 			information.setHost(application.getConfig().getVirtualHost().getConfig().getHost());
 			information.setAliases(application.getConfig().getVirtualHost().getConfig().getAliases());
