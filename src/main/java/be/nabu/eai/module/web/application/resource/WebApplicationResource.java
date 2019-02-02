@@ -51,6 +51,9 @@ public class WebApplicationResource implements ReadableResource {
 	@Override
 	public ReadableContainer<ByteBuffer> getReadable() throws IOException {
 		HTTPResponse response = getResponse();
+		if (response == null) {
+			throw new FileNotFoundException("Could not resolve: " + uri);
+		}
 		ModifiablePart content = response.getContent();
 		if (content == null) {
 			throw new FileNotFoundException("Could not find: " + uri);
