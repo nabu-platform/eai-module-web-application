@@ -33,7 +33,9 @@ import be.nabu.eai.module.keystore.KeyStoreArtifact;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.module.web.application.api.RESTFragment;
 import be.nabu.eai.module.web.application.api.RESTFragmentProvider;
+import be.nabu.eai.module.web.application.api.RequestLanguageProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
+import be.nabu.eai.module.web.application.api.RobotEntry;
 import be.nabu.eai.module.web.application.rate.RateLimiter;
 import be.nabu.eai.module.web.application.resource.WebApplicationResourceResolver;
 import be.nabu.eai.repository.EAIRepositoryUtils;
@@ -223,8 +225,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private RateLimiter rateLimiter;
 	private List<RESTFragment> restFragments;
 	
-	private String robotsFile;
+	private List<RobotEntry> robotEntries = new ArrayList<RobotEntry>();
 	private LanguageProvider languageProvider;
+	private boolean requestLanguageProviderResolved;
+	private RequestLanguageProvider requestLanguageProvider;
 	
 	public WebApplication(String id, ResourceContainer<?> directory, Repository repository) {
 		super(id, directory, repository, "webartifact.xml", WebApplicationConfiguration.class);
@@ -240,9 +244,11 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		}
 		subscriptions.clear();
 		// unregister codes
-		HTTPServer server = getConfiguration().getVirtualHost().getConfiguration().getServer().getServer();
-		if (server != null && server.getExceptionFormatter() instanceof RepositoryExceptionFormatter) {
-			((RepositoryExceptionFormatter) server.getExceptionFormatter()).unregister(getId());
+		if (getConfig().getVirtualHost() != null && getConfig().getVirtualHost().getConfig().getServer() != null) {
+			HTTPServer server = getConfiguration().getVirtualHost().getConfiguration().getServer().getServer();
+			if (server != null && server.getExceptionFormatter() instanceof RepositoryExceptionFormatter) {
+				((RepositoryExceptionFormatter) server.getExceptionFormatter()).unregister(getId());
+			}
 		}
 		if (getConfiguration().getSessionCacheProvider() != null) {
 			getConfiguration().getSessionCacheProvider().remove(getConfig().getSessionCacheId() != null ? getConfig().getSessionCacheId() : getId() + "-session");
@@ -874,15 +880,14 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			EventSubscription<HTTPRequest, HTTPResponse> robotSubscription = dispatcher.subscribe(HTTPRequest.class, new EventHandler<HTTPRequest, HTTPResponse>() {
 				@Override
 				public HTTPResponse handle(HTTPRequest request) {
-					String robots = getRobots();
-					if (robots == null) {
+					if (robotEntries.isEmpty()) {
 						return null;
 					}
 					try {
 						URI uri = HTTPUtils.getURI(request, false);
 						if (uri.getPath().equals("/robots.txt")) {
 							// should be ascii compliant
-							byte [] content = robots.getBytes(Charset.forName("UTF-8"));
+							byte [] content = getRobotsContent().getBytes(Charset.forName("UTF-8"));
 							return new DefaultHTTPResponse(request, 200, HTTPCodes.getMessage(200), new PlainMimeContentPart(null, IOUtils.wrap(content, true),
 								new MimeHeader("Content-Length", "" + content.length),
 								new MimeHeader("Content-Type", "text/plain")
@@ -1070,6 +1075,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		);
 		preprocessListener.setRefresh(EAIResourceRepository.isDevelopment());
 		preprocessListener.setTokenValidator(getTokenValidator());
+		preprocessListener.setPermissionHandler(getPermissionHandler());
+		preprocessListener.setRoleHandler(getRoleHandler());
+		preprocessListener.setDeviceValidator(getDeviceValidator());
 		preprocessListener.setRealm(getRealm());
 		EventSubscription<HTTPRequest, HTTPEntity> subscription = getDispatcher().subscribe(HTTPRequest.class, new EventHandler<HTTPRequest, HTTPEntity>() {
 			@Override
@@ -1094,18 +1102,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		return subscription;
 	}
 
-	public String getRobots() {
-		return robotsFile;
-	}
-	public void setRobots(String robotsFile) {
-		this.robotsFile = robotsFile;
-	}
-	
 	public boolean isSecure() {
 		boolean secure = false;
 		if (getConfig().getVirtualHost() != null && getConfig().getVirtualHost().getConfig().getServer() != null) {
-			HTTPServerArtifact server = getConfig().getVirtualHost().getConfig().getServer();
-			secure = server.getConfig().isProxied() ? server.getConfig().isProxySecure() : server.getConfig().getKeystore() != null;
+			secure = getConfig().getVirtualHost().getConfig().getServer().isSecure();
 		}
 		return secure;
 	}
@@ -1465,6 +1465,20 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 		}
 		return userLanguageProvider;
+	}
+	
+	public RequestLanguageProvider getRequestLanguageProvider() throws IOException {
+		if (!requestLanguageProviderResolved) {
+			synchronized(this) {
+				if (!requestLanguageProviderResolved) {
+					requestLanguageProviderResolved = true;
+					if (getConfiguration().getLanguageProviderService() != null) {
+						requestLanguageProvider = POJOUtils.newProxy(RequestLanguageProvider.class, wrap(getConfiguration().getRequestLanguageProviderService(), getMethod(RequestLanguageProvider.class, "getLanguage")), getRepository(), SystemPrincipal.ROOT);
+					}
+				}
+			}
+		}
+		return requestLanguageProvider;
 	}
 	
 	public Translator getTranslator() throws IOException {
@@ -2005,5 +2019,31 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				environmentSpecificConfigurations.add((ComplexContent) object);
 			}
 		}
+	}
+
+	public List<RobotEntry> getRobotEntries() {
+		return robotEntries;
+	}
+
+	public void setRobotEntries(List<RobotEntry> robotEntries) {
+		this.robotEntries = robotEntries;
+	}
+
+	private String getRobotsContent() {
+		StringBuilder builder = new StringBuilder();
+		boolean first = true;
+		for (RobotEntry entry : robotEntries) {
+			if (first) {
+				first = false;
+			}
+			else {
+				builder.append("\n");
+			}
+			builder.append(entry.getKey());
+			if (entry.getValue() != null) {
+				builder.append(": ").append(entry.getValue());
+			}
+		}
+		return builder.toString();
 	}
 }

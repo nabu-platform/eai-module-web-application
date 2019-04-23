@@ -211,7 +211,7 @@ public class Services {
 	private void translationKeys(ResourceContainer<?> container, List<KeyValuePair> keys, boolean recursive, List<String> uniques) throws IOException {
 		if (container != null) {
 			for (Resource resource : container) {
-				if (resource instanceof ReadableResource && resource.getName().matches(".*\\.(tpl|js|css|gcss|glue)")) {
+				if (resource instanceof ReadableResource && resource.getName().matches(".*\\.(tpl|js|css|gcss|glue|json)")) {
 					ReadableContainer<ByteBuffer> readable = ((ReadableResource) resource).getReadable();
 					try {
 						byte[] bytes = IOUtils.toBytes(readable);

@@ -18,7 +18,7 @@ import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments", "html5Mode" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments", "html5Mode" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -38,7 +38,7 @@ public class WebApplicationConfiguration {
 	private DefinedService roleService;
 	private DefinedService tokenValidatorService;
 	private DefinedService translationService, supportedLanguagesService;
-	private DefinedService languageProviderService;
+	private DefinedService languageProviderService, requestLanguageProviderService;
 	private DefinedService deviceValidatorService;
 	private DefinedService requestSubscriber;
 	private Boolean allowBasicAuthentication;
@@ -99,6 +99,16 @@ public class WebApplicationConfiguration {
 	}
 	public void setLanguageProviderService(DefinedService languageProviderService) {
 		this.languageProviderService = languageProviderService;
+	}
+	
+	@Comment(title = "This service is responsible for indicating which language a user wants based on the request")
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.RequestLanguageProvider.getLanguage")	
+	public DefinedService getRequestLanguageProviderService() {
+		return requestLanguageProviderService;
+	}
+	public void setRequestLanguageProviderService(DefinedService requestLanguageProviderService) {
+		this.requestLanguageProviderService = requestLanguageProviderService;
 	}
 	
 	@Comment(title = "This service is responsible for authenticating a username with a given password", description = "If you return a secret in the response of this service, the secret authenticator can be used to remember users automatically")

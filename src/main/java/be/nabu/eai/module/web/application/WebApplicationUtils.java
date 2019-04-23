@@ -2,6 +2,8 @@ package be.nabu.eai.module.web.application;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -57,12 +59,13 @@ public class WebApplicationUtils {
 				language = cookies.get("language").get(0);
 			}
 		}
+		List<String> supportedLanguages = null;
 		// try to get it from the browser preferences, this can be used for anonymous users without a personal preference
 		if (language == null) {
 			List<String> acceptedLanguages = MimeUtils.getAcceptedLanguages(request.getContent().getHeaders());
 			if (!acceptedLanguages.isEmpty()) {
 				LanguageProvider provider = application.getLanguageProvider();
-				List<String> supportedLanguages = provider == null ? null : provider.getSupportedLanguages();
+				supportedLanguages = provider == null ? null : provider.getSupportedLanguages();
 				for (String acceptedLanguage : acceptedLanguages) {
 					String potential = acceptedLanguage.replaceAll("-.*$", "");
 					if (supportedLanguages == null || supportedLanguages.contains(potential)) {
@@ -71,6 +74,10 @@ public class WebApplicationUtils {
 					}
 				}
 			}
+		}
+		// try to get it from the request
+		if (language == null && application.getRequestLanguageProvider() != null) {
+			language = application.getRequestLanguageProvider().getLanguage(request);
 		}
 		return language;
 	}
@@ -82,13 +89,21 @@ public class WebApplicationUtils {
 		information.setHtml5Mode(application.getConfig().isHtml5Mode());
 		information.setCharset(application.getConfig().getCharset() == null ? Charset.defaultCharset() : Charset.forName(application.getConfig().getCharset()));
 		information.setCookiePath(application.getCookiePath());
+		// the default error code is HTTP-500
+		information.setErrorCodes(new ArrayList<String>(Arrays.asList("HTTP-*")));
+		if (application.getConfig().getWhitelistedCodes() != null) {
+			information.getErrorCodes().addAll(Arrays.asList(application.getConfig().getWhitelistedCodes().split("[\\s]*,[\\s]*")));
+		}
 		if (application.getConfig().getVirtualHost() != null) {
 			information.setHost(application.getConfig().getVirtualHost().getConfig().getHost());
 			information.setAliases(application.getConfig().getVirtualHost().getConfig().getAliases());
 			if (application.getConfig().getVirtualHost().getConfig().getServer() != null) {
 				HTTPServerArtifact server = application.getConfig().getVirtualHost().getConfig().getServer();
 				information.setPort(server.getConfig().isProxied() ? server.getConfig().getProxyPort() : server.getConfig().getPort());
-				information.setSecure(server.getConfig().isProxied() ? server.getConfig().isProxySecure() : server.getConfig().getKeystore() != null);
+				information.setSecure(server.isSecure());
+				if (information.getPort() == null) {
+					information.setPort(server.isSecure() ? 443 : 80);
+				}
 				information.setScheme(information.getSecure() ? "https" : "http");
 			}
 		}

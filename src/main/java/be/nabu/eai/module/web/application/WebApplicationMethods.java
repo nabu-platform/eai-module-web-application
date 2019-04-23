@@ -21,6 +21,7 @@ import be.nabu.libs.http.glue.impl.UserMethods;
 import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.resources.ResourceUtils;
 import be.nabu.libs.resources.api.ResourceContainer;
+import be.nabu.libs.services.api.ServiceException;
 import be.nabu.libs.types.DefinedTypeResolverFactory;
 import be.nabu.libs.types.api.ComplexContent;
 import be.nabu.libs.types.api.ComplexType;
@@ -105,4 +106,10 @@ public class WebApplicationMethods {
 			((WebFragment) resolve).stop(application, path);
 		}
 	}
+	
+	// you can reject a request with a specific code that (could) be whitelisted by the application to show the user
+	public static void reject(@GlueParam(name = "code") String code, @GlueParam(name = "message") String message) throws ServiceException {
+		throw new ServiceException(code, message);
+	}
+
 }

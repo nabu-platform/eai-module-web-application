@@ -83,6 +83,7 @@ import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.developer.util.Find;
 import be.nabu.eai.developer.util.FindInFiles;
 import be.nabu.eai.module.web.application.api.RateLimitSettingsProvider;
+import be.nabu.eai.module.web.application.api.RequestLanguageProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
@@ -329,6 +330,12 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		if (artifact.getConfig().getLanguageProviderService() != null) {
 			Method method = WebApplication.getMethod(UserLanguageProvider.class, "getLanguage");
 			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getLanguageProviderService(), method));
+		}
+		
+		// request language provider
+		if (artifact.getConfig().getRequestLanguageProviderService() != null) {
+			Method method = WebApplication.getMethod(RequestLanguageProvider.class, "getLanguage");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getRequestLanguageProviderService(), method));
 		}
 
 		// language provider
