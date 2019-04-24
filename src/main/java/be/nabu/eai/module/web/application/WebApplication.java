@@ -1472,7 +1472,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			synchronized(this) {
 				if (!requestLanguageProviderResolved) {
 					requestLanguageProviderResolved = true;
-					if (getConfiguration().getLanguageProviderService() != null) {
+					if (getConfiguration().getRequestLanguageProviderService() != null) {
 						requestLanguageProvider = POJOUtils.newProxy(RequestLanguageProvider.class, wrap(getConfiguration().getRequestLanguageProviderService(), getMethod(RequestLanguageProvider.class, "getLanguage")), getRepository(), SystemPrincipal.ROOT);
 					}
 				}
