@@ -90,9 +90,18 @@ public class WebApplicationUtils {
 		information.setCharset(application.getConfig().getCharset() == null ? Charset.defaultCharset() : Charset.forName(application.getConfig().getCharset()));
 		information.setCookiePath(application.getCookiePath());
 		// the default error code is HTTP-500
-		information.setErrorCodes(new ArrayList<String>(Arrays.asList("HTTP-*")));
+		information.setErrorCodes(new ArrayList<String>(Arrays.asList("HTTP-*", "HTTP-400", "HTTP-401", "HTTP-403", "HTTP-404", "HTTP-429", "HTTP-500")));
 		if (application.getConfig().getWhitelistedCodes() != null) {
-			information.getErrorCodes().addAll(Arrays.asList(application.getConfig().getWhitelistedCodes().split("[\\s]*,[\\s]*")));
+			for (String code : application.getConfig().getWhitelistedCodes().split("[\\s]*,[\\s]*")) {
+				int from = code.indexOf('(');
+				int to = code.indexOf(')', from);
+				if (from >= 0 && to >= 0) {
+					information.getErrorCodes().add(code.substring(from + 1, to));
+				}
+				else {
+					information.getErrorCodes().add(code);
+				}
+			}
 		}
 		if (application.getConfig().getVirtualHost() != null) {
 			information.setHost(application.getConfig().getVirtualHost().getConfig().getHost());
