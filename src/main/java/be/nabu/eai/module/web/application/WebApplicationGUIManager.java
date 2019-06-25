@@ -548,7 +548,9 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 					Platform.runLater(new Runnable() {
 						@Override
 						public void run() {
-							arg2.getContent().requestFocus();
+							if (arg2 != null && arg2.getContent() != null) {
+								arg2.getContent().requestFocus();
+							}
 						}
 					});
 				}

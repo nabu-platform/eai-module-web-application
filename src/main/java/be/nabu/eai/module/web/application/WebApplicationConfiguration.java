@@ -18,7 +18,7 @@ import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments", "html5Mode" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments", "html5Mode", "forceRequestLanguage" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -50,6 +50,7 @@ public class WebApplicationConfiguration {
 	private String jwtKeyAlias;
 	private KeyStoreArtifact jwtKeyStore;
 	private boolean allowJwtBearer, allowContentEncoding = true, html5Mode;
+	private boolean forceRequestLanguage;
 	
 	private DefinedService rateLimiter;
 	
@@ -416,6 +417,14 @@ public class WebApplicationConfiguration {
 	public void setHtml5Mode(boolean html5Mode) {
 		this.html5Mode = html5Mode;
 	}
-
+	
+	@Advanced
+	@Comment(title = "You can force the request language to win from the indirectly chosen browser-configured language")
+	public boolean isForceRequestLanguage() {
+		return forceRequestLanguage;
+	}
+	public void setForceRequestLanguage(boolean forceRequestLanguage) {
+		this.forceRequestLanguage = forceRequestLanguage;
+	}
 	
 }

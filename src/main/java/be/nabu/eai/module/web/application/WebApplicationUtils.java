@@ -46,6 +46,14 @@ public class WebApplicationUtils {
 		return pipeline == null ? null : new SourceImpl(pipeline.getSourceContext());
 	}
 
+	public static String getApplicationLanguage(WebApplication application, HTTPRequest request) throws IOException {
+		String language = null;
+		if (language == null && application.getConfig().isForceRequestLanguage() && application.getRequestLanguageProvider() != null) {
+			language = application.getRequestLanguageProvider().getLanguage(request);
+		}
+		return null;
+	}
+	
 	public static String getLanguage(WebApplication application, HTTPRequest request) throws IOException {
 		String language = null;
 		// first get it from the language provider (if any)
@@ -59,9 +67,12 @@ public class WebApplicationUtils {
 				language = cookies.get("language").get(0);
 			}
 		}
-		List<String> supportedLanguages = null;
+		if (language == null && application.getConfig().isForceRequestLanguage() && application.getRequestLanguageProvider() != null) {
+			language = application.getRequestLanguageProvider().getLanguage(request);
+		}
 		// try to get it from the browser preferences, this can be used for anonymous users without a personal preference
 		if (language == null) {
+			List<String> supportedLanguages = null;
 			List<String> acceptedLanguages = MimeUtils.getAcceptedLanguages(request.getContent().getHeaders());
 			if (!acceptedLanguages.isEmpty()) {
 				LanguageProvider provider = application.getLanguageProvider();
@@ -76,7 +87,7 @@ public class WebApplicationUtils {
 			}
 		}
 		// try to get it from the request
-		if (language == null && application.getRequestLanguageProvider() != null) {
+		if (language == null && application.getRequestLanguageProvider() != null && !application.getConfig().isForceRequestLanguage()) {
 			language = application.getRequestLanguageProvider().getLanguage(request);
 		}
 		return language;
@@ -90,7 +101,7 @@ public class WebApplicationUtils {
 		information.setCharset(application.getConfig().getCharset() == null ? Charset.defaultCharset() : Charset.forName(application.getConfig().getCharset()));
 		information.setCookiePath(application.getCookiePath());
 		// the default error code is HTTP-500
-		information.setErrorCodes(new ArrayList<String>(Arrays.asList("HTTP-*", "HTTP-400", "HTTP-401", "HTTP-403", "HTTP-404", "HTTP-429", "HTTP-500")));
+		information.setErrorCodes(new ArrayList<String>(Arrays.asList("HTTP-*", "HTTP-400", "HTTP-401", "HTTP-403", "HTTP-404", "HTTP-429", "HTTP-500", "HTTP-502", "HTTP-503")));
 		if (application.getConfig().getWhitelistedCodes() != null) {
 			for (String code : application.getConfig().getWhitelistedCodes().split("[\\s]*,[\\s]*")) {
 				int from = code.indexOf('(');

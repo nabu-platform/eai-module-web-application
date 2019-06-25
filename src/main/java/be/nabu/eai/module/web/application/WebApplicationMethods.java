@@ -96,6 +96,10 @@ public class WebApplicationMethods {
 		return application.getAuthenticator();
 	}
 	
+	public String applicationLanguage() throws IOException {
+		return WebApplicationUtils.getApplicationLanguage(application, (HTTPRequest) RequestMethods.entity());
+	}
+	
 	public String language() throws IOException {
 		return WebApplicationUtils.getLanguage(application, (HTTPRequest) RequestMethods.entity());
 	}
