@@ -765,6 +765,19 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 								language = cookies.get("language").get(0);
 							}
 						}
+						RequestLanguageProvider requestLanguageProvider = null;
+						try {
+							requestLanguageProvider = getRequestLanguageProvider();
+						}
+						catch (IOException e) {
+							logger.error("Could not get request language provider", e);
+						}
+						if (language == null && getConfig().isForceRequestLanguage() && requestLanguageProvider != null) {
+							HTTPEntity entity = ScriptRuntime.getRuntime() == null ? null : (HTTPEntity) ScriptRuntime.getRuntime().getContext().get(RequestMethods.ENTITY);
+							if (entity instanceof HTTPRequest) {
+								language = requestLanguageProvider.getLanguage((HTTPRequest) entity);
+							}
+						}
 						// if there is no language yet, try to detect from browser settings
 						if (language == null) {
 							if (RequestMethods.entity() != null && RequestMethods.entity().getContent() != null) {
@@ -782,6 +795,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 								}
 							}
 						}
+						if (language == null && !getConfig().isForceRequestLanguage() && requestLanguageProvider != null) {
+							HTTPEntity entity = ScriptRuntime.getRuntime() == null ? null : (HTTPEntity) ScriptRuntime.getRuntime().getContext().get(RequestMethods.ENTITY);
+							if (entity instanceof HTTPRequest) {
+								language = requestLanguageProvider.getLanguage((HTTPRequest) entity);
+							}
+						}
+						
 						if (language != null) {
 							runtime.getContext().put(languageKey, language);
 						}
