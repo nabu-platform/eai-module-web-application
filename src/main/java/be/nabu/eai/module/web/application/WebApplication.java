@@ -1722,7 +1722,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	}
 
 	@Override
-	public List<RESTFragment> getFragments() {
+	public List<RESTFragment> getFragments(boolean limitToUser, Token token) {
 		if (restFragments == null) {
 			synchronized(this) {
 				if (restFragments == null) {
