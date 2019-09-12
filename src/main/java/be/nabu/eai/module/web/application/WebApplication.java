@@ -851,10 +851,34 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 								language = cookies.get("language").get(0);
 							}
 						}
+						RequestLanguageProvider requestLanguageProvider = null;
+						try {
+							requestLanguageProvider = getRequestLanguageProvider();
+						}
+						catch (IOException e) {
+							logger.error("Could not get request language provider", e);
+						}
+						if (language == null && getConfig().isForceRequestLanguage() && requestLanguageProvider != null) {
+							language = requestLanguageProvider.getLanguage(request);
+						}
 						if (language == null) {
 							List<String> acceptedLanguages = MimeUtils.getAcceptedLanguages(request.getContent().getHeaders());
 							if (!acceptedLanguages.isEmpty()) {
-								language = acceptedLanguages.get(0).replaceAll("-.*$", "");
+								LanguageProvider provider = getLanguageProvider();
+								List<String> supportedLanguages = provider == null ? null : provider.getSupportedLanguages();
+								for (String acceptedLanguage : acceptedLanguages) {
+									String potential = acceptedLanguage.replaceAll("-.*$", "");
+									if (supportedLanguages == null || supportedLanguages.contains(potential)) {
+										language = potential;
+										break;
+									}
+								}
+							}
+						}
+						if (language == null && !getConfig().isForceRequestLanguage() && requestLanguageProvider != null) {
+							HTTPEntity entity = ScriptRuntime.getRuntime() == null ? null : (HTTPEntity) ScriptRuntime.getRuntime().getContext().get(RequestMethods.ENTITY);
+							if (entity instanceof HTTPRequest) {
+								language = requestLanguageProvider.getLanguage((HTTPRequest) entity);
 							}
 						}
 						return language == null ? null : "lang=" + language;
