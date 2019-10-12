@@ -55,6 +55,10 @@ public class WebApplicationUtils {
 	}
 	
 	public static String getLanguage(WebApplication application, HTTPRequest request) throws IOException {
+		// if we don't have a request, we can't deduce a language, this can be the case for example in cordova building
+		if (request == null) {
+			return null;
+		}
 		String language = null;
 		// first get it from the language provider (if any)
 		if (application.getUserLanguageProvider() != null) {
