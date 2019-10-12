@@ -1382,7 +1382,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		}
 	}
 
-	private Map<String, ComplexContent> getInputValues(Service service, Method method) {
+	public Map<String, ComplexContent> getInputValues(Service service, Method method) {
 		List<Element<?>> inputExtensions = EAIRepositoryUtils.getInputExtensions(service, method);
 		Map<String, ComplexContent> inputs = new HashMap<String, ComplexContent>();
 		for (Element<?> inputExtension : inputExtensions) {
