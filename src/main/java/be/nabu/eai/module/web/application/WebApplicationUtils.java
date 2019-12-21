@@ -27,10 +27,12 @@ import be.nabu.libs.http.api.HTTPResponse;
 import be.nabu.libs.http.api.server.AuthenticationHeader;
 import be.nabu.libs.http.api.server.Session;
 import be.nabu.libs.http.core.HTTPUtils;
+import be.nabu.libs.http.core.ServerHeader;
 import be.nabu.libs.http.glue.GlueListener;
 import be.nabu.libs.http.server.HTTPServerUtils;
 import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.nio.api.Pipeline;
+import be.nabu.utils.mime.api.Header;
 import be.nabu.utils.mime.impl.MimeUtils;
 
 public class WebApplicationUtils {
@@ -48,10 +50,18 @@ public class WebApplicationUtils {
 
 	public static String getApplicationLanguage(WebApplication application, HTTPRequest request) throws IOException {
 		String language = null;
-		if (language == null && application.getConfig().isForceRequestLanguage() && application.getRequestLanguageProvider() != null) {
+		if (language == null && application.getRequestLanguageProvider() != null) {
 			language = application.getRequestLanguageProvider().getLanguage(request);
 		}
-		return null;
+		return language;
+	}
+	
+	public static String getProxyPath(WebApplication application, HTTPRequest request) {
+		Header header = MimeUtils.getHeader(ServerHeader.PROXY_PATH.getName(), request.getContent().getHeaders());
+		if (header != null && header.getValue() != null) {
+			return header.getValue();
+		}
+		return application.getConfig().getProxyPath();
 	}
 	
 	public static String getLanguage(WebApplication application, HTTPRequest request) throws IOException {
@@ -65,7 +75,7 @@ public class WebApplicationUtils {
 			language = application.getUserLanguageProvider().getLanguage(getToken(application, request));
 		}
 		// then try to get it from cookies, this mechanism can be used for anonymous users with a personal preference
-		if (language == null) {
+		if (language == null && !application.getConfig().isIgnoreLanguageCookie()) {
 			Map<String, List<String>> cookies = HTTPUtils.getCookies(request.getContent().getHeaders());
 			if (cookies != null && cookies.get("language") != null && !cookies.get("language").isEmpty()) {
 				language = cookies.get("language").get(0);
@@ -93,6 +103,10 @@ public class WebApplicationUtils {
 		// try to get it from the request
 		if (language == null && application.getRequestLanguageProvider() != null && !application.getConfig().isForceRequestLanguage()) {
 			language = application.getRequestLanguageProvider().getLanguage(request);
+		}
+		// if you have configured a default, send that back
+		if (language == null) {
+			language = application.getConfig().getDefaultLanguage();
 		}
 		return language;
 	}

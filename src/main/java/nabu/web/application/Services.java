@@ -21,6 +21,7 @@ import be.nabu.eai.module.web.application.WebFragmentProvider;
 import be.nabu.eai.module.web.application.api.PermissionWithRole;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
+import be.nabu.eai.repository.api.LanguageProvider;
 import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.glue.impl.ImperativeSubstitutor;
 import be.nabu.libs.artifacts.api.Artifact;
@@ -144,9 +145,11 @@ public class Services {
 			path = "/";
 		}
 		for (WebFragment fragment : application.getWebFragments()) {
-			List<Permission> fragmentPermissions = fragment.getPermissions(application, path);
-			if (fragmentPermissions != null) {
-				permissions.addAll(fragmentPermissions);
+			if (fragment != null) {
+				List<Permission> fragmentPermissions = fragment.getPermissions(application, path);
+				if (fragmentPermissions != null) {
+					permissions.addAll(fragmentPermissions);
+				}
 			}
 		}
 		// don't recurse, the web fragment providers should do that themselves
@@ -406,5 +409,17 @@ public class Services {
 			throw new IllegalStateException("Could not find session");
 		}
 		return ((Session) session).get(key);
+	}
+	
+	@WebResult(name = "supportedLanguages")
+	public List<String> supportedLanguages(@WebParam(name = "id") String id) {
+		WebApplication resolved = id == null ? null : executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+		if (resolved != null) {
+			LanguageProvider languageProvider = resolved.getLanguageProvider();
+			if (languageProvider != null) {
+				return languageProvider.getSupportedLanguages();
+			}
+		}
+		return null;
 	}
 }

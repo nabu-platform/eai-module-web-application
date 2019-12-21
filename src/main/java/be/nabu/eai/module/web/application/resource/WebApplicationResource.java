@@ -70,7 +70,8 @@ public class WebApplicationResource implements ReadableResource {
 		
 		PlainMimeEmptyPart part = new PlainMimeEmptyPart(null, 
 				new MimeHeader("Host", host),
-				new MimeHeader("Content-Length", "0"));
+				new MimeHeader("Content-Length", "0"),
+				new MimeHeader("X-Request-Type", "ssr"));
 		
 		String target = uri.getPath();
 		if (uri.getQuery() != null) {

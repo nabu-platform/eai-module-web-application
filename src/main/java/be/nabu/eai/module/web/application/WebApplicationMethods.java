@@ -7,6 +7,7 @@ import java.util.List;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
+import be.nabu.eai.repository.api.LanguageProvider;
 import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.glue.annotations.GlueParam;
 import be.nabu.libs.artifacts.api.Artifact;
@@ -14,8 +15,10 @@ import be.nabu.libs.authentication.api.Authenticator;
 import be.nabu.libs.authentication.api.PermissionHandler;
 import be.nabu.libs.authentication.api.RoleHandler;
 import be.nabu.libs.evaluator.annotations.MethodProviderClass;
+import be.nabu.libs.http.api.HTTPEntity;
 import be.nabu.libs.http.api.HTTPRequest;
 import be.nabu.libs.http.api.HTTPResponse;
+import be.nabu.libs.http.api.LinkableHTTPResponse;
 import be.nabu.libs.http.glue.impl.RequestMethods;
 import be.nabu.libs.http.glue.impl.UserMethods;
 import be.nabu.libs.nio.PipelineUtils;
@@ -97,11 +100,41 @@ public class WebApplicationMethods {
 	}
 	
 	public String applicationLanguage() throws IOException {
-		return WebApplicationUtils.getApplicationLanguage(application, (HTTPRequest) RequestMethods.entity());
+		HTTPEntity entity = RequestMethods.entity();
+		HTTPRequest request = null;
+		if (entity instanceof HTTPRequest) {
+			request = (HTTPRequest) entity;
+		}
+		else if (entity instanceof LinkableHTTPResponse) {
+			request = ((LinkableHTTPResponse) entity).getRequest();
+		}
+		if (request != null) {
+			return WebApplicationUtils.getApplicationLanguage(application, request);
+		}
+		return null;
 	}
 	
 	public String language() throws IOException {
-		return WebApplicationUtils.getLanguage(application, (HTTPRequest) RequestMethods.entity());
+		HTTPEntity entity = RequestMethods.entity();
+		HTTPRequest request = null;
+		if (entity instanceof HTTPRequest) {
+			request = (HTTPRequest) entity;
+		}
+		else if (entity instanceof LinkableHTTPResponse) {
+			request = ((LinkableHTTPResponse) entity).getRequest();
+		}
+		if (request != null) {
+			return WebApplicationUtils.getLanguage(application, request);
+		}
+		return null;
+	}
+
+	public List<String> languages() throws IOException {
+		LanguageProvider languageProvider = application.getLanguageProvider();
+		if (languageProvider != null) {
+			return languageProvider.getSupportedLanguages();
+		}
+		return null;
 	}
 	
 	public void stop(String id, String path) {

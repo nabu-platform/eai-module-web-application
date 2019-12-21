@@ -18,7 +18,7 @@ import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments", "html5Mode", "forceRequestLanguage", "proxyPath" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "bearerAuthenticator", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", "defaultLanguage", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments", "html5Mode", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -31,7 +31,9 @@ public class WebApplicationConfiguration {
 	private String realm;
 	private String whitelistedCodes;
 	private Long failedLoginThreshold, failedLoginWindow, failedLoginBlacklistDuration;
+	private String defaultLanguage;
 	private boolean addCacheHeaders = true;
+	private boolean ignoreLanguageCookie;
 	
 	// we assume the proxy strips the path, but to build correct links for the outside world, we need to know this
 	private String proxyPath;
@@ -44,6 +46,7 @@ public class WebApplicationConfiguration {
 	private DefinedService languageProviderService, requestLanguageProviderService;
 	private DefinedService deviceValidatorService;
 	private DefinedService requestSubscriber;
+	private DefinedService bearerAuthenticator;
 	private Boolean allowBasicAuthentication;
 	private List<WebFragment> webFragments;
 	private ListableSinkProviderArtifact rateLimiterDatabase;
@@ -125,6 +128,16 @@ public class WebApplicationConfiguration {
 		this.passwordAuthenticationService = passwordAuthenticationService;
 	}
 
+	@Comment(title = "This service is responsible for creating a valid token from a bearer authentication")
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.BearerAuthenticator.authenticate")
+	public DefinedService getBearerAuthenticator() {
+		return bearerAuthenticator;
+	}
+	public void setBearerAuthenticator(DefinedService bearerAuthenticator) {
+		this.bearerAuthenticator = bearerAuthenticator;
+	}
+	
 	@Comment(title = "This service is responsible for remembering a previously logged in user based on a shared secret")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.eai.authentication.api.SecretAuthenticator.authenticate")
@@ -436,6 +449,21 @@ public class WebApplicationConfiguration {
 	}
 	public void setProxyPath(String proxyPath) {
 		this.proxyPath = proxyPath;
+	}
+	public String getDefaultLanguage() {
+		return defaultLanguage;
+	}
+	public void setDefaultLanguage(String defaultLanguage) {
+		this.defaultLanguage = defaultLanguage;
+	}
+	
+	@Advanced
+	@Comment(title = "You can choose to actively ignore the language cookie")
+	public boolean isIgnoreLanguageCookie() {
+		return ignoreLanguageCookie;
+	}
+	public void setIgnoreLanguageCookie(boolean ignoreLanguageCookie) {
+		this.ignoreLanguageCookie = ignoreLanguageCookie;
 	}
 	
 }

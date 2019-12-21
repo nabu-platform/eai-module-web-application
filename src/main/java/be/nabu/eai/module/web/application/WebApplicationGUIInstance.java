@@ -22,12 +22,14 @@ import be.nabu.eai.developer.managers.base.BaseArtifactGUIInstance;
 import be.nabu.eai.developer.managers.base.BaseGUIManager;
 import be.nabu.eai.module.web.application.WebApplicationGUIManager.EditingTab;
 import be.nabu.eai.repository.api.Entry;
+import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.jfx.control.ace.AceEditor;
 import be.nabu.jfx.control.tree.TreeItem;
 import be.nabu.libs.artifacts.api.Artifact;
 import be.nabu.libs.resources.ResourceUtils;
 import be.nabu.libs.resources.api.ReadableResource;
 import be.nabu.libs.resources.api.Resource;
+import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.resources.api.features.CacheableResource;
 import be.nabu.libs.validator.api.Validation;
 import be.nabu.utils.io.IOUtils;
@@ -47,7 +49,28 @@ public class WebApplicationGUIInstance<T extends Artifact> extends BaseArtifactG
 	// if something has been created, we want to refresh the parent location in the tree
 	@Override
 	public void created(String id, String message, String content) {
-		resetCache(getParentPath(id));
+		// there is a very tiny window where you can get NPE while the editing tab is loading
+		// in some cases this can take a while for reasons as of yet unknown
+		if (editingTab.get() != null) {
+			resetCache(getParentPath(id));
+		}
+		else {
+			reloadRoot();
+		}
+	}
+	
+	private void reloadRoot() {
+		if (getEntry() instanceof ResourceEntry) {
+			ResourceContainer<?> container = ((ResourceEntry) getEntry()).getContainer();
+			if (container instanceof CacheableResource) {
+				try {
+					((CacheableResource) container).resetCache();
+				}
+				catch (IOException e) {
+					logger.warn("Could not reload cache", e);
+				}
+			}
+		}
 	}
 
 	private Resource getResource(String path) {
@@ -95,45 +118,55 @@ public class WebApplicationGUIInstance<T extends Artifact> extends BaseArtifactG
 	// and then refresh any tabs that were dealing with it
 	@Override
 	public void updated(String id, String message, String content) {
-		String path = getPath(id);
-		Resource resetCache = resetCache(path);
-		// now check if you have a tab open with that content
-		for (Tab tab : editingTab.get().getEditors().getTabs()) {
-			if (tab.getId().equals(path)) {
-				Platform.runLater(new Runnable() {
-					public void run() {
-						try {
-							AceEditor editor = (AceEditor) tab.getUserData();
-							ReadableContainer<ByteBuffer> readable = ((ReadableResource) resetCache).getReadable();
+		if (editingTab.get() != null) {
+			String path = getPath(id);
+			Resource resetCache = resetCache(path);
+			// now check if you have a tab open with that content
+			for (Tab tab : editingTab.get().getEditors().getTabs()) {
+				if (tab.getId().equals(path)) {
+					Platform.runLater(new Runnable() {
+						public void run() {
 							try {
-								editor.setContent(resetCache.getContentType(), new String(IOUtils.toBytes(readable), Charset.forName("UTF-8")));
+								AceEditor editor = (AceEditor) tab.getUserData();
+								ReadableContainer<ByteBuffer> readable = ((ReadableResource) resetCache).getReadable();
+								try {
+									editor.setContent(resetCache.getContentType(), new String(IOUtils.toBytes(readable), Charset.forName("UTF-8")));
+								}
+								finally {
+									readable.close();
+								}
 							}
-							finally {
-								readable.close();
+							catch (Exception e) {
+								logger.warn("Could not update tab for: " + path);
 							}
 						}
-						catch (Exception e) {
-							logger.warn("Could not update tab for: " + path);
-						}
-					}
-				});
+					});
+				}
 			}
+		}
+		else {
+			reloadRoot();
 		}
 	}
 
 	@Override
 	public void deleted(String id, String message) {
-		String path = getPath(id);
-		resetCache(getParentPath(id));
-		for (Tab tab : editingTab.get().getEditors().getTabs()) {
-			if (tab.getId().equals(path)) {
-				Platform.runLater(new Runnable() {
-					public void run() {
-						editingTab.get().getEditors().getTabs().remove(tab);
-					}
-				});
-				break;
+		if (editingTab.get() != null) {
+			String path = getPath(id);
+			resetCache(getParentPath(id));
+			for (Tab tab : editingTab.get().getEditors().getTabs()) {
+				if (tab.getId().equals(path)) {
+					Platform.runLater(new Runnable() {
+						public void run() {
+							editingTab.get().getEditors().getTabs().remove(tab);
+						}
+					});
+					break;
+				}
 			}
+		}
+		else {
+			reloadRoot();
 		}
 	}
 

@@ -31,6 +31,7 @@ import be.nabu.eai.module.http.server.RepositoryExceptionFormatter;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.keystore.KeyStoreArtifact;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
+import be.nabu.eai.module.web.application.api.BearerAuthenticator;
 import be.nabu.eai.module.web.application.api.RESTFragment;
 import be.nabu.eai.module.web.application.api.RESTFragmentProvider;
 import be.nabu.eai.module.web.application.api.RequestLanguageProvider;
@@ -207,13 +208,14 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private RoleHandler roleHandler;
 	
 	private boolean authenticatorResolved, roleHandlerResolved, permissionHandlerResolved, potentialPermissionHandlerResolved, tokenValidatorResolved, languageProviderResolved, userLanguageProviderResolved, deviceValidatorResolved,
-		translatorResolved;
+		translatorResolved, bearerAuthenticatorResolved;
 	private PermissionHandler permissionHandler;
 	private PotentialPermissionHandler potentialPermissionHandler;
 	private TokenValidator tokenValidator;
 	private UserLanguageProvider userLanguageProvider;
 	private DeviceValidator deviceValidator;
 	private Translator translator;
+	private BearerAuthenticator bearerAuthenticator;
 	
 	// typeId > regex > content
 	private Map<String, Map<String, ComplexContent>> fragmentConfigurations;
@@ -485,6 +487,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 //				EventSubscription<HTTPResponse, HTTPResponse> ensureAuthenticationSubscription = dispatcher.subscribe(HTTPResponse.class, HTTPServerUtils.ensureAuthenticateHeader(realm));
 //				ensureAuthenticationSubscription.filter(HTTPServerUtils.limitToRequestPath(serverPath));
 //				subscriptions.add(ensureAuthenticationSubscription);
+			}
+			
+			BearerAuthenticator bearerAuthenticator = getBearerAuthenticator();
+			if (bearerAuthenticator != null) {
+				EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, new BearerAuthenticatorHandler(bearerAuthenticator, getRealm()));
+				subscription.filter(HTTPServerUtils.limitToPath(serverPath));
+				subscriptions.add(subscription);
 			}
 			
 			if (licensed && getConfig().isAllowJwtBearer() && getConfig().getJwtKeyAlias() != null && getConfig().getJwtKeyStore() != null) {
@@ -759,7 +768,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							}
 						}
 						// if there is no language yet, check if a language cookie has been set
-						if (language == null && RequestMethods.entity() != null && RequestMethods.entity().getContent() != null) {
+						if (language == null && RequestMethods.entity() != null && RequestMethods.entity().getContent() != null && !getConfig().isIgnoreLanguageCookie()) {
 							Map<String, List<String>> cookies = HTTPUtils.getCookies(RequestMethods.entity().getContent().getHeaders());
 							if (cookies != null && cookies.get("language") != null && !cookies.get("language").isEmpty()) {
 								language = cookies.get("language").get(0);
@@ -845,7 +854,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						// make sure we mirror the logic above for the substitution cause that will be the actual language in the returned content
 						String language = languageProvider == null ? null : languageProvider.getLanguage(token);
 						// if there is no language yet, check if a language cookie has been set
-						if (language == null && request != null && request.getContent() != null) {
+						if (language == null && request != null && request.getContent() != null && !getConfig().isIgnoreLanguageCookie()) {
 							Map<String, List<String>> cookies = HTTPUtils.getCookies(request.getContent().getHeaders());
 							if (cookies != null && cookies.get("language") != null && !cookies.get("language").isEmpty()) {
 								language = cookies.get("language").get(0);
@@ -1020,6 +1029,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 												return null;
 											}
 										}
+										event.getContent().setHeader(new MimeHeader("Original-Uri", uri.toString()));
 										uri = new URI(null, null, null, -1, getServerPath(), uri.getQuery(), uri.getFragment());
 										DefaultHTTPRequest rewritten = new DefaultHTTPRequest(
 											"GET", 
@@ -1509,6 +1519,20 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 		}
 		return userLanguageProvider;
+	}
+	
+	public BearerAuthenticator getBearerAuthenticator() throws IOException {
+		if (!bearerAuthenticatorResolved) {
+			synchronized(this) {
+				if (!bearerAuthenticatorResolved) {
+					bearerAuthenticatorResolved = true;
+					if (getConfiguration().getBearerAuthenticator() != null) {
+						bearerAuthenticator = POJOUtils.newProxy(BearerAuthenticator.class, wrap(getConfiguration().getBearerAuthenticator(), getMethod(BearerAuthenticator.class, "authenticate")), getRepository(), SystemPrincipal.ROOT);
+					}
+				}
+			}
+		}
+		return bearerAuthenticator;
 	}
 	
 	public RequestLanguageProvider getRequestLanguageProvider() throws IOException {

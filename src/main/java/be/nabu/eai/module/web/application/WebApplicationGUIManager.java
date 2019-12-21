@@ -852,12 +852,23 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 							treeCell.show();
 						}
 					});
+					find.finalSelectedItemProperty().addListener(new ChangeListener<TreeItem<Resource>>() {
+						@Override
+						public void changed(ObservableValue<? extends TreeItem<Resource>> observable, TreeItem<Resource> oldValue, TreeItem<Resource> newValue) {
+							TreeCell<Resource> treeCell = tree.getTreeCell(newValue);
+							treeCell.select();
+							treeCell.show();
+							if (treeCell.getItem().leafProperty().get()) {
+								open(id, editors, treeCell);
+							}
+						}
+					});
 					TreeCell<Resource> selectedItem = tree.getSelectionModel().getSelectedItem();
-					find.show(selectedItem == null ? getResources(tree.rootProperty().get()) : getResources(selectedItem.getItem()));
+					find.show(selectedItem == null ? getResources(tree.rootProperty().get()) : getResources(selectedItem.getItem()), "Find in Web Application");
 					event.consume();
 				}
 				else if (event.getCode() == KeyCode.F && event.isControlDown() && event.isShiftDown()) {
-					FindInFiles<TreeItem<Resource>> find = new FindInFiles<TreeItem<Resource>>(new Marshallable<TreeItem<Resource>>() {
+					Find<TreeItem<Resource>> find = new Find<TreeItem<Resource>>(new Marshallable<TreeItem<Resource>>() {
 						@Override
 						public String marshal(TreeItem<Resource> instance) {
 							return TreeUtils.getPath(instance).replaceFirst("^[/]+", "").replace("/", ".");
@@ -891,8 +902,9 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 							}
 						}
 					});
+					find.setHeavySearch(true);
 					TreeCell<Resource> selectedItem = tree.getSelectionModel().getSelectedItem();
-					find.show(selectedItem == null ? getResources(tree.rootProperty().get()) : getResources(selectedItem.getItem()));
+					find.show(selectedItem == null ? getResources(tree.rootProperty().get()) : getResources(selectedItem.getItem()), "Find in Web Application (content)");
 					event.consume();
 				}
 				// need to add a lucene searcher for resources and use it here
