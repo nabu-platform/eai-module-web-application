@@ -23,6 +23,8 @@ import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.LanguageProvider;
 import be.nabu.eai.repository.api.ResourceEntry;
+import be.nabu.eai.repository.events.ResourceEvent;
+import be.nabu.eai.repository.events.ResourceEvent.ResourceState;
 import be.nabu.glue.impl.ImperativeSubstitutor;
 import be.nabu.libs.artifacts.api.Artifact;
 import be.nabu.libs.authentication.api.Permission;
@@ -338,6 +340,11 @@ public class Services {
 		resolved.save(resolved.getDirectory());
 		// reload the artifact
 		//EAIResourceRepository.getInstance().reload(resolved.getId());
+		
+		ResourceEvent event = new ResourceEvent();
+		event.setArtifactId(resolved.getId());
+		event.setState(ResourceState.UPDATE);
+		EAIResourceRepository.getInstance().getEventDispatcher().fire(event, this);
 	}
 
 	@WebResult(name = "has")

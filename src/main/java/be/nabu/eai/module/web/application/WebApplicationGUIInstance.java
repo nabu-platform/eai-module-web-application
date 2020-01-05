@@ -11,9 +11,6 @@ import org.slf4j.LoggerFactory;
 import javafx.application.Platform;
 import javafx.beans.property.ObjectProperty;
 import javafx.scene.control.Tab;
-import javafx.scene.input.KeyCode;
-import javafx.scene.input.KeyCodeCombination;
-import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.AnchorPane;
 import be.nabu.eai.developer.MainController;
 import be.nabu.eai.developer.api.ArtifactGUIInstanceWithChildren;
@@ -74,9 +71,12 @@ public class WebApplicationGUIInstance<T extends Artifact> extends BaseArtifactG
 	}
 
 	private Resource getResource(String path) {
-		// all paths will begin with a "web/" because that has been updated
+		// all paths will begin with a "web/" because that has been updated (_if_ we are using developer which creates a virtual web container)
 		try {
-			return ResourceUtils.resolve(editingTab.get().getRoot(), path.substring("web/".length()));
+			if (path.startsWith("web/")) {
+				path = path.substring("web/".length());
+			}
+			return ResourceUtils.resolve(editingTab.get().getRoot(), path);
 		}
 		catch (IOException e) {
 			throw new RuntimeException(e);
@@ -93,8 +93,11 @@ public class WebApplicationGUIInstance<T extends Artifact> extends BaseArtifactG
 				throw new RuntimeException(e);
 			}
 		}
+		if (path.startsWith("web/")) {
+			path = path.substring("web/".length());
+		}
 		// skip the root, we are resolving in it
-		TreeItem<Resource> resolve = editingTab.get().getTree().resolve(path.substring("web/".length()));
+		TreeItem<Resource> resolve = editingTab.get().getTree().resolve(path);
 		if (resolve != null) {
 			Platform.runLater(new Runnable() {
 				public void run() {
@@ -123,7 +126,7 @@ public class WebApplicationGUIInstance<T extends Artifact> extends BaseArtifactG
 			Resource resetCache = resetCache(path);
 			// now check if you have a tab open with that content
 			for (Tab tab : editingTab.get().getEditors().getTabs()) {
-				if (tab.getId().equals(path)) {
+				if (tab.getId().equals(path) || (!path.startsWith("web/") && tab.getId().equals("web/" + path))) {
 					Platform.runLater(new Runnable() {
 						public void run() {
 							try {
@@ -155,7 +158,7 @@ public class WebApplicationGUIInstance<T extends Artifact> extends BaseArtifactG
 			String path = getPath(id);
 			resetCache(getParentPath(id));
 			for (Tab tab : editingTab.get().getEditors().getTabs()) {
-				if (tab.getId().equals(path)) {
+				if (tab.getId().equals(path) || (!path.startsWith("web/") && tab.getId().equals("web/" + path))) {
 					Platform.runLater(new Runnable() {
 						public void run() {
 							editingTab.get().getEditors().getTabs().remove(tab);
@@ -170,15 +173,15 @@ public class WebApplicationGUIInstance<T extends Artifact> extends BaseArtifactG
 		}
 	}
 
-	@Override
-	public void refresh(AnchorPane pane) {
-		// currently we assume nothing can actually change to the files except changes you have done yourself
-		// this means we do not need to reset the cache of the filesystem
-		// external changes should be synced
-		// note that the configuration tab will not update but very few things are susceptible to external change apart from configuration at the bottom
-		// and that is already a bit wonky anyway...
-		// to be revisited perhaps
-	}
+//	@Override
+//	public void refresh(AnchorPane pane) {
+//		// currently we assume nothing can actually change to the files except changes you have done yourself
+//		// this means we do not need to reset the cache of the filesystem
+//		// external changes should be synced
+//		// note that the configuration tab will not update but very few things are susceptible to external change apart from configuration at the bottom
+//		// and that is already a bit wonky anyway...
+//		// to be revisited perhaps
+//	}
 
 	@Override
 	public List<Validation<?>> saveChildren() throws IOException {

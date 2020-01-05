@@ -81,7 +81,6 @@ import be.nabu.eai.developer.util.Confirm;
 import be.nabu.eai.developer.util.Confirm.ConfirmType;
 import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.developer.util.Find;
-import be.nabu.eai.developer.util.FindInFiles;
 import be.nabu.eai.module.web.application.api.RateLimitSettingsProvider;
 import be.nabu.eai.module.web.application.api.RequestLanguageProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
@@ -153,7 +152,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 	public String getCategory() {
 		return "Web";
 	}
-	
+	// only redraw the configuration tab if it was already drawn, otherwise we might close existing editing tabs etc
 	@Override
 	public void display(MainController controller, AnchorPane pane, final WebApplication artifact) {
 		VBox vbox = new VBox();
@@ -165,29 +164,37 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		
 		ScrollPane scroll = new ScrollPane();
 		scroll.setContent(vbox);
-		vbox.prefWidthProperty().bind(scroll.widthProperty().subtract(100));
 		
-		tabs = new TabPane();
-		tabs.setTabClosingPolicy(TabClosingPolicy.UNAVAILABLE);
-		tabs.setSide(Side.RIGHT);
-		Tab tab = new Tab("Configuration");
-		tab.setContent(scroll);
-		tab.setClosable(false);
-		tabs.getTabs().add(tab);
-		try {
-			editingTab.set(buildEditingTab(artifact));
-			tabs.getTabs().add(editingTab.get().getTab());
+		if (tabs == null) {
+			tabs = new TabPane();
+			tabs.setTabClosingPolicy(TabClosingPolicy.UNAVAILABLE);
+			tabs.setSide(Side.RIGHT);
+			Tab tab = new Tab("Configuration");
+			tab.setId("configuration");
+			tab.setContent(scroll);
+			tab.setClosable(false);
+			tabs.getTabs().add(tab);
+			try {
+				editingTab.set(buildEditingTab(artifact));
+				tabs.getTabs().add(editingTab.get().getTab());
+			}
+			catch (Exception e) {
+				throw new RuntimeException(e);
+			}
+			AnchorPane.setLeftAnchor(tabs, 0d);
+			AnchorPane.setRightAnchor(tabs, 0d);
+			AnchorPane.setTopAnchor(tabs, 0d);
+			AnchorPane.setBottomAnchor(tabs, 0d);
 		}
-		catch (Exception e) {
-			throw new RuntimeException(e);
+		else {
+			for (Tab tab : tabs.getTabs()) {
+				if ("configuration".equals(tab.getId())) {
+					tab.setContent(scroll);
+				}
+			}
 		}
-		
-		AnchorPane.setLeftAnchor(tabs, 0d);
-		AnchorPane.setRightAnchor(tabs, 0d);
-		AnchorPane.setTopAnchor(tabs, 0d);
-		AnchorPane.setBottomAnchor(tabs, 0d);
-		
 		pane.getChildren().add(tabs);
+		vbox.prefWidthProperty().bind(tabs.widthProperty().subtract(50));
 	}
 
 	public static void displayPartConfiguration(final WebApplication artifact, VBox vbox) {
@@ -280,8 +287,9 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 					}
 					Tree<ValueWrapper> tree = new ComplexContentEditor(content, true, artifact.getRepository()).getTree();
 					tree.getStyleClass().add("tree");
-					tree.prefWidthProperty().bind(box.widthProperty());
+					tree.prefWidthProperty().bind(vbox.widthProperty());
 					box.getChildren().addAll(tree, separator);
+					box.prefWidthProperty().bind(vbox.widthProperty());
 					vbox.getChildren().add(box);
 				}
 			}
