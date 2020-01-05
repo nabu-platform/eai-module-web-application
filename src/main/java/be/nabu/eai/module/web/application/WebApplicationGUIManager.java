@@ -35,6 +35,7 @@ import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.event.Event;
 import javafx.event.EventHandler;
+import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Side;
 import javafx.scene.Node;
@@ -108,6 +109,7 @@ import be.nabu.libs.authentication.api.PermissionHandler;
 import be.nabu.libs.authentication.api.PotentialPermissionHandler;
 import be.nabu.libs.authentication.api.RoleHandler;
 import be.nabu.libs.authentication.api.TokenValidator;
+import be.nabu.libs.property.ValueUtils;
 import be.nabu.libs.property.api.Property;
 import be.nabu.libs.property.api.Value;
 import be.nabu.libs.resources.ResourceUtils;
@@ -123,6 +125,7 @@ import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.Element;
 import be.nabu.libs.types.base.ValueImpl;
+import be.nabu.libs.types.properties.CommentProperty;
 import be.nabu.libs.validator.api.ValidationMessage;
 import be.nabu.libs.validator.api.ValidationMessage.Severity;
 import be.nabu.utils.io.IOUtils;
@@ -133,6 +136,8 @@ import be.nabu.utils.io.api.WritableContainer;
 
 public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationConfiguration, WebApplication> {
 
+	private static boolean SHOW_UNUSED = Boolean.parseBoolean(System.getProperty("webApplication.showUnused", "false"));
+	
 	public WebApplicationGUIManager() {
 		super("Web Application", WebApplication.class, new WebApplicationManager(), WebApplicationConfiguration.class);
 		MainController.registerStyleSheet("webapplication.css");
@@ -246,9 +251,13 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 					VBox box = new VBox();
 					box.getStyleClass().add("web-fragment-configuration");
 					HBox hbox = new HBox();
-					hbox.getStyleClass().add("title");
-					hbox.getChildren().add(new Label(typeId + " applicable to: " + (regex == null ? ".*" : regex)));
-					if (!used.contains(content)) {
+//					hbox.getStyleClass().add("title");
+					String comment = ValueUtils.getValue(CommentProperty.getInstance(), content.getType().getProperties());
+					Label titleLabel = new Label(comment == null ? typeId : comment);
+					hbox.getChildren().add(titleLabel);
+					hbox.setPadding(new Insets(15, 0, 0, 20));
+//					hbox.getChildren().add(new Label(typeId + " applicable to: " + (regex == null ? ".*" : regex)));
+					if (!used.contains(content) && SHOW_UNUSED) {
 						Button delete = new Button("Remove Unused");
 						delete.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
 							@Override
@@ -266,10 +275,10 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 					}
 					Separator separator = new Separator(Orientation.HORIZONTAL);
 					separator.getStyleClass().add("separator");
-					box.getChildren().addAll(hbox);
 					if (includeCheckbox) {
 						CheckBox checkbox = new CheckBox("Environment specific");
-						checkbox.getStyleClass().add("environmentSpecific");
+						checkbox.prefWidthProperty().bind(box.widthProperty());
+//						checkbox.getStyleClass().add("environmentSpecific");
 						checkbox.setSelected(environmentSpecificConfigurations.contains(content));
 						checkbox.selectedProperty().addListener(new ChangeListener<Boolean>() {
 							@Override
@@ -283,8 +292,13 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 								MainController.getInstance().setChanged();
 							}
 						});
-						box.getChildren().add(checkbox);
+						// the padding does not work as it should on the checkbox, no idea why
+						HBox paddingBox = new HBox();
+						paddingBox.setPadding(new Insets(5, 10, 0, 20));
+						paddingBox.getChildren().add(checkbox);
+						box.getChildren().add(paddingBox);
 					}
+					box.getChildren().addAll(hbox);
 					Tree<ValueWrapper> tree = new ComplexContentEditor(content, true, artifact.getRepository()).getTree();
 					tree.getStyleClass().add("tree");
 					tree.prefWidthProperty().bind(vbox.widthProperty());
