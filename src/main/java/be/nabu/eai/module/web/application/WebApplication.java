@@ -37,6 +37,7 @@ import be.nabu.eai.module.web.application.api.RESTFragmentProvider;
 import be.nabu.eai.module.web.application.api.RequestLanguageProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.module.web.application.api.RobotEntry;
+import be.nabu.eai.module.web.application.api.TemporaryAuthenticator;
 import be.nabu.eai.module.web.application.rate.RateLimiter;
 import be.nabu.eai.module.web.application.resource.WebApplicationResourceResolver;
 import be.nabu.eai.repository.EAIRepositoryUtils;
@@ -231,6 +232,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private LanguageProvider languageProvider;
 	private boolean requestLanguageProviderResolved;
 	private RequestLanguageProvider requestLanguageProvider;
+	private boolean temporaryAuthenticatorResolved;
+	private TemporaryAuthenticator temporaryAuthenticator;
 	
 	public WebApplication(String id, ResourceContainer<?> directory, Repository repository) {
 		super(id, directory, repository, "webartifact.xml", WebApplicationConfiguration.class);
@@ -1533,6 +1536,20 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 		}
 		return bearerAuthenticator;
+	}
+	
+	public TemporaryAuthenticator getTemporaryAuthenticator() throws IOException {
+		if (!temporaryAuthenticatorResolved) {
+			synchronized(this) {
+				if (!temporaryAuthenticatorResolved) {
+					temporaryAuthenticatorResolved = true;
+					if (getConfiguration().getTemporaryAuthenticator() != null) {
+						temporaryAuthenticator = POJOUtils.newProxy(TemporaryAuthenticator.class, wrap(getConfiguration().getTemporaryAuthenticator(), getMethod(TemporaryAuthenticator.class, "authenticate")), getRepository(), SystemPrincipal.ROOT);
+					}
+				}
+			}
+		}
+		return temporaryAuthenticator;
 	}
 	
 	public RequestLanguageProvider getRequestLanguageProvider() throws IOException {

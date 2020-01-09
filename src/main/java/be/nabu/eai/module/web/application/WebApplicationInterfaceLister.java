@@ -31,6 +31,7 @@ public class WebApplicationInterfaceLister implements InterfaceLister {
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Request Subscriber", "be.nabu.eai.module.web.application.api.RequestSubscriber.handle"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Rate Limiter", "be.nabu.eai.module.web.application.api.RateLimitSettingsProvider.settings"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Bearer Authenticator", "be.nabu.eai.module.web.application.api.BearerAuthenticator.authenticate"));
+					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Temporary Authenticator", "be.nabu.eai.module.web.application.api.TemporaryAuthenticator.authenticate"));
 					WebApplicationInterfaceLister.descriptions = descriptions;
 				}
 			}

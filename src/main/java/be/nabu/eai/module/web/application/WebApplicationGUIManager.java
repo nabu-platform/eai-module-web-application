@@ -63,6 +63,7 @@ import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.VBox;
+import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
 
 import org.slf4j.Logger;
@@ -82,9 +83,11 @@ import be.nabu.eai.developer.util.Confirm;
 import be.nabu.eai.developer.util.Confirm.ConfirmType;
 import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.developer.util.Find;
+import be.nabu.eai.module.web.application.api.BearerAuthenticator;
 import be.nabu.eai.module.web.application.api.RateLimitSettingsProvider;
 import be.nabu.eai.module.web.application.api.RequestLanguageProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
+import be.nabu.eai.module.web.application.api.TemporaryAuthenticator;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
@@ -402,9 +405,22 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getRequestSubscriber(), method));
 		}
 		
+		// rate limiter
 		if (artifact.getConfig().getRateLimiter() != null) {
 			Method method = WebApplication.getMethod(RateLimitSettingsProvider.class, "settings");
 			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getRateLimiter(), method));
+		}
+		
+		// bearer authenticator
+		if (artifact.getConfig().getBearerAuthenticator() != null) {
+			Method method = WebApplication.getMethod(BearerAuthenticator.class, "authenticate");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getBearerAuthenticator(), method));
+		}
+		
+		// temporary authenticator
+		if (artifact.getConfig().getTemporaryAuthenticator() != null) {
+			Method method = WebApplication.getMethod(TemporaryAuthenticator.class, "authenticate");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getTemporaryAuthenticator(), method));
 		}
 		
 		return extensions;
@@ -886,7 +902,8 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 						}
 					});
 					TreeCell<Resource> selectedItem = tree.getSelectionModel().getSelectedItem();
-					find.show(selectedItem == null ? getResources(tree.rootProperty().get()) : getResources(selectedItem.getItem()), "Find in Web Application");
+					Stage owner = MainController.getInstance().getStage(id);
+					find.show(selectedItem == null ? getResources(tree.rootProperty().get()) : getResources(selectedItem.getItem()), "Find in Web Application", owner);
 					event.consume();
 				}
 				else if (event.getCode() == KeyCode.F && event.isControlDown() && event.isShiftDown()) {
@@ -926,7 +943,8 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 					});
 					find.setHeavySearch(true);
 					TreeCell<Resource> selectedItem = tree.getSelectionModel().getSelectedItem();
-					find.show(selectedItem == null ? getResources(tree.rootProperty().get()) : getResources(selectedItem.getItem()), "Find in Web Application (content)");
+					Stage owner = MainController.getInstance().getStage(id);
+					find.show(selectedItem == null ? getResources(tree.rootProperty().get()) : getResources(selectedItem.getItem()), "Find in Web Application (content)", owner);
 					event.consume();
 				}
 				// need to add a lucene searcher for resources and use it here
