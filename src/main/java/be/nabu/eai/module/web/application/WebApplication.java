@@ -37,6 +37,8 @@ import be.nabu.eai.module.web.application.api.RESTFragmentProvider;
 import be.nabu.eai.module.web.application.api.RequestLanguageProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.module.web.application.api.RobotEntry;
+import be.nabu.eai.module.web.application.api.TemporaryAuthentication;
+import be.nabu.eai.module.web.application.api.TemporaryAuthenticationGenerator;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticator;
 import be.nabu.eai.module.web.application.rate.RateLimiter;
 import be.nabu.eai.module.web.application.resource.WebApplicationResourceResolver;
@@ -234,6 +236,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private RequestLanguageProvider requestLanguageProvider;
 	private boolean temporaryAuthenticatorResolved;
 	private TemporaryAuthenticator temporaryAuthenticator;
+	private boolean temporaryAuthenticationGeneratorResolved;
+	private TemporaryAuthenticationGenerator temporaryAuthenticationGenerator;
 	
 	public WebApplication(String id, ResourceContainer<?> directory, Repository repository) {
 		super(id, directory, repository, "webartifact.xml", WebApplicationConfiguration.class);
@@ -1550,6 +1554,20 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 		}
 		return temporaryAuthenticator;
+	}
+	
+	public TemporaryAuthenticationGenerator getTemporaryAuthenticationGenerator() throws IOException {
+		if (!temporaryAuthenticationGeneratorResolved) {
+			synchronized(this) {
+				if (!temporaryAuthenticationGeneratorResolved) {
+					temporaryAuthenticationGeneratorResolved = true;
+					if (getConfiguration().getTemporaryAuthenticator() != null) {
+						temporaryAuthenticationGenerator = POJOUtils.newProxy(TemporaryAuthenticationGenerator.class, wrap(getConfiguration().getTemporaryAuthenticationGenerator(), getMethod(TemporaryAuthenticationGenerator.class, "generate")), getRepository(), SystemPrincipal.ROOT);
+					}
+				}
+			}
+		}
+		return temporaryAuthenticationGenerator;
 	}
 	
 	public RequestLanguageProvider getRequestLanguageProvider() throws IOException {

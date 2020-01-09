@@ -9,5 +9,5 @@ import be.nabu.libs.authentication.api.Token;
 
 public interface TemporaryAuthenticator {
 	@WebResult(name = "token")
-	public Token authenticate(@NotNull @WebParam(name = "realm") String realm, @NotNull @WebParam(name = "alias") String alias, @NotNull @WebParam(name = "secret") String secret, @WebParam(name = "device") Device device);
+	public Token authenticate(@NotNull @WebParam(name = "realm") String realm, @WebParam(name = "authentication") @NotNull TemporaryAuthentication authentication, @WebParam(name = "device") Device device);
 }

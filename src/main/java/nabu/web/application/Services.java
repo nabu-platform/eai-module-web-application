@@ -2,6 +2,7 @@ package nabu.web.application;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,8 @@ import be.nabu.eai.module.web.application.WebApplicationUtils;
 import be.nabu.eai.module.web.application.WebFragment;
 import be.nabu.eai.module.web.application.WebFragmentProvider;
 import be.nabu.eai.module.web.application.api.PermissionWithRole;
+import be.nabu.eai.module.web.application.api.TemporaryAuthentication;
+import be.nabu.eai.module.web.application.api.TemporaryAuthenticationGenerator;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.LanguageProvider;
@@ -429,4 +432,18 @@ public class Services {
 		}
 		return null;
 	}
+	
+	@WebResult(name = "authentication")
+	public TemporaryAuthentication newTemporaryAuthentication(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, @NotNull @WebParam(name = "realm") String realm, @NotNull @WebParam(name = "alias") String alias,
+				@WebParam(name = "maxUses") Integer maxUses, @WebParam(name = "until") Date until) throws IOException {
+		WebApplication resolved = webApplicationId == null ? null : executionContext.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);
+		if (resolved != null) {
+			TemporaryAuthenticationGenerator temporaryAuthenticationGenerator = resolved.getTemporaryAuthenticationGenerator();
+			if (temporaryAuthenticationGenerator != null) {
+				return temporaryAuthenticationGenerator.generate(realm, alias, maxUses, until);
+			}
+		}
+		return null;
+	}
+	
 }

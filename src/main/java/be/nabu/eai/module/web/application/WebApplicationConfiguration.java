@@ -18,7 +18,7 @@ import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "bearerAuthenticator", "temporaryAuthenticator", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", "defaultLanguage", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments", "html5Mode", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "bearerAuthenticator", "temporaryAuthenticator", "temporaryAuthenticationGenerator", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", "defaultLanguage", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments", "html5Mode", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -47,7 +47,7 @@ public class WebApplicationConfiguration {
 	private DefinedService deviceValidatorService;
 	private DefinedService requestSubscriber;
 	private DefinedService bearerAuthenticator;
-	private DefinedService temporaryAuthenticator;
+	private DefinedService temporaryAuthenticator, temporaryAuthenticationGenerator;
 	private Boolean allowBasicAuthentication;
 	private List<WebFragment> webFragments;
 	private ListableSinkProviderArtifact rateLimiterDatabase;
@@ -157,6 +157,15 @@ public class WebApplicationConfiguration {
 	}
 	public void setTemporaryAuthenticator(DefinedService temporaryAuthenticator) {
 		this.temporaryAuthenticator = temporaryAuthenticator;
+	}
+	
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.TemporaryAuthenticationGenerator.generate")
+	public DefinedService getTemporaryAuthenticationGenerator() {
+		return temporaryAuthenticationGenerator;
+	}
+	public void setTemporaryAuthenticationGenerator(DefinedService temporaryAuthenticationGenerator) {
+		this.temporaryAuthenticationGenerator = temporaryAuthenticationGenerator;
 	}
 	
 	@Comment(title = "This service is responsible for checking if a user has a specific permission", description = "A permission is the combination of an action (what are you trying to do) in an optional context (e.g. an action on an entity)")
