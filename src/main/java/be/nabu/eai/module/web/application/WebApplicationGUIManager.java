@@ -423,6 +423,12 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getTemporaryAuthenticator(), method));
 		}
 		
+		// temporary authentication generator
+		if (artifact.getConfig().getTemporaryAuthenticator() != null) {
+			Method method = WebApplication.getMethod(TemporaryAuthenticator.class, "authenticate");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getTemporaryAuthenticator(), method));
+		}
+		
 		return extensions;
 	}
 	
