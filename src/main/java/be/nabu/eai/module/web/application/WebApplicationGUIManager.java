@@ -888,14 +888,14 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 							return TreeUtils.getPath(instance).replaceFirst("^[/]+", "").replace("/", ".");
 						}
 					});
-					find.selectedItemProperty().addListener(new ChangeListener<TreeItem<Resource>>() {
-						@Override
-						public void changed(ObservableValue<? extends TreeItem<Resource>> observable, TreeItem<Resource> oldValue, TreeItem<Resource> newValue) {
-							TreeCell<Resource> treeCell = tree.getTreeCell(newValue);
-							treeCell.select();
-							treeCell.show();
-						}
-					});
+//					find.selectedItemProperty().addListener(new ChangeListener<TreeItem<Resource>>() {
+//						@Override
+//						public void changed(ObservableValue<? extends TreeItem<Resource>> observable, TreeItem<Resource> oldValue, TreeItem<Resource> newValue) {
+//							TreeCell<Resource> treeCell = tree.getTreeCell(newValue);
+//							treeCell.select();
+//							treeCell.show();
+//						}
+//					});
 					find.finalSelectedItemProperty().addListener(new ChangeListener<TreeItem<Resource>>() {
 						@Override
 						public void changed(ObservableValue<? extends TreeItem<Resource>> observable, TreeItem<Resource> oldValue, TreeItem<Resource> newValue) {
@@ -937,13 +937,24 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 							return false;
 						}
 					});
-					find.selectedItemProperty().addListener(new ChangeListener<TreeItem<Resource>>() {
+//					find.selectedItemProperty().addListener(new ChangeListener<TreeItem<Resource>>() {
+//						@Override
+//						public void changed(ObservableValue<? extends TreeItem<Resource>> observable, TreeItem<Resource> oldValue, TreeItem<Resource> newValue) {
+//							if (newValue != null) {
+//								TreeCell<Resource> treeCell = tree.getTreeCell(newValue);
+//								treeCell.select();
+//								treeCell.show();
+//							}
+//						}
+//					});
+					find.finalSelectedItemProperty().addListener(new ChangeListener<TreeItem<Resource>>() {
 						@Override
 						public void changed(ObservableValue<? extends TreeItem<Resource>> observable, TreeItem<Resource> oldValue, TreeItem<Resource> newValue) {
-							if (newValue != null) {
-								TreeCell<Resource> treeCell = tree.getTreeCell(newValue);
-								treeCell.select();
-								treeCell.show();
+							TreeCell<Resource> treeCell = tree.getTreeCell(newValue);
+							treeCell.select();
+							treeCell.show();
+							if (treeCell.getItem().leafProperty().get()) {
+								open(id, editors, treeCell);
 							}
 						}
 					});

@@ -37,7 +37,6 @@ import be.nabu.eai.module.web.application.api.RESTFragmentProvider;
 import be.nabu.eai.module.web.application.api.RequestLanguageProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.module.web.application.api.RobotEntry;
-import be.nabu.eai.module.web.application.api.TemporaryAuthentication;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticationGenerator;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticator;
 import be.nabu.eai.module.web.application.rate.RateLimiter;
@@ -826,15 +825,16 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 								// in the olden days instead of null as default category, we passed in: \"page:" + ScriptUtils.getFullName(runtime.getScript()) + "\")
 								// however, because of concatting and possible other processing, the runtime script name rarely has a relation to the context anymore
 								// it is clearer to work without a context then allowing for cross-context translations
+								// the first part is always captured in group 1 and the second always in group 2, but only one actually contains a value so printing them both should not be a problem
 								return new be.nabu.glue.impl.ImperativeSubstitutor("%", "script.template(" + getConfiguration().getTranslationService().getId() 
-										+ "(control.when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", string.replace(\"^([a-zA-Z0-9.]+):.*\", \"$1\", \"${value}\"), null), "
-										+ "control.when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", string.replace(\"^[a-zA-Z0-9.]+:(.*)\", \"$1\", \"${value}\"), \"${value}\"), " + (language == null ? "null" : "\"" + language + "\"")
+										+ "(control.when(\"${value}\" ~ \"^(?:.*?::|[a-zA-Z0-9.]+:).*\", string.replace(\"^(?:(.*?)::|([a-zA-Z0-9.]+):).*\", \"$1$2\", \"${value}\"), null), "
+										+ "control.when(\"${value}\" ~ \"^(?:.*?::|[a-zA-Z0-9.]+:).*\", string.replace(\"^(?:.*?::|[a-zA-Z0-9.]+:)(.*)\", \"$1\", \"${value}\"), \"${value}\"), " + (language == null ? "null" : "\"" + language + "\"")
 										+ ", " + key + ": json.objectify('" + additional + "'))/translation)");
 							}
 							else {
 								return new be.nabu.glue.impl.ImperativeSubstitutor("%", "script.template(" + getConfiguration().getTranslationService().getId() 
-										+ "(control.when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", string.replace(\"^([a-zA-Z0-9.]+):.*\", \"$1\", \"${value}\"), null), "
-										+ "control.when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", string.replace(\"^[a-zA-Z0-9.]+:(.*)\", \"$1\", \"${value}\"), \"${value}\"), " + (language == null ? "null" : "\"" + language + "\"") + ")/translation)");
+										+ "(control.when(\"${value}\" ~ \"^(?:.*?::|[a-zA-Z0-9.]+:).*\", string.replace(\"^(?:(.*?)::|([a-zA-Z0-9.]+):).*\", \"$1$2\", \"${value}\"), null), "
+										+ "control.when(\"${value}\" ~ \"^(?:.*?::|[a-zA-Z0-9.]+:).*\", string.replace(\"^(?:.*?::|[a-zA-Z0-9.]+:)(.*)\", \"$1\", \"${value}\"), \"${value}\"), " + (language == null ? "null" : "\"" + language + "\"") + ")/translation)");
 							}
 						}
 						catch (IOException e) {
@@ -848,8 +848,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				listener.getSubstituterProviders().add(new StringSubstituterProvider() {
 					@Override
 					public StringSubstituter getSubstituter(ScriptRuntime runtime) {
+						// we used to have a restrictive [a-zA-Z0-9.]+: to indicate contexts
+						// this is too fragile however, so we are moving to any text followed by two ::
 						return new be.nabu.glue.impl.ImperativeSubstitutor("%", "template("
-							+ "when(\"${value}\" ~ \"^[a-zA-Z0-9.]+:.*\", replace(\"^[a-zA-Z0-9.]+:(.*)\", \"$1\", \"${value}\"), \"${value}\"))");
+							+ "when(\"${value}\" ~ \"^(?:.*?::|[a-zA-Z0-9.]+:).*\", replace(\"^(?:.*?::|[a-zA-Z0-9.]+:)(.*)\", \"$1\", \"${value}\"), \"${value}\"))");
 					}
 				});
 			}

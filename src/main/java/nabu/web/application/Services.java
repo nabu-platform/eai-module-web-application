@@ -226,11 +226,11 @@ public class Services {
 						String source = new String(bytes, "UTF-8");
 						for (String key : ImperativeSubstitutor.getValues("%", source)) {
 							String category = null;
-							if (key.matches("^[\\w.]+:.*")) {
-								category = key.replaceAll("^([\\w.]+):.*", "$1");
-								key = key.substring(category.length() + 1);
+							if (key.matches("(?s)^(?:.*?::|[a-zA-Z0-9.]+:).*")) {
+								category = key.replaceAll("(?s)^(?:(.*?)::|([a-zA-Z0-9.]+):).*", "$1$2");
+								key = key.replaceAll("(?s)^(?:.*?::|[a-zA-Z0-9.]+:)(.*)", "$1");
 							}
-							String unique = category + ":" + key;
+							String unique = category + "::" + key;
 							if (!uniques.contains(unique)) {
 								uniques.add(unique);
 								keys.add(new PropertyImpl(category, key));

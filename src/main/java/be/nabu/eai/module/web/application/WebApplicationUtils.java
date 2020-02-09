@@ -1,6 +1,7 @@
 package be.nabu.eai.module.web.application;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -10,6 +11,7 @@ import java.util.Map;
 import nabu.web.application.types.PropertyImpl;
 import nabu.web.application.types.WebApplicationInformation;
 import be.nabu.eai.module.http.server.HTTPServerArtifact;
+import be.nabu.eai.module.http.virtual.VirtualHostArtifact;
 import be.nabu.eai.module.http.virtual.api.Source;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.web.application.rate.RateLimiter;
@@ -62,6 +64,31 @@ public class WebApplicationUtils {
 			return header.getValue();
 		}
 		return application.getConfig().getProxyPath();
+	}
+	
+	public static boolean refererMatches(WebApplication application, URI referer) {
+		boolean refererMatch = false;
+		if (referer != null) {
+			VirtualHostArtifact virtualHost = application.getConfig().getVirtualHost();
+			if (referer.getHost() != null) {
+				refererMatch = referer.getHost().equals(virtualHost.getConfig().getHost());
+				if (!refererMatch) {
+					List<String> aliases = virtualHost.getConfig().getAliases();
+					if (aliases != null) {
+						for (String alias : aliases) {
+							refererMatch = referer.getHost().equals(alias);
+							if (refererMatch) {
+								break;
+							}
+						}
+					}
+				}
+			}
+			else {
+				refererMatch = true;
+			}
+		}
+		return refererMatch;
 	}
 	
 	public static String getLanguage(WebApplication application, HTTPRequest request) throws IOException {
