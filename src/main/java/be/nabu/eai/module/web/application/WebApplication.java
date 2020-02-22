@@ -622,6 +622,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				new SimpleExecutionEnvironment(environmentName, environment),
 				serverPath
 			);
+			// we handle this at a higher level
+			listener.setAllowEncoding(false);
 			
 			listener.setSecureCookiesOnly(isSecure());
 			
@@ -929,7 +931,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			
 			listener.getContentRewriters().addAll(rewriters);
 			listener.setRefreshScripts(isDevelopment);
-			listener.setAllowEncoding(!isDevelopment && getConfig().isAllowContentEncoding());
+			// managed at higher level now...
+//			listener.setAllowEncoding(!isDevelopment && getConfig().isAllowContentEncoding());
 			listener.setAuthenticator(authenticator);
 			listener.setTokenValidator(getTokenValidator());
 			listener.setPermissionHandler(getPermissionHandler());
