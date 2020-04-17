@@ -48,6 +48,8 @@ import be.nabu.eai.repository.api.AuthenticatorProvider;
 import be.nabu.eai.repository.api.CacheProviderArtifact;
 import be.nabu.eai.repository.api.Documented;
 import be.nabu.eai.repository.api.Entry;
+import be.nabu.eai.repository.api.Feature;
+import be.nabu.eai.repository.api.FeaturedArtifact;
 import be.nabu.eai.repository.api.LanguageProvider;
 import be.nabu.eai.repository.api.LicenseManager;
 import be.nabu.eai.repository.api.LicensedRepository;
@@ -58,6 +60,7 @@ import be.nabu.eai.repository.api.Translator;
 import be.nabu.eai.repository.api.UserLanguageProvider;
 import be.nabu.eai.repository.artifacts.jaxb.JAXBArtifact;
 import be.nabu.eai.repository.impl.CacheSessionProvider;
+import be.nabu.eai.repository.impl.FeatureImpl;
 import be.nabu.eai.repository.util.CombinedAuthenticator;
 import be.nabu.eai.repository.util.SystemPrincipal;
 import be.nabu.glue.api.AssignmentExecutor;
@@ -75,6 +78,7 @@ import be.nabu.glue.core.impl.parsers.GlueParserProvider;
 import be.nabu.glue.core.impl.providers.StaticJavaMethodProvider;
 import be.nabu.glue.core.repositories.ScannableScriptRepository;
 import be.nabu.glue.impl.ForkedExecutionContext;
+import be.nabu.glue.impl.ImperativeSubstitutor;
 import be.nabu.glue.impl.SimpleExecutionEnvironment;
 import be.nabu.glue.services.ServiceMethodProvider;
 import be.nabu.glue.types.GlueTypeUtils;
@@ -193,7 +197,7 @@ import be.nabu.utils.mime.impl.PlainMimeContentPart;
  * We could still support the (very rare) occassion when you want to mount something twice by allowing webcomponent-level configuration
  * This would require you to add the fragment the second time to a web component, configure it there and add the web component to the application
  */
-public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> implements StartableArtifact, StoppableArtifact, AuthenticatorProvider, WebFragmentProvider, RESTFragmentProvider {
+public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> implements StartableArtifact, StoppableArtifact, AuthenticatorProvider, WebFragmentProvider, RESTFragmentProvider, FeaturedArtifact {
 
 	public static final String MODULE = "nabu.web.application";
 	private Map<ResourceContainer<?>, ScriptRepository> additionalRepositories = new HashMap<ResourceContainer<?>, ScriptRepository>();
@@ -272,6 +276,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	}
 
 	private static volatile boolean registeredResolver;
+	private ArrayList<Feature> availableFeatures;
 	
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
@@ -2112,7 +2117,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	}
 	
 	@SuppressWarnings("unchecked")
-	public void putConfiguration(Object object, String path, boolean environmentSpecific) {
+	public void putConfiguration(Object object, String path, Boolean environmentSpecific) {
 		Map<String, Map<String, ComplexContent>> fragmentConfigurations = getFragmentConfigurations();
 		if (!(object instanceof ComplexContent)) {
 			object = ComplexContentWrapperFactory.getInstance().getWrapper().wrap(object);
@@ -2122,9 +2127,20 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			if (!fragmentConfigurations.containsKey(id)) {
 				fragmentConfigurations.put(id, new HashMap<String, ComplexContent>());
 			}
+			// if we did not set a preference, try to deduce what the current setting is
+			// note that we might be dealing with another instance of the object, so we can't just do it by reference
+			if (environmentSpecific == null && fragmentConfigurations.get(id).containsKey(path)) {
+				ComplexContent complexContent = fragmentConfigurations.get(id).get(path);
+				environmentSpecific = environmentSpecificConfigurations.contains(complexContent);
+			}
 			fragmentConfigurations.get(id).put(path, (ComplexContent) object);
-			if (environmentSpecific) {
-				environmentSpecificConfigurations.add((ComplexContent) object);
+			if (environmentSpecific != null) {
+				if (environmentSpecific) {
+					environmentSpecificConfigurations.add((ComplexContent) object);
+				}
+				else {
+					environmentSpecificConfigurations.remove((ComplexContent) object);
+				}
 			}
 		}
 	}
@@ -2153,5 +2169,80 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 		}
 		return builder.toString();
+	}
+
+	@Override
+	public List<Feature> getAvailableFeatures() {
+		if (availableFeatures == null || EAIResourceRepository.isDevelopment()) {
+			synchronized(this) {
+				if (availableFeatures == null || EAIResourceRepository.isDevelopment()) {
+					Map<String, Feature> features = new HashMap<String, Feature>();
+					try {
+						features(getDirectory(), true, features);
+					}
+					catch (IOException e) {
+						logger.error("Could not list features", e);
+					}
+					availableFeatures = new ArrayList<Feature>(features.values());
+				}
+			}
+		}
+		return availableFeatures;
+	}
+	
+	private void features(ResourceContainer<?> container, boolean recursive, Map<String, Feature> features) throws IOException {
+		if (container != null) {
+			for (Resource resource : container) {
+				if (resource instanceof ReadableResource && resource.getName().matches(".*\\.(tpl|js|css|gcss|glue|json)")) {
+					ReadableContainer<ByteBuffer> readable = ((ReadableResource) resource).getReadable();
+					try {
+						byte[] bytes = IOUtils.toBytes(readable);
+						String source = new String(bytes, "UTF-8");
+						for (String key : ImperativeSubstitutor.getValues("@", source)) {
+							String category = null;
+							if (key.matches("(?s)^(?:.*?::|[a-zA-Z0-9.]+:).*")) {
+								category = key.replaceAll("(?s)^(?:(.*?)::|([a-zA-Z0-9.]+):).*", "$1$2");
+								key = key.replaceAll("(?s)^(?:.*?::|[a-zA-Z0-9.]+:)(.*)", "$1");
+							}
+							String unique = category + "::" + key;
+							if (!features.containsKey(unique)) {
+								features.put(unique, new FeatureImpl(category != null ? category : key, category != null ? key : null));
+							}
+						}
+					}
+					finally {
+						readable.close();
+					}
+				}
+				if (recursive && resource instanceof ResourceContainer) {
+					features((ResourceContainer<?>) resource, recursive, features);
+				}
+			}
+		}
+	}
+	
+	public boolean canTestFeature(Token token, String featureName) {
+		try {
+			boolean isAllowed = false;
+			RoleHandler roleHandler = this.getRoleHandler();
+			if (roleHandler != null && getConfig().getFeatureTestingRole() != null && !getConfig().getFeatureTestingRole().isEmpty()) {
+				for (String role : getConfig().getFeatureTestingRole()) {
+					if (roleHandler.hasRole(token, role)) {
+						isAllowed = true;
+						break;
+					}
+				}
+			}
+			// check permission handler as well
+			if (!isAllowed) {
+				PermissionHandler permissionHandler = this.getPermissionHandler();
+				isAllowed = permissionHandler != null && permissionHandler.hasPermission(token, null, "feature:" + featureName);
+			}
+			return isAllowed;
+		}
+		catch (Exception e) {
+			logger.error("Can not check feature testing", e);
+			return false;
+		}
 	}
 }

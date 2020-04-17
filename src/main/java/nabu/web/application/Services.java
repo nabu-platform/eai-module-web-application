@@ -339,7 +339,7 @@ public class Services {
 		if (resolved == null) {
 			throw new IllegalArgumentException("Could not find web application: " + id);
 		}
-		resolved.putConfiguration(configuration, path, environmentSpecific != null && environmentSpecific);
+		resolved.putConfiguration(configuration, path, environmentSpecific);
 		resolved.save(resolved.getDirectory());
 		// reload the artifact
 		//EAIResourceRepository.getInstance().reload(resolved.getId());

@@ -15,10 +15,12 @@ import be.nabu.eai.module.http.virtual.VirtualHostArtifact;
 import be.nabu.eai.module.http.virtual.api.Source;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.web.application.rate.RateLimiter;
+import be.nabu.eai.repository.api.FeaturedExecutionContext;
 import be.nabu.eai.repository.api.LanguageProvider;
 import be.nabu.libs.authentication.api.Authenticator;
 import be.nabu.libs.authentication.api.Device;
 import be.nabu.libs.authentication.api.DeviceValidator;
+import be.nabu.libs.authentication.api.PermissionHandler;
 import be.nabu.libs.authentication.api.RoleHandler;
 import be.nabu.libs.authentication.api.Token;
 import be.nabu.libs.authentication.api.TokenValidator;
@@ -34,10 +36,33 @@ import be.nabu.libs.http.glue.GlueListener;
 import be.nabu.libs.http.server.HTTPServerUtils;
 import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.nio.api.Pipeline;
+import be.nabu.libs.services.api.ExecutionContext;
 import be.nabu.utils.mime.api.Header;
 import be.nabu.utils.mime.impl.MimeUtils;
 
 public class WebApplicationUtils {
+	
+	public static void featureRich(WebApplication application, HTTPRequest request, ExecutionContext context) {
+		Header header = MimeUtils.getHeader("Feature", request.getContent().getHeaders());
+		if (header != null && header.getValue() != null && context instanceof FeaturedExecutionContext) {
+			for (String feature : header.getValue().split("[\\s]*;[\\s]*")) {
+				int index = feature.lastIndexOf('=');
+				boolean enable = index < 0 || feature.substring(index + 1).equals("true");
+				if (index >= 0) {
+					feature = feature.substring(0, index);
+				}
+				// if we can't test the feature, we leave it alone
+				if (application.canTestFeature(context.getSecurityContext().getToken(), feature)) {
+					if (enable && !((FeaturedExecutionContext) context).getEnabledFeatures().contains(feature)) {
+						((FeaturedExecutionContext) context).getEnabledFeatures().add(feature);
+					}
+					else if (!enable) {
+						((FeaturedExecutionContext) context).getEnabledFeatures().remove(feature);
+					}
+				}
+			}
+		}
+	}
 	
 	public static void limitToApplication(EventSubscription<HTTPRequest, ?> subscription, WebApplication application) {
 		if (application.getConfig().getPath() != null) {
@@ -248,6 +273,20 @@ public class WebApplicationUtils {
 	
 	public static boolean isNewDevice(WebApplication application, HTTPRequest request) {
 		return request.getContent() == null ? true : GlueListener.getDevice(application.getRealm(), request.getContent().getHeaders()) == null;
+	}
+	
+	public static void checkPermission(WebApplication application, Token token, String permissionAction, String permissionContext) {
+		try {
+			PermissionHandler permissionHandler = application.getPermissionHandler();
+			if (permissionHandler != null && permissionAction != null) {
+				if (!permissionHandler.hasPermission(token, permissionContext, permissionAction)) {
+					throw new HTTPException(token == null ? 401 : 403, "User does not have permission to execute the rest service", "User '" + (token == null ? Authenticator.ANONYMOUS : token.getName()) + "' does not have permission to '" + permissionAction + "' on: " + permissionContext, token);
+				}
+			}
+		}
+		catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 	}
 	
 	public static void checkRole(WebApplication application, Token token, List<String> roles) {

@@ -153,7 +153,10 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 
 	@Override
 	protected WebApplication newInstance(MainController controller, RepositoryEntry entry, Value<?>...values) throws IOException {
-		return new WebApplication(entry.getId(), entry.getContainer(), entry.getRepository());
+		WebApplication webApplication = new WebApplication(entry.getId(), entry.getContainer(), entry.getRepository());
+		// default to true
+		webApplication.getConfig().setHtml5Mode(true);
+		return webApplication;
 	}
 
 	@Override

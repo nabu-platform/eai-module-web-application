@@ -18,7 +18,7 @@ import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "bearerAuthenticator", "temporaryAuthenticator", "temporaryAuthenticationGenerator", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", "defaultLanguage", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments", "html5Mode", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "bearerAuthenticator", "temporaryAuthenticator", "temporaryAuthenticationGenerator", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", "defaultLanguage", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments", "html5Mode", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie", "featureTestingRole" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -34,6 +34,8 @@ public class WebApplicationConfiguration {
 	private String defaultLanguage;
 	private boolean addCacheHeaders = true;
 	private boolean ignoreLanguageCookie;
+	// which roles can test toggling features
+	private List<String> featureTestingRole;
 	
 	// we assume the proxy strips the path, but to build correct links for the outside world, we need to know this
 	private String proxyPath;
@@ -484,6 +486,15 @@ public class WebApplicationConfiguration {
 	}
 	public void setIgnoreLanguageCookie(boolean ignoreLanguageCookie) {
 		this.ignoreLanguageCookie = ignoreLanguageCookie;
+	}
+	
+	@Advanced
+	@Comment(title = "The people who have this role can dynamically change the availability of features, mostly for testing purposes")
+	public List<String> getFeatureTestingRole() {
+		return featureTestingRole;
+	}
+	public void setFeatureTestingRole(List<String> featureTestingRole) {
+		this.featureTestingRole = featureTestingRole;
 	}
 	
 }
