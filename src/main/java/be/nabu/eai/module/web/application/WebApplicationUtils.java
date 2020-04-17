@@ -15,7 +15,6 @@ import be.nabu.eai.module.http.virtual.VirtualHostArtifact;
 import be.nabu.eai.module.http.virtual.api.Source;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.web.application.rate.RateLimiter;
-import be.nabu.eai.repository.api.FeaturedExecutionContext;
 import be.nabu.eai.repository.api.LanguageProvider;
 import be.nabu.libs.authentication.api.Authenticator;
 import be.nabu.libs.authentication.api.Device;
@@ -37,6 +36,7 @@ import be.nabu.libs.http.server.HTTPServerUtils;
 import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.nio.api.Pipeline;
 import be.nabu.libs.services.api.ExecutionContext;
+import be.nabu.libs.services.api.FeaturedExecutionContext;
 import be.nabu.utils.mime.api.Header;
 import be.nabu.utils.mime.impl.MimeUtils;
 
