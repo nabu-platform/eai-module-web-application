@@ -84,7 +84,7 @@ import be.nabu.eai.developer.util.Confirm.ConfirmType;
 import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.developer.util.Find;
 import be.nabu.eai.module.web.application.api.BearerAuthenticator;
-import be.nabu.eai.module.web.application.api.RateLimitSettingsProvider;
+import be.nabu.eai.module.web.application.api.RateLimitProvider;
 import be.nabu.eai.module.web.application.api.RequestLanguageProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticator;
@@ -408,10 +408,22 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getRequestSubscriber(), method));
 		}
 		
-		// rate limiter
-		if (artifact.getConfig().getRateLimiter() != null) {
-			Method method = WebApplication.getMethod(RateLimitSettingsProvider.class, "settings");
-			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getRateLimiter(), method));
+		// rate limiter checker
+		if (artifact.getConfig().getRateLimitChecker() != null) {
+			Method method = WebApplication.getMethod(RateLimitProvider.class, "check");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getRateLimitChecker(), method));
+		}
+		
+		// rate limiter settings
+		if (artifact.getConfig().getRateLimitChecker() != null) {
+			Method method = WebApplication.getMethod(RateLimitProvider.class, "settings");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getRateLimitChecker(), method));
+		}
+		
+		// rate limiter logger
+		if (artifact.getConfig().getRateLimitLogger() != null) {
+			Method method = WebApplication.getMethod(RateLimitProvider.class, "log");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getRateLimitLogger(), method));
 		}
 		
 		// bearer authenticator

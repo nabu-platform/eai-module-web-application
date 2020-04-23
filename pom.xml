@@ -147,6 +147,11 @@
 			<artifactId>http-glue</artifactId>
 		</dependency>
 		<dependency>
+			<groupId>be.nabu.utils</groupId>
+			<artifactId>utils-cep</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
 			<groupId>be.nabu.libs.http</groupId>
 			<artifactId>http-jwt</artifactId>
 			<exclusions>

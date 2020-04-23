@@ -1,15 +1,17 @@
 package be.nabu.eai.module.web.application;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 
-import be.nabu.eai.module.http.virtual.api.SourceImpl;
-import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.LanguageProvider;
 import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.glue.annotations.GlueParam;
+import be.nabu.glue.api.Script;
+import be.nabu.glue.utils.ScriptRuntime;
+import be.nabu.glue.utils.ScriptUtils;
 import be.nabu.libs.artifacts.api.Artifact;
 import be.nabu.libs.authentication.api.Authenticator;
 import be.nabu.libs.authentication.api.PermissionHandler;
@@ -21,7 +23,6 @@ import be.nabu.libs.http.api.HTTPResponse;
 import be.nabu.libs.http.api.LinkableHTTPResponse;
 import be.nabu.libs.http.glue.impl.RequestMethods;
 import be.nabu.libs.http.glue.impl.UserMethods;
-import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.resources.ResourceUtils;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.services.api.ServiceException;
@@ -78,13 +79,23 @@ public class WebApplicationMethods {
 		return application.getConfigurationFor(path == null ? "/" : path, (ComplexType) DefinedTypeResolverFactory.getInstance().getResolver().resolve(type));
 	}
 	
-	public HTTPResponse throttle(String action, String context) throws IOException {
+	// for throttling, you can currently only use the script level defined rate limit action with a runtime context
+	// the reason for this is we want to be able to statically extract the rate limit actions being used, by defining it in an annotation it can be statically extracted
+	// in the future we might allow a second parameter here to specify a custom action if the need calls for it
+	public HTTPResponse throttle(@GlueParam(name = "context") String context) throws IOException, ParseException {
 		if (application.getRateLimiter() == null) {
 			return null;
 		}
 		HTTPRequest request = (HTTPRequest) RequestMethods.entity();
-		SourceImpl source = new SourceImpl(PipelineUtils.getPipeline().getSourceContext());
-		return application.getRateLimiter().handle(application, request, source, UserMethods.token(), UserMethods.device(), action, context);
+		Script script = ScriptRuntime.getRuntime().getScript();
+		String rateLimitAction = script.getRoot().getContext().getAnnotations().get("limit");
+		if (rateLimitAction == null) {
+			rateLimitAction = script.getRoot().getContext().getAnnotations().get("operationId");
+			if (rateLimitAction == null) {
+				rateLimitAction = ScriptUtils.getFullName(script);
+			}
+		}
+		return WebApplicationUtils.checkRateLimits(application, UserMethods.token(), UserMethods.device(), rateLimitAction, context, request);
 	}
 	
 	public RoleHandler roleHandler() throws IOException {

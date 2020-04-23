@@ -13,12 +13,18 @@ import be.nabu.eai.api.InterfaceFilter;
 import be.nabu.eai.module.http.virtual.VirtualHostArtifact;
 import be.nabu.eai.module.keystore.KeyStoreArtifact;
 import be.nabu.eai.repository.api.CacheProviderArtifact;
-import be.nabu.eai.repository.api.ListableSinkProviderArtifact;
 import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow", "failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "bearerAuthenticator", "temporaryAuthenticator", "temporaryAuthenticationGenerator", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", "deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", "defaultLanguage", "rateLimiter", "rateLimiterDatabase", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", "maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", "maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "webFragments", "html5Mode", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie", "featureTestingRole" })
+@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow",
+		"failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "bearerAuthenticator", "temporaryAuthenticator", 
+		"temporaryAuthenticationGenerator", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", 
+		"deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", 
+		"defaultLanguage", "rateLimitSettings", "rateLimitChecker", "rateLimitLogger", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", 
+		"maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", 
+		"maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", 
+		"webFragments", "html5Mode", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie", "featureTestingRole" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -52,7 +58,6 @@ public class WebApplicationConfiguration {
 	private DefinedService temporaryAuthenticator, temporaryAuthenticationGenerator;
 	private Boolean allowBasicAuthentication;
 	private List<WebFragment> webFragments;
-	private ListableSinkProviderArtifact rateLimiterDatabase;
 	// you can reuse the sessions from another application
 	private WebApplication sessionProviderApplication;
 	
@@ -61,7 +66,7 @@ public class WebApplicationConfiguration {
 	private boolean allowJwtBearer, allowContentEncoding = true, html5Mode;
 	private boolean forceRequestLanguage;
 	
-	private DefinedService rateLimiter;
+	private DefinedService rateLimitSettings, rateLimitChecker, rateLimitLogger;
 	
 	@Comment(title = "The path that the web application will listen to", description = "Multiple web applications can be hosted on a single host as long as they have different root paths")
 	@EnvironmentSpecific
@@ -376,22 +381,36 @@ public class WebApplicationConfiguration {
 	}
 	
 	@Advanced
-	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.RateLimitSettingsProvider.settings")
+	@Comment(title = "Set a service that provides the rate limit settings for a specific request")
+	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.RateLimitProvider.settings")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
-	public DefinedService getRateLimiter() {
-		return rateLimiter;
+	public DefinedService getRateLimitSettings() {
+		return rateLimitSettings;
 	}
-	public void setRateLimiter(DefinedService rateLimiter) {
-		this.rateLimiter = rateLimiter;
+	public void setRateLimitSettings(DefinedService rateLimitSettingsProvider) {
+		this.rateLimitSettings = rateLimitSettingsProvider;
 	}
 	
 	@Advanced
+	@Comment(title = "Set a service that will check the rate limits for a specific request")
+	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.RateLimitProvider.check")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
-	public ListableSinkProviderArtifact getRateLimiterDatabase() {
-		return rateLimiterDatabase;
+	public DefinedService getRateLimitChecker() {
+		return rateLimitChecker;
 	}
-	public void setRateLimiterDatabase(ListableSinkProviderArtifact rateLimiterDatabase) {
-		this.rateLimiterDatabase = rateLimiterDatabase;
+	public void setRateLimitChecker(DefinedService rateLimitChecker) {
+		this.rateLimitChecker = rateLimitChecker;
+	}
+	
+	@Advanced
+	@Comment(title = "Set a service that will log a rate limit hit")
+	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.RateLimitProvider.log")
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	public DefinedService getRateLimitLogger() {
+		return rateLimitLogger;
+	}
+	public void setRateLimitLogger(DefinedService rateLimitLogger) {
+		this.rateLimitLogger = rateLimitLogger;
 	}
 	
 	@Advanced

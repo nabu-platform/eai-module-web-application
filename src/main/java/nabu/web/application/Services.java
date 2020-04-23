@@ -15,11 +15,14 @@ import javax.validation.constraints.NotNull;
 import nabu.web.application.types.Cookie;
 import nabu.web.application.types.PropertyImpl;
 import nabu.web.application.types.WebApplicationInformation;
+import be.nabu.eai.module.web.application.RateLimitImpl;
 import be.nabu.eai.module.web.application.WebApplication;
 import be.nabu.eai.module.web.application.WebApplicationUtils;
 import be.nabu.eai.module.web.application.WebFragment;
 import be.nabu.eai.module.web.application.WebFragmentProvider;
 import be.nabu.eai.module.web.application.api.PermissionWithRole;
+import be.nabu.eai.module.web.application.api.RESTFragment;
+import be.nabu.eai.module.web.application.api.RateLimit;
 import be.nabu.eai.module.web.application.api.TemporaryAuthentication;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticationGenerator;
 import be.nabu.eai.repository.EAIResourceRepository;
@@ -32,6 +35,7 @@ import be.nabu.glue.impl.ImperativeSubstitutor;
 import be.nabu.libs.artifacts.api.Artifact;
 import be.nabu.libs.authentication.api.Permission;
 import be.nabu.libs.authentication.api.Token;
+import be.nabu.libs.authentication.impl.PermissionImpl;
 import be.nabu.libs.http.api.server.Session;
 import be.nabu.libs.http.core.HTTPUtils;
 import be.nabu.libs.resources.api.ReadableResource;
@@ -90,6 +94,18 @@ public class Services {
 			}
 		}
 		return permissions;
+	}
+	
+	@WebResult(name = "rateLimits")
+	public List<RateLimit> rateLimits(@NotNull @WebParam(name = "webApplicationId") String id) {
+		List<RateLimit> rateLimits = new ArrayList<RateLimit>();
+		if (id != null) {
+			WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+			if (resolved != null) {
+				rateLimits(resolved, rateLimits);
+			}
+		}
+		return rateLimits;
 	}
 	
 	@WebResult(name = "roles")
@@ -155,6 +171,36 @@ public class Services {
 				if (fragmentPermissions != null) {
 					permissions.addAll(fragmentPermissions);
 				}
+			}
+		}
+		// add the permissions for the fragments themselves
+		List<RESTFragment> fragments = application.getFragments(false, null);
+		for (RESTFragment fragment : fragments) {
+			if (fragment.getPermissionAction() != null) {
+				permissions.add(new PermissionImpl(fragment.getPermissionAction(), fragment.getPermissionContext()));
+			}
+		}
+		// don't recurse, the web fragment providers should do that themselves
+	}
+	
+	private void rateLimits(WebApplication application, List<RateLimit> rateLimits) {
+		String path = application.getConfig().getPath();
+		if (path == null) {
+			path = "/";
+		}
+		for (WebFragment fragment : application.getWebFragments()) {
+			if (fragment != null) {
+				List<RateLimit> fragmentRateLimits = fragment.getRateLimits(application, path);
+				if (fragmentRateLimits != null) {
+					rateLimits.addAll(fragmentRateLimits);
+				}
+			}
+		}
+		// add the permissions for the fragments themselves
+		List<RESTFragment> fragments = application.getFragments(false, null);
+		for (RESTFragment fragment : fragments) {
+			if (fragment.getRateLimitAction() != null) {
+				rateLimits.add(new RateLimitImpl(fragment.getRateLimitAction(), fragment.getRateLimitContext()));
 			}
 		}
 		// don't recurse, the web fragment providers should do that themselves

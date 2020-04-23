@@ -34,12 +34,12 @@ import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.module.web.application.api.BearerAuthenticator;
 import be.nabu.eai.module.web.application.api.RESTFragment;
 import be.nabu.eai.module.web.application.api.RESTFragmentProvider;
+import be.nabu.eai.module.web.application.api.RateLimitProvider;
 import be.nabu.eai.module.web.application.api.RequestLanguageProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.module.web.application.api.RobotEntry;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticationGenerator;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticator;
-import be.nabu.eai.module.web.application.rate.RateLimiter;
 import be.nabu.eai.module.web.application.resource.WebApplicationResourceResolver;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
@@ -137,9 +137,7 @@ import be.nabu.libs.http.server.SessionProviderImpl;
 import be.nabu.libs.metrics.api.GroupLevelProvider;
 import be.nabu.libs.metrics.api.MetricInstance;
 import be.nabu.libs.metrics.core.api.SinkEvent;
-import be.nabu.libs.metrics.core.api.SinkProvider;
 import be.nabu.libs.metrics.core.filters.ThresholdOverTimeFilter;
-import be.nabu.libs.metrics.core.sinks.LimitedHistorySinkProvider;
 import be.nabu.libs.metrics.impl.MetricGrouper;
 import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.nio.api.SourceContext;
@@ -155,6 +153,7 @@ import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.resources.api.TimestampedResource;
 import be.nabu.libs.resources.api.WritableResource;
 import be.nabu.libs.services.ServiceRuntime;
+import be.nabu.libs.services.api.DefinedService;
 import be.nabu.libs.services.api.Service;
 import be.nabu.libs.services.fixed.FixedInputService;
 import be.nabu.libs.services.pojo.POJOUtils;
@@ -230,7 +229,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private String version;
 	private GlueWebParserProvider parserProvider;
 	private boolean rateLimiterResolved;
-	private RateLimiter rateLimiter;
+	private RateLimitProvider rateLimitProvider;
 	private List<RESTFragment> restFragments;
 	
 	private List<RobotEntry> robotEntries = new ArrayList<RobotEntry>();
@@ -911,18 +910,27 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				});
 			}
 			
+			// you can set the "@throttle" annotation to explicitly request a throttle, we don't do it by default
 			if (getRateLimiter() != null) {
 				listener.setScriptCallValidator(new GlueScriptCallValidator() {
 					@Override
 					public HTTPResponse validate(HTTPRequest request, Token token, Device device, Script script) {
 						try {
-							String operationId = script.getRoot() != null && script.getRoot().getContext() != null && script.getRoot().getContext().getAnnotations() != null
-								? script.getRoot().getContext().getAnnotations().get("operationId")
-								: null;
-							if (operationId == null) {
-								operationId = ScriptUtils.getFullName(script);
+							boolean throttle = script.getRoot() != null && script.getRoot().getContext() != null && script.getRoot().getContext().getAnnotations() != null
+									&& script.getRoot().getContext().getAnnotations().containsKey("throttle")
+									&& !"false".equals(script.getRoot().getContext().getAnnotations().get("throttle"));
+							if (throttle) {
+								String operationId = script.getRoot() != null && script.getRoot().getContext() != null && script.getRoot().getContext().getAnnotations() != null
+									? script.getRoot().getContext().getAnnotations().get("operationId")
+									: null;
+								if (operationId == null) {
+									operationId = ScriptUtils.getFullName(script);
+								}
+								return WebApplicationUtils.checkRateLimits(WebApplication.this, token, device, operationId, null, request);
 							}
-							return getRateLimiter().handle(WebApplication.this, request, new SourceImpl(PipelineUtils.getPipeline().getSourceContext()), token, device, operationId, null);
+							else {
+								return null;
+							}
 						}
 						catch (Exception e) {
 							logger.error("Could not check rate limiting for script", e);
@@ -1488,23 +1496,31 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		return potentialPermissionHandler;
 	}
 	
-	public RateLimiter getRateLimiter() throws IOException {
+	public RateLimitProvider getRateLimiter() throws IOException {
 		if (!rateLimiterResolved) {
 			synchronized(this) {
 				if (!rateLimiterResolved) {
 					rateLimiterResolved = true;
-					if (getConfiguration().getRateLimiter() != null) {
-						SinkProvider sinkProvider = getConfig().getRateLimiterDatabase() == null ? new LimitedHistorySinkProvider(1000) : getConfig().getRateLimiterDatabase();
-						rateLimiter = new RateLimiter(
-							getRepository(), 
-							getConfig().getRateLimiter(), 
-							sinkProvider
+					DefinedService checker = getConfig().getRateLimitChecker();
+					DefinedService settings = getConfig().getRateLimitSettings();
+					DefinedService logger = getConfig().getRateLimitLogger();
+					// we need all these services to be of any use
+					if (checker != null && settings != null && logger != null) {
+						Service checkerWrap = checker == null ? null : wrap(checker, getMethod(RateLimitProvider.class, "check"));
+						Service settingsWrap = settings == null ? null : wrap(settings, getMethod(RateLimitProvider.class, "settings"));
+						Service loggerWrap = logger == null ? null : wrap(logger, getMethod(RateLimitProvider.class, "log"));
+						rateLimitProvider = POJOUtils.newProxy(RateLimitProvider.class,
+							getRepository(),
+							SystemPrincipal.ROOT,
+							checkerWrap, 
+							settingsWrap,
+							loggerWrap
 						);
 					}
 				}
 			}
 		}
-		return rateLimiter;
+		return rateLimitProvider;
 	}
 	
 	public TokenValidator getTokenValidator() throws IOException {
@@ -1885,6 +1901,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 									String permissionAction = script.getRoot().getContext().getAnnotations().get("action");
 									String permissionContext = script.getRoot().getContext().getAnnotations().get("context");
 									
+									String rateLimitAction = script.getRoot().getContext().getAnnotations().get("limit");
+									
 									Documented documentation = null;
 									if (description != null || title != null || tags != null) {
 										documentation = new Documented() {
@@ -1922,7 +1940,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 										roles == null || roles.isEmpty() ? null : Arrays.asList(roles.split("[\\s]*,[\\s]*")),
 										permissionAction,
 										permissionContext,
-										cache != null
+										cache != null,
+										rateLimitAction == null ? operationId : rateLimitAction,
+										null
 									));
 								}
 							}
@@ -1938,7 +1958,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		return restFragments;
 	}
 	
-	private RESTFragment newFragment(String id, String path, String method, List<String> consumes, List<String> produces, Type input, Type output, List<Element<?>> query, List<Element<?>> header, List<Element<?>> paths, Documented documentation, List<String> allowedRoles, String permissionAction, String permissionContext, boolean isCacheable) {
+	private RESTFragment newFragment(String id, String path, String method, List<String> consumes, List<String> produces, Type input, Type output, List<Element<?>> query, List<Element<?>> header, List<Element<?>> paths, Documented documentation, List<String> allowedRoles, String permissionAction, String permissionContext, boolean isCacheable, String rateLimitAction, String rateLimitContext) {
 		return new RESTFragment() {
 			@Override
 			public String getId() {
@@ -1998,6 +2018,14 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			@Override
 			public boolean isCacheable() {
 				return isCacheable;
+			}
+			@Override
+			public String getRateLimitAction() {
+				return rateLimitAction;
+			}
+			@Override
+			public String getRateLimitContext() {
+				return rateLimitContext;
 			}
 		};
 	}

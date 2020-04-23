@@ -1,10 +1,14 @@
 package be.nabu.eai.module.web.application;
 
 import java.io.IOException;
+import java.net.Inet6Address;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -14,7 +18,9 @@ import be.nabu.eai.module.http.server.HTTPServerArtifact;
 import be.nabu.eai.module.http.virtual.VirtualHostArtifact;
 import be.nabu.eai.module.http.virtual.api.Source;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
-import be.nabu.eai.module.web.application.rate.RateLimiter;
+import be.nabu.eai.module.web.application.api.RateLimitCheck;
+import be.nabu.eai.module.web.application.api.RateLimitProvider;
+import be.nabu.eai.module.web.application.api.RateLimitSettings;
 import be.nabu.eai.repository.api.LanguageProvider;
 import be.nabu.libs.authentication.api.Authenticator;
 import be.nabu.libs.authentication.api.Device;
@@ -24,21 +30,29 @@ import be.nabu.libs.authentication.api.RoleHandler;
 import be.nabu.libs.authentication.api.Token;
 import be.nabu.libs.authentication.api.TokenValidator;
 import be.nabu.libs.events.api.EventSubscription;
+import be.nabu.libs.http.HTTPCodes;
 import be.nabu.libs.http.HTTPException;
 import be.nabu.libs.http.api.HTTPRequest;
 import be.nabu.libs.http.api.HTTPResponse;
 import be.nabu.libs.http.api.server.AuthenticationHeader;
 import be.nabu.libs.http.api.server.Session;
+import be.nabu.libs.http.core.DefaultHTTPResponse;
 import be.nabu.libs.http.core.HTTPUtils;
 import be.nabu.libs.http.core.ServerHeader;
 import be.nabu.libs.http.glue.GlueListener;
 import be.nabu.libs.http.server.HTTPServerUtils;
 import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.nio.api.Pipeline;
+import be.nabu.libs.services.ServiceRuntime;
 import be.nabu.libs.services.api.ExecutionContext;
 import be.nabu.libs.services.api.FeaturedExecutionContext;
+import be.nabu.utils.cep.api.EventSeverity;
+import be.nabu.utils.cep.impl.HTTPComplexEventImpl;
 import be.nabu.utils.mime.api.Header;
+import be.nabu.utils.mime.impl.FormatException;
+import be.nabu.utils.mime.impl.MimeHeader;
 import be.nabu.utils.mime.impl.MimeUtils;
+import be.nabu.utils.mime.impl.PlainMimeEmptyPart;
 
 public class WebApplicationUtils {
 	
@@ -310,20 +324,100 @@ public class WebApplicationUtils {
 		}
 	}
 	
-	public static HTTPResponse checkRateLimits(WebApplication application, Token token, Device device, String action, String context, HTTPRequest request) {
-		try {
-			// check rate limiting (if any)
-			RateLimiter rateLimiter = application.getRateLimiter();
-			if (rateLimiter != null) {
-				HTTPResponse response = rateLimiter.handle(application, request, new SourceImpl(PipelineUtils.getPipeline().getSourceContext()), token, device, action, context);
-				if (response != null) {
-					return response;
+	public static HTTPResponse checkRateLimits(WebApplication application, Token token, Device device, String action, String context, HTTPRequest request) throws IOException {
+		SourceImpl source = new SourceImpl(PipelineUtils.getPipeline().getSourceContext());
+		return checkRateLimits(application, source, token, device, action, context, request);
+	}
+	
+	public static HTTPResponse checkRateLimits(WebApplication application, Source source, Token token, Device device, String action, String context, HTTPRequest request) throws IOException {
+		RateLimitProvider rateLimiter = application.getRateLimiter();
+		if (rateLimiter != null) {
+			Map<String, Object> originalContext = ServiceRuntime.getGlobalContext();
+			try {
+				ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
+				ServiceRuntime.getGlobalContext().put("service.context", application.getId());
+				List<RateLimitSettings> settings = rateLimiter.settings(application.getId(), source, token, device, action, context);
+				if (settings != null && !settings.isEmpty()) {
+						for (RateLimitSettings setting : settings) {
+							// we need, at the very least, a limiting amount to be useful
+							if (setting == null || setting.getAmount() == null) {
+								continue;
+							}
+							long time = new Date().getTime();
+							// if the interval is null, you just get a fixed amount of calls
+							RateLimitCheck check = rateLimiter.check(application.getId(), setting.getRuleId(), setting.getIdentity(), setting.getContext(), setting.getInterval() == null ? null : new Date(time - setting.getInterval()));
+							// if we get a result, let's validate it
+							if (check != null && check.getAmountOfHits() != null) {
+								// the amount of hits we get here are already done, so the current hit is +1. That's why we check >=.
+								if (check.getAmountOfHits() >= setting.getAmount()) {
+									PlainMimeEmptyPart content = new PlainMimeEmptyPart(null, 
+										new MimeHeader("Content-Length", "0"));
+									Long millisecondsUntilFreeSlot = null;
+									// let's see if we can determine until when
+									if (check.getOldestHit() != null && setting.getInterval() != null) {
+										millisecondsUntilFreeSlot = setting.getInterval() - (time - check.getOldestHit().getTime());
+										content.setHeader(new MimeHeader("Retry-After", "" + (millisecondsUntilFreeSlot / 1000)));
+									}
+									sendEvent(application, source, token, device, action, context, request, setting.getRuleId(), setting.getRuleCode(), check.getAmountOfHits(), millisecondsUntilFreeSlot);
+									return new DefaultHTTPResponse(429, HTTPCodes.getMessage(429), content);
+								}
+							}
+							// if we make it past the above check, log a hit
+							rateLimiter.log(application.getId(), setting.getRuleId(), setting.getIdentity(), setting.getContext(), new Date(time));
+						}
 				}
 			}
-			return null;
+			finally {
+				ServiceRuntime.setGlobalContext(originalContext);
+			}
 		}
-		catch (IOException e) {
-			throw new RuntimeException(e);
+		return null;
+	}
+	
+	private static void sendEvent(WebApplication application, Source source, Token token, Device device, String action, String context, HTTPRequest request, String ruleId, String ruleCode, Integer amount, Long duration) {
+		if (application.getRepository().getComplexEventDispatcher() != null) {
+			HTTPComplexEventImpl event = new HTTPComplexEventImpl();
+			event.setArtifactId(application.getId());
+			event.setEventName("rate-limit-hit");
+			event.setEventCategory("rate-limit");
+			event.setMethod(request.getMethod());
+			Header header = MimeUtils.getHeader("User-Agent", request.getContent().getHeaders());
+			if (header != null) {
+				event.setUserAgent(MimeUtils.getFullHeaderValue(header));
+			}
+			
+			if (source != null) {
+				event.setSourceHost(source.getRemoteHost());
+				event.setSourceIp(source.getRemoteIp());
+				event.setSourcePort(source.getRemotePort());
+				event.setDestinationPort(source.getLocalPort());
+			}
+			event.setTransportProtocol("TCP");
+			event.setApplicationProtocol(application.getConfig().getVirtualHost().getConfig().getServer().isSecure() ? "HTTPS" : "HTTP");
+			event.setSizeIn(MimeUtils.getContentLength(request.getContent().getHeaders()));
+			try {
+				event.setRequestUri(HTTPUtils.getURI(request, event.getApplicationProtocol().equals("HTTPS")));
+			}
+			catch (FormatException e) {
+				// ignore
+			}
+			event.setCreated(new Date());
+			event.setCode(ruleCode);
+			event.setSeverity(EventSeverity.ERROR);
+			event.setResponseCode(429);
+			event.setAction(action);
+			event.setContext(context);
+			event.setCorrelationId(ruleId);
+			if (device != null) {
+				event.setDeviceId(device.getDeviceId());
+			}
+			if (token != null) {
+				event.setRealm(token.getRealm());
+				event.setAlias(token.getName());
+			}
+			event.setReason("limit reached: " + amount);
+			event.setDuration(duration);
+			application.getRepository().getComplexEventDispatcher().fire(event, application);
 		}
 	}
 	

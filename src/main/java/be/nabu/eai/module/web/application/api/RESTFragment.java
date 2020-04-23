@@ -34,4 +34,10 @@ public interface RESTFragment extends Artifact {
 	public default boolean isCacheable() {
 		return false;
 	}
+	public default String getRateLimitAction() {
+		return null;
+	}
+	public default String getRateLimitContext() {
+		return null;
+	}
 }

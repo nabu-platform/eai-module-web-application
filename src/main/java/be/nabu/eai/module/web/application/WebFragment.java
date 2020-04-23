@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import be.nabu.eai.module.web.application.api.RateLimit;
 import be.nabu.libs.artifacts.api.Artifact;
 import be.nabu.libs.authentication.api.Permission;
 
@@ -20,6 +21,12 @@ public interface WebFragment extends Artifact {
 	 * List the permissions that the web fragments knows about
 	 */
 	public List<Permission> getPermissions(WebApplication artifact, String path);
+	/**
+	 * List the rate limits that the web fragment knows about
+	 */
+	public default List<RateLimit> getRateLimits(WebApplication artifact, String path) {
+		return null;
+	}
 	/**
 	 * Is it running on this web artifact?
 	 */
