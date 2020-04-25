@@ -57,6 +57,7 @@
 			<artifactId>eai-module-glue</artifactId>
 			<scope>provided</scope>
 		</dependency>
+		
 		<dependency>
 			<groupId>be.nabu.libs.cache</groupId>
 			<artifactId>cache-api</artifactId>
@@ -97,6 +98,7 @@
 			<artifactId>types-definition-xml</artifactId>
 			<scope>provided</scope>
 		</dependency>
+		
 		<dependency>
 			<groupId>javax.ws.rs</groupId>
 			<artifactId>javax.ws.rs-api</artifactId>

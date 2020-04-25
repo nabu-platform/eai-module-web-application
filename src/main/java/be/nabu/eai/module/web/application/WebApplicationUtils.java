@@ -1,8 +1,6 @@
 package be.nabu.eai.module.web.application;
 
 import java.io.IOException;
-import java.net.Inet6Address;
-import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -330,6 +328,28 @@ public class WebApplicationUtils {
 	}
 	
 	public static HTTPResponse checkRateLimits(WebApplication application, Source source, Token token, Device device, String action, String context, HTTPRequest request) throws IOException {
+		// if we are being proxied, get the "actual" source
+		if (request.getContent() != null && application.getConfig().getVirtualHost().getConfig().getServer().getConfig().isProxied()) {
+			SourceImpl actualSource = new SourceImpl();
+			Header header = MimeUtils.getHeader(ServerHeader.REMOTE_HOST.getName(), request.getContent().getHeaders());
+			if (header != null && header.getValue() != null) {
+				actualSource.setRemoteHost(header.getValue());
+			}
+			header = MimeUtils.getHeader(ServerHeader.REMOTE_ADDRESS.getName(), request.getContent().getHeaders());
+			if (header != null && header.getValue() != null) {
+				actualSource.setRemoteIp(header.getValue());
+			}
+			header = MimeUtils.getHeader(ServerHeader.REMOTE_PORT.getName(), request.getContent().getHeaders());
+			if (header != null && header.getValue() != null) {
+				actualSource.setRemotePort(Integer.parseInt(header.getValue()));
+			}
+			header = MimeUtils.getHeader(ServerHeader.LOCAL_PORT.getName(), request.getContent().getHeaders());
+			if (header != null && header.getValue() != null) {
+				actualSource.setLocalPort(Integer.parseInt(header.getValue()));
+			}
+			source = actualSource;
+		}
+		
 		RateLimitProvider rateLimiter = application.getRateLimiter();
 		if (rateLimiter != null) {
 			Map<String, Object> originalContext = ServiceRuntime.getGlobalContext();
