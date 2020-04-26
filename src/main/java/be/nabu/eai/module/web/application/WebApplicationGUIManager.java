@@ -88,6 +88,7 @@ import be.nabu.eai.module.web.application.api.RateLimitProvider;
 import be.nabu.eai.module.web.application.api.RequestLanguageProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticator;
+import be.nabu.eai.module.web.application.resource.WebBrowser;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
@@ -180,6 +181,11 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			tabs = new TabPane();
 			tabs.setTabClosingPolicy(TabClosingPolicy.UNAVAILABLE);
 			tabs.setSide(Side.RIGHT);
+			Tab browser = new Tab("Application");
+			browser.setContent(new WebBrowser(artifact).asPane());
+			browser.setClosable(false);
+			tabs.getTabs().add(browser);
+			
 			Tab tab = new Tab("Configuration");
 			tab.setId("configuration");
 			tab.setContent(scroll);
