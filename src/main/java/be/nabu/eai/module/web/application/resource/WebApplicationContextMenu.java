@@ -16,7 +16,7 @@ public class WebApplicationContextMenu implements EntryContextMenuProvider {
 	@Override
 	public MenuItem getContext(Entry entry) {
 		if (entry.isNode() && WebApplication.class.isAssignableFrom(entry.getNode().getArtifactClass())) {
-			MenuItem item = new MenuItem("Open in browser");
+			MenuItem item = new MenuItem("View application");
 			item.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
 				@Override
 				public void handle(ActionEvent arg0) {

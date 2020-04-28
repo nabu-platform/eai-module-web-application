@@ -404,8 +404,12 @@ public class Services {
 		}
 		return hasFragment(resolved, resolved, fragmentId, active, null);
 	}
+	
+	public static boolean hasFragment(WebApplication application, String fragmentId, Boolean active) {
+		return hasFragment(application, application, fragmentId, active, null);
+	}
 
-	private boolean hasFragment(WebApplication application, WebFragmentProvider provider, String fragmentId, Boolean active, String path) {
+	private static boolean hasFragment(WebApplication application, WebFragmentProvider provider, String fragmentId, Boolean active, String path) {
 		if (provider.getWebFragments() != null) {
 			for (WebFragment fragment : provider.getWebFragments()) {
 				if (fragment != null && fragmentId.equals(fragment.getId())) {

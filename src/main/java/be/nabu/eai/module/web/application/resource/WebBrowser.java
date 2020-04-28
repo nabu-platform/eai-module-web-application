@@ -1,31 +1,38 @@
 package be.nabu.eai.module.web.application.resource;
 
-import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URI;
-import java.nio.charset.Charset;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Date;
 
 import org.w3c.dom.Document;
 
 import be.nabu.eai.developer.Main;
 import be.nabu.eai.developer.MainController;
+import be.nabu.eai.developer.components.RepositoryBrowser;
+import be.nabu.eai.developer.util.Confirm;
+import be.nabu.eai.developer.util.Confirm.ConfirmType;
 import be.nabu.eai.module.http.server.HTTPServerArtifact;
 import be.nabu.eai.module.http.virtual.VirtualHostArtifact;
 import be.nabu.eai.module.web.application.WebApplication;
-import be.nabu.utils.io.IOUtils;
+import be.nabu.eai.module.web.application.WebApplicationManager;
+import be.nabu.eai.module.web.application.WebFragment;
+import be.nabu.eai.repository.EAIResourceRepository;
+import be.nabu.eai.repository.api.Entry;
+import be.nabu.eai.repository.api.ResourceEntry;
+import be.nabu.jfx.control.tree.drag.TreeDragDrop;
+import be.nabu.libs.artifacts.api.Artifact;
+import be.nabu.libs.services.api.DefinedService;
+import javafx.beans.property.BooleanProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
+import javafx.concurrent.Worker.State;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
+import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Tab;
 import javafx.scene.input.DataFormat;
@@ -35,12 +42,12 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.TransferMode;
 import javafx.scene.layout.AnchorPane;
-import javafx.scene.layout.Border;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
 import javafx.scene.web.WebEngine;
 import javafx.scene.web.WebView;
+import nabu.web.application.Services;
 
 public class WebBrowser {
 	private WebApplication application;
@@ -60,7 +67,7 @@ public class WebBrowser {
 
 	public AnchorPane asPane() {
 		try {
-			VBox box = new VBox();
+			box = new VBox();
 			
 			HBox buttons = new HBox();
 			Button reload = new Button("Reload");
@@ -71,7 +78,20 @@ public class WebBrowser {
 				}
 			});
 			
-			buttons.getChildren().add(reload);
+			Button home = new Button("Home");
+			home.addEventHandler(ActionEvent.ANY, new EventHandler<ActionEvent>() {
+				@Override
+				public void handle(ActionEvent arg0) {
+					try {
+						goHome();
+					}
+					catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+			});
+			
+			buttons.getChildren().addAll(home, reload);
 			box.getChildren().add(buttons);
 			box.getChildren().add(new Separator(Orientation.HORIZONTAL));
 			
@@ -79,6 +99,8 @@ public class WebBrowser {
 			buttons.setAlignment(Pos.CENTER);
 			
 			webView = new WebView();
+			spinner = new ProgressIndicator();
+			VBox.setMargin(spinner, new Insets(20, 0, 0, 0));
 			addKeyHandlers(webView);
 			
 			new WebViewWithFileDragEvents(webView);
@@ -124,6 +146,8 @@ public class WebBrowser {
 	}
 	
 	private boolean firebugInjected = false;
+	private VBox box;
+	private ProgressIndicator spinner;
 	
 	private void reload() {
 		firebugInjected = false;
@@ -150,25 +174,55 @@ public class WebBrowser {
 		});
 	}
 
+	private void toggleLoading(boolean loading) {
+		if (loading) {
+			box.getChildren().remove(webView);
+			box.getChildren().add(spinner);
+		}
+		else {
+			box.getChildren().remove(spinner);
+			box.getChildren().add(webView);
+		}
+	}
+	
+	private void goHome() throws IOException {
+		firebugInjected = false;
+		String url = getExternalUrl();
+		webView.getEngine().load(url);
+	}
+	
 	private void load() throws IOException {
 		WebEngine webEngine = webView.getEngine();
 		String url = getExternalUrl();
 //		String url = getInternalUrl();
 
+		toggleLoading(true);
 		System.out.println("loading url: " + url);
 		
 		webEngine.load(url);
-//		webEngine.documentProperty().addListener(new ChangeListener<Document>() {
-//			@Override public void changed(ObservableValue<? extends Document> prop, Document oldDoc, Document newDoc) {
-//				System.out.println("Document loaded, automatically enabling firebug: " + newDoc);
-//				try {
-////					enableFirebug(webEngine);
-//				}
-//				catch (Exception e) {
-//					e.printStackTrace();
-//				}
-//			}
-//		});
+		webEngine.getLoadWorker().stateProperty().addListener(new ChangeListener<State>() {
+			@Override
+			public void changed(ObservableValue<? extends State> observable, State oldValue, State newValue) {
+				System.out.println(new Date() + " - new state: " + newValue);
+				if (newValue == State.SUCCEEDED) {
+					toggleLoading(false);
+				}
+				else if (newValue == State.SCHEDULED) {
+					toggleLoading(true);
+				}
+			}
+		});
+		webEngine.documentProperty().addListener(new ChangeListener<Document>() {
+			@Override public void changed(ObservableValue<? extends Document> prop, Document oldDoc, Document newDoc) {
+				System.out.println(new Date() + " - Document loaded");
+				try {
+//					enableFirebug(webEngine);
+				}
+				catch (Exception e) {
+					e.printStackTrace();
+				}
+			}
+		});
 	}
 	
 	public String getExternalUrl() throws IOException {
@@ -229,7 +283,8 @@ public class WebBrowser {
 				@Override
 				public void handle(DragEvent e) {
 					Dragboard db = e.getDragboard();
-					e.acceptTransferModes(TransferMode.COPY);
+					Object content = db.getContent(TreeDragDrop.getDataFormat(RepositoryBrowser.getDataType(DefinedService.class)));
+					e.acceptTransferModes(TransferMode.COPY_OR_MOVE);
 					injectDragOverEvent(e);
 					e.consume();
 				}
@@ -237,6 +292,8 @@ public class WebBrowser {
 	        this.webview.setOnDragDropped(new EventHandler<DragEvent>() {
 				@Override
 				public void handle(DragEvent e) {
+					Dragboard db = e.getDragboard();
+					Object content = db.getContent(TreeDragDrop.getDataFormat(RepositoryBrowser.getDataType(DefinedService.class)));
 					boolean success = false;
 					success = true;
 					injectDropEvent(e);
@@ -244,6 +301,15 @@ public class WebBrowser {
 					e.consume();
 				}
 	        });
+//	        this.webview.setOnDragDone(new EventHandler<DragEvent>() {
+//				@Override
+//				public void handle(DragEvent e) {
+//					System.out.println("---------> drag done: " + e);
+//					Dragboard db = e.getDragboard();
+//					Object content = db.getContent(TreeDragDrop.getDataFormat(RepositoryBrowser.getDataType(DefinedService.class)));
+//					System.out.println("\tcontent: " + content);
+//				}
+//	        });
 	    }
 
 	    private void injectDragOverEvent(DragEvent e) {
@@ -273,7 +339,7 @@ public class WebBrowser {
 	        return String.format(join("",
 	                "function() {",
 	                "  var e = new Event('dragleave',{bubbles:true});",
-	                "  e.dataTransfer={ types: %s };",
+	                "  e.dataTransfer=%s;",
 	                "	e.clientX = %d;",
 	                "	e.clientY = %d;",
 	                "  return e;",
@@ -285,7 +351,7 @@ public class WebBrowser {
 	        return String.format(join("",
 	                "function() {",
 	                "  var e = new Event('dragover',{bubbles:true});",
-	                "  e.dataTransfer={ types: %s };",
+	                "  e.dataTransfer=%s;",
 	                "	e.clientX = %d;",
 	                "	e.clientY = %d;",
 	                "  return e;",
@@ -294,10 +360,49 @@ public class WebBrowser {
 
 	    private String dropEvent(DragEvent e) {
 	    	String string = stringify(e);
+	    	Dragboard db = e.getDragboard();
+			Object serviceName = db.getContent(TreeDragDrop.getDataFormat(RepositoryBrowser.getDataType(DefinedService.class)));
+			// cleanup the name...
+			if (serviceName != null) {
+				serviceName = serviceName.toString().replaceAll("^[/]+", "").replace('/', '.');
+				// if we don't yet have the service in the application, add it if we have the lock
+				if (!Services.hasFragment(application, serviceName.toString(), null)) {
+					BooleanProperty locked = MainController.getInstance().hasLock(application.getId());
+					if (locked.get()) {
+						Artifact resolve = EAIResourceRepository.getInstance().resolve(serviceName.toString());
+						if (resolve instanceof WebFragment) {
+							application.getConfig().getWebFragments().add((WebFragment) resolve);
+							Entry entry = EAIResourceRepository.getInstance().getEntry(application.getId());
+							if (entry instanceof ResourceEntry) {
+								try {
+									new WebApplicationManager().save((ResourceEntry) entry, application);
+									// do a synchronous reload of target server before we drop the event
+									MainController.getInstance().getServer().getRemote().reload(application.getId());
+									// also refresh the application in developer so you are not looking at a stale version
+									MainController.getInstance().refresh(application.getId());
+								}
+								catch (Exception e1) {
+									MainController.getInstance().notify(e1);
+									Confirm.confirm(ConfirmType.WARNING, "Can't add service " + serviceName, "Failed to add the service to the web application", null, null);
+								}
+							}
+							else {
+								Confirm.confirm(ConfirmType.WARNING, "Can't add service " + serviceName, "The application is not editable", null, null);
+							}
+						}
+						else {
+							Confirm.confirm(ConfirmType.WARNING, "Can't add service " + serviceName, "This operation can not be exposed directly through a web application", null, null);
+						}
+					}
+					else {
+						Confirm.confirm(ConfirmType.WARNING, "Can't add service " + serviceName, "This service is not yet available in the web application and you don't have the lock to add it", null, null);
+					}
+				}
+			}
 	        return String.format(join("",
 	                "function() {",
 	                "  var e = new Event('drop',{bubbles:true});",
-	                " e.dataTransfer={ types: %s };",
+	                " e.dataTransfer=%s;",
 	                "	e.clientX = %d;",
 	                "	e.clientY = %d;",
 	                "  return e;",
@@ -314,7 +419,15 @@ public class WebBrowser {
 	    		}
 	    		builder.append("'").append(format.toString()).append("'");
 	    	}
-	    	return "[" + builder.toString().replace("[", "").replace("]", "") + "]";
+	    	String result = "[" + builder.toString().replace("[", "").replace("]", "") + "]";
+	    	Dragboard db = e.getDragboard();
+			Object serviceName = db.getContent(TreeDragDrop.getDataFormat(RepositoryBrowser.getDataType(DefinedService.class)));
+			// cleanup the name...
+			if (serviceName != null) {
+				serviceName = serviceName.toString().replaceAll("^[/]+", "").replace('/', '.');
+			}
+			result = "{ types: " + result + ", data: {'service': " + (serviceName == null ? "null" : "'" + serviceName + "'") + " }}";
+			return result;
 		}
 
 	    private void injectDropEvent(DragEvent e) {
