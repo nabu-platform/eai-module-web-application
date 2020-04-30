@@ -78,7 +78,6 @@ public class RESTServiceListener implements EventHandler<HTTPRequest, HTTPRespon
 			String path = URIUtils.normalize(uri.getPath());
 			// not in this web artifact
 			String serverPath = (application.getServerPath() + "/" + fragment.getPath()).replaceAll("[/]{2,}", "/");
-			System.out.println("checking " + serverPath + " vs " + path);
 			if (!path.equals(serverPath)) {
 				return null;
 			}
