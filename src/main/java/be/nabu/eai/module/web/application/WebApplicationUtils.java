@@ -41,6 +41,7 @@ import be.nabu.libs.http.glue.GlueListener;
 import be.nabu.libs.http.server.HTTPServerUtils;
 import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.nio.api.Pipeline;
+import be.nabu.libs.resources.URIUtils;
 import be.nabu.libs.services.ServiceRuntime;
 import be.nabu.libs.services.api.ExecutionContext;
 import be.nabu.libs.services.api.FeaturedExecutionContext;
@@ -101,6 +102,17 @@ public class WebApplicationUtils {
 			return header.getValue();
 		}
 		return application.getConfig().getProxyPath();
+	}
+	
+	public static boolean refererMatches(WebApplication application, HTTPRequest request) {
+		try {
+			Header refererHeader = MimeUtils.getHeader("Referer", request.getContent().getHeaders());
+			URI referer = refererHeader == null ? null : new URI(URIUtils.encodeURI(refererHeader.getValue()));
+			return refererMatches(application, referer);
+		}
+		catch (Exception e) {
+			return false;
+		}
 	}
 	
 	public static boolean refererMatches(WebApplication application, URI referer) {
@@ -227,13 +239,13 @@ public class WebApplicationUtils {
 	}
 	
 	public static Session getSession(WebApplication application, HTTPRequest request) {
-		Map<String, List<String>> cookies = HTTPUtils.getCookies(request.getContent().getHeaders());
+		Map<String, List<String>> cookies = refererMatches(application, request) ? HTTPUtils.getCookies(request.getContent().getHeaders()) : new HashMap<String, List<String>>();
 		String originalSessionId = GlueListener.getSessionId(cookies);
 		return originalSessionId == null ? null : application.getSessionProvider().getSession(originalSessionId);
 	}
 	
 	public static Token getToken(WebApplication application, HTTPRequest request) {
-		Map<String, List<String>> cookies = HTTPUtils.getCookies(request.getContent().getHeaders());
+		Map<String, List<String>> cookies = refererMatches(application, request) ? HTTPUtils.getCookies(request.getContent().getHeaders()) : new HashMap<String, List<String>>();
 		String originalSessionId = GlueListener.getSessionId(cookies);
 		Session session = originalSessionId == null ? null : application.getSessionProvider().getSession(originalSessionId);
 		

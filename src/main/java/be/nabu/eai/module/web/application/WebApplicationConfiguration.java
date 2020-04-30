@@ -23,7 +23,7 @@ import be.nabu.libs.services.api.DefinedService;
 		"deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", 
 		"defaultLanguage", "rateLimitSettings", "rateLimitChecker", "rateLimitLogger", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", 
 		"maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", 
-		"maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", 
+		"maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "services", 
 		"webFragments", "html5Mode", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie", "featureTestingRole" })
 public class WebApplicationConfiguration {
 
@@ -58,6 +58,8 @@ public class WebApplicationConfiguration {
 	private DefinedService temporaryAuthenticator, temporaryAuthenticationGenerator;
 	private Boolean allowBasicAuthentication;
 	private List<WebFragment> webFragments;
+	// services to expose
+	private List<DefinedService> services;
 	// you can reuse the sessions from another application
 	private WebApplication sessionProviderApplication;
 	
@@ -515,5 +517,14 @@ public class WebApplicationConfiguration {
 	public void setFeatureTestingRole(List<String> featureTestingRole) {
 		this.featureTestingRole = featureTestingRole;
 	}
-	
+
+	@Comment(title = "Services you want to expose through this web application")
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	public List<DefinedService> getServices() {
+		return services;
+	}
+	public void setServices(List<DefinedService> services) {
+		this.services = services;
+	}
+
 }

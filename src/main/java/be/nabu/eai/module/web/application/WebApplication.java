@@ -1023,6 +1023,16 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				}
 			}
 			
+			// add all the services at the end
+			if (getConfig().getServices() != null) {
+				for (DefinedService service : getConfig().getServices()) {
+					RESTServiceListener listener = new RESTServiceListener(this, RESTServiceListener.asRestFragment(this, service), service);
+					EventSubscription<HTTPRequest, HTTPResponse> serviceSubscription = getDispatcher().subscribe(HTTPRequest.class, listener);
+					serviceSubscription.filter(HTTPServerUtils.limitToPath(serverPath));
+					subscriptions.add(serviceSubscription);
+				}
+			}
+			
 			// if we have enabled html 5 mode, return the index for all calls that allow for text/html and have no response
 			if (getConfig().isHtml5Mode()) {
 				EventSubscription<HTTPRequest, HTTPResponse> html5Subscription = dispatcher.subscribe(HTTPRequest.class, new EventHandler<HTTPRequest, HTTPResponse>() {
@@ -1951,6 +1961,11 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							logger.warn("Could not analyze rest services in script: " + ScriptUtils.getFullName(script), e);
 						}
 					}
+					if (getConfig().getServices() != null) {
+						for (DefinedService service : getConfig().getServices()) {
+							restFragments.add(RESTServiceListener.asRestFragment(this, service));
+						}
+					}
 					this.restFragments = restFragments;
 				}
 			}
@@ -2271,6 +2286,15 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		catch (Exception e) {
 			logger.error("Can not check feature testing", e);
 			return false;
+		}
+	}
+	
+	public String getServicePath() {
+		try {
+			return (getServerPath() + "/api/otr").replaceAll("[/]{2,}", "/");
+		}
+		catch (Exception e) {
+			throw new RuntimeException(e);
 		}
 	}
 }

@@ -27,9 +27,6 @@ public interface WebFragment extends Artifact {
 	public default List<RateLimit> getRateLimits(WebApplication artifact, String path) {
 		return null;
 	}
-	public default List<String> getTags() {
-		return new ArrayList<String>();
-	}
 	/**
 	 * Is it running on this web artifact?
 	 */
