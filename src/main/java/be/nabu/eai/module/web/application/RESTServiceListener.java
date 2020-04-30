@@ -36,6 +36,7 @@ import be.nabu.libs.types.binding.api.UnmarshallableBinding;
 import be.nabu.libs.types.binding.api.Window;
 import be.nabu.libs.types.binding.json.JSONBinding;
 import be.nabu.libs.types.binding.xml.XMLBinding;
+import be.nabu.libs.types.mask.MaskedContent;
 import be.nabu.libs.types.properties.MinOccursProperty;
 import be.nabu.libs.validator.api.Validation;
 import be.nabu.libs.validator.api.Validator;
@@ -148,6 +149,11 @@ public class RESTServiceListener implements EventHandler<HTTPRequest, HTTPRespon
 
 			HTTPResponse response;
 			if (output != null) {
+				// mask it to the restricted type
+				if (!output.getType().equals(fragment.getOutput())) {
+					output = new MaskedContent(output, fragment.getOutput());
+				}
+				
 				List<String> acceptedContentTypes = request.getContent() != null
 						? MimeUtils.getAcceptedContentTypes(request.getContent().getHeaders())
 						: new ArrayList<String>();
