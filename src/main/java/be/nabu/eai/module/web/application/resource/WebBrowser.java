@@ -1,6 +1,7 @@
 package be.nabu.eai.module.web.application.resource;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 
@@ -16,6 +17,7 @@ import be.nabu.eai.module.http.virtual.VirtualHostArtifact;
 import be.nabu.eai.module.web.application.WebApplication;
 import be.nabu.eai.module.web.application.WebApplicationManager;
 import be.nabu.eai.module.web.application.WebFragment;
+import be.nabu.eai.module.web.application.api.DragHandler;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.ResourceEntry;
@@ -35,6 +37,8 @@ import javafx.scene.control.Button;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Tab;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.DataFormat;
 import javafx.scene.input.DragEvent;
 import javafx.scene.input.Dragboard;
@@ -52,6 +56,17 @@ import nabu.web.application.Services;
 public class WebBrowser {
 	private WebApplication application;
 	private WebView webView;
+	
+	private static DragHandler handler;
+	
+	public static void drag(DragEvent event, DragHandler handler) {
+		WebBrowser.handler = handler;
+		Dragboard dragboard = event.getDragboard();
+		ClipboardContent clipboard = new ClipboardContent();
+		clipboard.put(TreeDragDrop.getDataFormat("internal-drag-handler"), "internal");
+		dragboard.setContent(clipboard);
+		event.consume();
+	}
 	
 	public WebBrowser(WebApplication application) {
 		this.application = application;
@@ -361,7 +376,18 @@ public class WebBrowser {
 	    private String dropEvent(DragEvent e) {
 	    	String string = stringify(e);
 	    	Dragboard db = e.getDragboard();
-			Object serviceName = db.getContent(TreeDragDrop.getDataFormat(RepositoryBrowser.getDataType(DefinedService.class)));
+	    	
+	    	ClipboardContent cb = null;
+	    	Object internalContent = db.getContent(TreeDragDrop.getDataFormat("internal-drag-handler"));
+	    	if ("internal".equals(internalContent) && handler != null) {
+	    		cb = handler.drop(application);
+	    		handler = null;
+	    	}
+	    	
+			Object serviceName = cb == null 
+				? db.getContent(TreeDragDrop.getDataFormat(RepositoryBrowser.getDataType(DefinedService.class)))
+				: cb.get(TreeDragDrop.getDataFormat(RepositoryBrowser.getDataType(DefinedService.class)));
+				
 			// cleanup the name...
 			if (serviceName != null) {
 				serviceName = serviceName.toString().replaceAll("^[/]+", "").replace('/', '.');
@@ -370,8 +396,24 @@ public class WebBrowser {
 					BooleanProperty locked = MainController.getInstance().hasLock(application.getId());
 					if (locked.get()) {
 						Artifact resolve = EAIResourceRepository.getInstance().resolve(serviceName.toString());
+						boolean save = false;
 						if (resolve instanceof WebFragment) {
 							application.getConfig().getWebFragments().add((WebFragment) resolve);
+							save = true;
+						}
+						else if (resolve instanceof DefinedService) {
+							if (application.getConfig().getServices() == null) {
+								application.getConfig().setServices(new ArrayList<DefinedService>());
+							}
+							if (!application.getConfig().getServices().contains((DefinedService) resolve)) {
+								application.getConfig().getServices().add((DefinedService) resolve);
+								save = true;
+							}
+						}
+						else {
+							Confirm.confirm(ConfirmType.WARNING, "Can't add service " + serviceName, "This operation can not be exposed directly through a web application", null, null);
+						}
+						if (save) {
 							Entry entry = EAIResourceRepository.getInstance().getEntry(application.getId());
 							if (entry instanceof ResourceEntry) {
 								try {
@@ -389,9 +431,6 @@ public class WebBrowser {
 							else {
 								Confirm.confirm(ConfirmType.WARNING, "Can't add service " + serviceName, "The application is not editable", null, null);
 							}
-						}
-						else {
-							Confirm.confirm(ConfirmType.WARNING, "Can't add service " + serviceName, "This operation can not be exposed directly through a web application", null, null);
 						}
 					}
 					else {

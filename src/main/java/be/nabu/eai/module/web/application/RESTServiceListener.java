@@ -241,16 +241,19 @@ public class RESTServiceListener implements EventHandler<HTTPRequest, HTTPRespon
 		for (Element<?> element : TypeUtils.getAllChildren(type)) {
 			// any mandatory element and you're out
 			if (ValueUtils.getValue(MinOccursProperty.getInstance(), element.getProperties()) > 0) {
+				System.out.println("mandatory element: " + element.getName());
 				return false;
 			}
 			// if it is a complex type, check if it is a list
 			if (element.getType() instanceof ComplexType) {
 				if (element.getType().isList(element.getProperties())) {
+					System.out.println("complex list element: " + element.getName());
 					return false;
 				}
 				// otherwise we recurse
 				else {
 					if (!isGetCompatible((ComplexType) element.getType(), checked)) {
+						System.out.println("complex list recursed: " + element.getName());
 						return false;
 					}
 				}

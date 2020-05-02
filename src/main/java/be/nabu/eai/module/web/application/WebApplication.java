@@ -1026,6 +1026,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			// add all the services at the end
 			if (getConfig().getServices() != null) {
 				for (DefinedService service : getConfig().getServices()) {
+					if (service == null) {
+						continue;
+					}
 					RESTServiceListener listener = new RESTServiceListener(this, RESTServiceListener.asRestFragment(this, service), service);
 					EventSubscription<HTTPRequest, HTTPResponse> serviceSubscription = getDispatcher().subscribe(HTTPRequest.class, listener);
 					serviceSubscription.filter(HTTPServerUtils.limitToPath(serverPath));
@@ -1963,6 +1966,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					}
 					if (getConfig().getServices() != null) {
 						for (DefinedService service : getConfig().getServices()) {
+							if (service == null) {
+								continue;
+							}
 							restFragments.add(RESTServiceListener.asRestFragment(this, service));
 						}
 					}
