@@ -24,6 +24,7 @@ import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.jfx.control.tree.drag.TreeDragDrop;
 import be.nabu.libs.artifacts.api.Artifact;
 import be.nabu.libs.services.api.DefinedService;
+import be.nabu.libs.types.api.DefinedType;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
@@ -33,11 +34,11 @@ import javafx.event.EventHandler;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Tab;
-import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.DataFormat;
 import javafx.scene.input.DragEvent;
@@ -59,13 +60,12 @@ public class WebBrowser {
 	
 	private static DragHandler handler;
 	
-	public static void drag(DragEvent event, DragHandler handler) {
+	public static void drag(Node node, DragHandler handler) {
 		WebBrowser.handler = handler;
-		Dragboard dragboard = event.getDragboard();
+		Dragboard dragboard = node.startDragAndDrop(TransferMode.COPY);
 		ClipboardContent clipboard = new ClipboardContent();
 		clipboard.put(TreeDragDrop.getDataFormat("internal-drag-handler"), "internal");
 		dragboard.setContent(clipboard);
-		event.consume();
 	}
 	
 	public WebBrowser(WebApplication application) {
@@ -436,6 +436,16 @@ public class WebBrowser {
 					else {
 						Confirm.confirm(ConfirmType.WARNING, "Can't add service " + serviceName, "This service is not yet available in the web application and you don't have the lock to add it", null, null);
 					}
+				}
+			}
+			else {
+				Object typeName = cb == null 
+					? db.getContent(TreeDragDrop.getDataFormat(RepositoryBrowser.getDataType(DefinedType.class)))
+					: cb.get(TreeDragDrop.getDataFormat(RepositoryBrowser.getDataType(DefinedType.class)));
+					
+				if (typeName != null) {
+					// clean up type name
+					typeName = typeName.toString().replaceAll("^[/]+", "").replace('/', '.');
 				}
 			}
 	        return String.format(join("",

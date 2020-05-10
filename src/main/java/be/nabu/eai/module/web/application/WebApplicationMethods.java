@@ -160,4 +160,45 @@ public class WebApplicationMethods {
 		throw new ServiceException(code, message);
 	}
 
+	public String removeNestedCalcs(String css) {
+		StringBuilder builder = new StringBuilder();
+		// we do this line by line, this is hopefully faster
+		for (String line : css.split("[\r\n]+")) {
+			int index = line.indexOf("calc");
+			// only do something if we have a calc
+			if (index >= 0) {
+				StringBuilder lineBuilder = new StringBuilder();
+				int lastCalcDepth = Integer.MAX_VALUE;
+				int depth = 0;
+				int lastIndex = 0;
+				while (index >= 0) {
+					String substring = line.substring(lastIndex, index);
+					depth += substring.length() - substring.replace("(", "").length();
+					depth -= substring.length() - substring.replace(")", "").length();
+					// a nested calc that is not in another calc but something else
+					// this does not support every usecase (cause if you use a calc _before_ this nested one, it fails)
+					if (depth == 0) {
+						lineBuilder.append(substring + "calc");
+						lastCalcDepth = depth;
+					}
+					else if (lastCalcDepth >= depth) {
+						lineBuilder.append(substring + "calc");
+						lastCalcDepth = depth;
+					}
+					else {
+						lineBuilder.append(substring);
+					}
+					lastIndex = index + "calc".length();
+					index = line.indexOf("calc", index + "calc".length());
+				}
+				// add the final bit (if any)
+				if (lastIndex < line.length() - 1) {
+					lineBuilder.append(line.substring(lastIndex));
+				}
+				line = lineBuilder.toString();
+			}
+			builder.append(line).append("\n");
+		}
+		return builder.toString();
+	}
 }
