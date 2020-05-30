@@ -32,6 +32,7 @@ import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.keystore.KeyStoreArtifact;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.module.web.application.api.BearerAuthenticator;
+import be.nabu.eai.module.web.application.api.CORSHandler;
 import be.nabu.eai.module.web.application.api.RESTFragment;
 import be.nabu.eai.module.web.application.api.RESTFragmentProvider;
 import be.nabu.eai.module.web.application.api.RateLimitProvider;
@@ -40,6 +41,8 @@ import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.module.web.application.api.RobotEntry;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticationGenerator;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticator;
+import be.nabu.eai.module.web.application.cors.CORSListener;
+import be.nabu.eai.module.web.application.cors.CORSPostProcessor;
 import be.nabu.eai.module.web.application.resource.WebApplicationResourceResolver;
 import be.nabu.eai.repository.EAIRepositoryUtils;
 import be.nabu.eai.repository.EAIResourceRepository;
@@ -240,6 +243,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private TemporaryAuthenticator temporaryAuthenticator;
 	private boolean temporaryAuthenticationGeneratorResolved;
 	private TemporaryAuthenticationGenerator temporaryAuthenticationGenerator;
+	private boolean corsHandlerResolved;
+	private CORSHandler corsHandler;
 	
 	public WebApplication(String id, ResourceContainer<?> directory, Repository repository) {
 		super(id, directory, repository, "webartifact.xml", WebApplicationConfiguration.class);
@@ -479,6 +484,17 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				});
 				subscription.filter(HTTPServerUtils.limitToRequestPath(serverPath));
 				subscriptions.add(subscription);
+			}
+			
+			CORSHandler corsHandler = getCORSHandler();
+			if (corsHandler != null) {
+				EventSubscription<HTTPRequest, HTTPResponse> corsSubscription = dispatcher.subscribe(HTTPRequest.class, new CORSListener(this, corsHandler));
+				corsSubscription.filter(HTTPServerUtils.limitToPath(serverPath));
+				subscriptions.add(corsSubscription);
+				
+				EventSubscription<HTTPResponse, HTTPResponse> corsPostProcess = dispatcher.subscribe(HTTPResponse.class, new CORSPostProcessor());
+				corsPostProcess.filter(HTTPServerUtils.limitToRequestPath(serverPath));
+				subscriptions.add(corsPostProcess);
 			}
 			
 			// set up a basic authentication listener which optionally interprets that, it allows for REST-based access
@@ -1384,7 +1400,6 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		if (!authenticatorResolved) {
 			synchronized(this) {
 				if (!authenticatorResolved) {
-					authenticatorResolved = true;
 					try {
 						PasswordAuthenticator passwordAuthenticator = null;
 						if (getConfiguration().getPasswordAuthenticationService() != null) {
@@ -1400,6 +1415,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					}
 					catch(IOException e) {
 						throw new RuntimeException(e);
+					}
+					finally {
+						authenticatorResolved = true;
 					}
 				}
 			}
@@ -1453,7 +1471,6 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		if (!deviceValidatorResolved) {
 			synchronized(this) {
 				if (!deviceValidatorResolved) {
-					deviceValidatorResolved = true;
 					deviceValidator = getConfiguration().getDeviceValidatorService() != null 
 						? POJOUtils.newProxy(
 							DeviceValidator.class, 
@@ -1461,6 +1478,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							getRepository(), 
 							SystemPrincipal.ROOT
 						) : null;
+					deviceValidatorResolved = true;
 				}
 			}
 		}
@@ -1471,10 +1489,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		if (!roleHandlerResolved) {
 			synchronized(this) {
 				if (!roleHandlerResolved) {
-					roleHandlerResolved = true;
 					if (getConfiguration().getRoleService() != null) {
 						roleHandler = POJOUtils.newProxy(RoleHandler.class, wrap(getConfiguration().getRoleService(), getMethod(RoleHandler.class, "hasRole")), getRepository(), SystemPrincipal.ROOT);
 					}
+					roleHandlerResolved = true;
 				}
 			}
 		}
@@ -1485,10 +1503,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		if (!permissionHandlerResolved) {
 			synchronized(this) {
 				if (!permissionHandlerResolved) {
-					permissionHandlerResolved = true;
 					if (getConfiguration().getPermissionService() != null) {
 						permissionHandler = POJOUtils.newProxy(PermissionHandler.class, wrap(getConfiguration().getPermissionService(), getMethod(PermissionHandler.class, "hasPermission")), getRepository(), SystemPrincipal.ROOT);
 					}
+					permissionHandlerResolved = true;
 				}
 			}
 		}
@@ -1499,10 +1517,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		if (!potentialPermissionHandlerResolved) {
 			synchronized(this) {
 				if (!potentialPermissionHandlerResolved) {
-					potentialPermissionHandlerResolved = true;
 					if (getConfiguration().getPotentialPermissionService() != null) {
 						potentialPermissionHandler = POJOUtils.newProxy(PotentialPermissionHandler.class, wrap(getConfiguration().getPotentialPermissionService(), getMethod(PotentialPermissionHandler.class, "hasPotentialPermission")), getRepository(), SystemPrincipal.ROOT);
 					}
+					potentialPermissionHandlerResolved = true;
 				}
 			}
 		}
@@ -1540,10 +1558,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		if (!tokenValidatorResolved) {
 			synchronized(this) {
 				if (!tokenValidatorResolved) {
-					tokenValidatorResolved = true;
 					if (getConfiguration().getTokenValidatorService() != null) {
 						tokenValidator = POJOUtils.newProxy(TokenValidator.class, wrap(getConfiguration().getTokenValidatorService(), getMethod(TokenValidator.class, "isValid")), getRepository(), SystemPrincipal.ROOT);
 					}
+					tokenValidatorResolved = true;
 				}
 			}
 		}
@@ -1557,10 +1575,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		if (!userLanguageProviderResolved) {
 			synchronized(this) {
 				if (!userLanguageProviderResolved) {
-					userLanguageProviderResolved = true;
 					if (getConfiguration().getLanguageProviderService() != null) {
 						userLanguageProvider = POJOUtils.newProxy(UserLanguageProvider.class, wrap(getConfiguration().getLanguageProviderService(), getMethod(UserLanguageProvider.class, "getLanguage")), getRepository(), SystemPrincipal.ROOT);
 					}
+					userLanguageProviderResolved = true;
 				}
 			}
 		}
@@ -1571,10 +1589,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		if (!bearerAuthenticatorResolved) {
 			synchronized(this) {
 				if (!bearerAuthenticatorResolved) {
-					bearerAuthenticatorResolved = true;
 					if (getConfiguration().getBearerAuthenticator() != null) {
 						bearerAuthenticator = POJOUtils.newProxy(BearerAuthenticator.class, wrap(getConfiguration().getBearerAuthenticator(), getMethod(BearerAuthenticator.class, "authenticate")), getRepository(), SystemPrincipal.ROOT);
 					}
+					bearerAuthenticatorResolved = true;
 				}
 			}
 		}
@@ -1585,10 +1603,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		if (!temporaryAuthenticatorResolved) {
 			synchronized(this) {
 				if (!temporaryAuthenticatorResolved) {
-					temporaryAuthenticatorResolved = true;
 					if (getConfiguration().getTemporaryAuthenticator() != null) {
 						temporaryAuthenticator = POJOUtils.newProxy(TemporaryAuthenticator.class, wrap(getConfiguration().getTemporaryAuthenticator(), getMethod(TemporaryAuthenticator.class, "authenticate")), getRepository(), SystemPrincipal.ROOT);
 					}
+					temporaryAuthenticatorResolved = true;
 				}
 			}
 		}
@@ -1599,24 +1617,38 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		if (!temporaryAuthenticationGeneratorResolved) {
 			synchronized(this) {
 				if (!temporaryAuthenticationGeneratorResolved) {
-					temporaryAuthenticationGeneratorResolved = true;
 					if (getConfiguration().getTemporaryAuthenticator() != null) {
 						temporaryAuthenticationGenerator = POJOUtils.newProxy(TemporaryAuthenticationGenerator.class, wrap(getConfiguration().getTemporaryAuthenticationGenerator(), getMethod(TemporaryAuthenticationGenerator.class, "generate")), getRepository(), SystemPrincipal.ROOT);
 					}
+					temporaryAuthenticationGeneratorResolved = true;
 				}
 			}
 		}
 		return temporaryAuthenticationGenerator;
 	}
 	
+	public CORSHandler getCORSHandler() throws IOException {
+		if (!corsHandlerResolved) {
+			synchronized(this) {
+				if (!corsHandlerResolved) {
+					if (getConfiguration().getCorsChecker() != null) {
+						corsHandler = POJOUtils.newProxy(CORSHandler.class, wrap(getConfiguration().getCorsChecker(), getMethod(CORSHandler.class, "check")), getRepository(), SystemPrincipal.ROOT);
+					}
+					corsHandlerResolved = true;
+				}
+			}
+		}
+		return corsHandler;
+	}
+	
 	public RequestLanguageProvider getRequestLanguageProvider() throws IOException {
 		if (!requestLanguageProviderResolved) {
 			synchronized(this) {
 				if (!requestLanguageProviderResolved) {
-					requestLanguageProviderResolved = true;
 					if (getConfiguration().getRequestLanguageProviderService() != null) {
 						requestLanguageProvider = POJOUtils.newProxy(RequestLanguageProvider.class, wrap(getConfiguration().getRequestLanguageProviderService(), getMethod(RequestLanguageProvider.class, "getLanguage")), getRepository(), SystemPrincipal.ROOT);
 					}
+					requestLanguageProviderResolved = true;
 				}
 			}
 		}
@@ -1627,10 +1659,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		if (!translatorResolved) {
 			synchronized(this) {
 				if (!translatorResolved) {
-					translatorResolved = true;
 					if (getConfig().getTranslationService() != null) {
 						translator = POJOUtils.newProxy(Translator.class, wrap(getConfiguration().getTranslationService(), getMethod(Translator.class, "translate")), getRepository(), SystemPrincipal.ROOT);
 					}
+					translatorResolved = true;
 				}
 			}
 		}
@@ -1641,10 +1673,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		if (!languageProviderResolved) {
 			synchronized(this) {
 				if (!languageProviderResolved) {
-					languageProviderResolved = true;
 					if (getConfig().getSupportedLanguagesService() != null) {
 						languageProvider = POJOUtils.newProxy(LanguageProvider.class, wrap(getConfig().getSupportedLanguagesService(), getMethod(LanguageProvider.class, "getSupportedLanguages")), getRepository(), SystemPrincipal.ROOT);
 					}
+					languageProviderResolved = true;
 				}
 			}
 		}

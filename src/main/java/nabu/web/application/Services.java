@@ -262,6 +262,11 @@ public class Services {
 		}
 	}
 	
+	@WebResult(name = "substitutions")
+	public List<String> substitutions(@WebParam(name = "content") String content, @WebParam(name = "separator") String separator) {
+		return ImperativeSubstitutor.getValues(separator, content);
+	}
+	
 	private void translationKeys(ResourceContainer<?> container, List<KeyValuePair> keys, boolean recursive, List<String> uniques) throws IOException {
 		if (container != null) {
 			for (Resource resource : container) {

@@ -21,7 +21,7 @@ import be.nabu.libs.services.api.DefinedService;
 		"failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "bearerAuthenticator", "temporaryAuthenticator", 
 		"temporaryAuthenticationGenerator", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", 
 		"deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", 
-		"defaultLanguage", "rateLimitSettings", "rateLimitChecker", "rateLimitLogger", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", 
+		"defaultLanguage", "rateLimitSettings", "rateLimitChecker", "rateLimitLogger", "corsChecker", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", 
 		"maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", 
 		"maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "services", 
 		"webFragments", "html5Mode", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie", "featureTestingRole" })
@@ -56,6 +56,7 @@ public class WebApplicationConfiguration {
 	private DefinedService requestSubscriber;
 	private DefinedService bearerAuthenticator;
 	private DefinedService temporaryAuthenticator, temporaryAuthenticationGenerator;
+	private DefinedService corsChecker;
 	private Boolean allowBasicAuthentication;
 	private List<WebFragment> webFragments;
 	// services to expose
@@ -391,6 +392,17 @@ public class WebApplicationConfiguration {
 	}
 	public void setRateLimitSettings(DefinedService rateLimitSettingsProvider) {
 		this.rateLimitSettings = rateLimitSettingsProvider;
+	}
+	
+	@Advanced
+	@Comment(title = "Set a service that checks the CORS policies")
+	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.CORSHandler.check")
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	public DefinedService getCorsChecker() {
+		return corsChecker;
+	}
+	public void setCorsChecker(DefinedService corsChecker) {
+		this.corsChecker = corsChecker;
 	}
 	
 	@Advanced

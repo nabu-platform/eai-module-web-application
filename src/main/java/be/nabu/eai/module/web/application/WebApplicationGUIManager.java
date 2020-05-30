@@ -84,6 +84,7 @@ import be.nabu.eai.developer.util.Confirm.ConfirmType;
 import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.developer.util.Find;
 import be.nabu.eai.module.web.application.api.BearerAuthenticator;
+import be.nabu.eai.module.web.application.api.CORSHandler;
 import be.nabu.eai.module.web.application.api.RateLimitProvider;
 import be.nabu.eai.module.web.application.api.RequestLanguageProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
@@ -430,6 +431,12 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		if (artifact.getConfig().getRateLimitLogger() != null) {
 			Method method = WebApplication.getMethod(RateLimitProvider.class, "log");
 			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getRateLimitLogger(), method));
+		}
+		
+		// cors checker
+		if (artifact.getConfig().getCorsChecker() != null) {
+			Method method = WebApplication.getMethod(CORSHandler.class, "check");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getCorsChecker(), method));
 		}
 		
 		// bearer authenticator

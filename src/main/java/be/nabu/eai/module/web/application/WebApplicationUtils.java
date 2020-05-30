@@ -58,7 +58,7 @@ public class WebApplicationUtils {
 	public static void featureRich(WebApplication application, HTTPRequest request, ExecutionContext context) {
 		Header header = MimeUtils.getHeader("Feature", request.getContent().getHeaders());
 		if (header != null && header.getValue() != null && context instanceof FeaturedExecutionContext) {
-			for (String feature : header.getValue().split("[\\s]*;[\\s]*")) {
+			for (String feature : MimeUtils.getFullHeaderValue(header).split("[\\s]*;[\\s]*")) {
 				int index = feature.lastIndexOf('=');
 				boolean enable = index < 0 || feature.substring(index + 1).equals("true");
 				if (index >= 0) {
@@ -347,9 +347,9 @@ public class WebApplicationUtils {
 			if (header != null && header.getValue() != null) {
 				actualSource.setRemoteHost(header.getValue());
 			}
-			header = MimeUtils.getHeader(ServerHeader.REMOTE_ADDRESS.getName(), request.getContent().getHeaders());
-			if (header != null && header.getValue() != null) {
-				actualSource.setRemoteIp(header.getValue());
+			String forwardedFor = HTTPUtils.getForwardedFor(request.getContent().getHeaders());
+			if (forwardedFor != null) {
+				actualSource.setRemoteIp(forwardedFor);
 			}
 			header = MimeUtils.getHeader(ServerHeader.REMOTE_PORT.getName(), request.getContent().getHeaders());
 			if (header != null && header.getValue() != null) {
@@ -391,7 +391,7 @@ public class WebApplicationUtils {
 										content.setHeader(new MimeHeader("Retry-After", "" + (millisecondsUntilFreeSlot / 1000)));
 									}
 									sendEvent(application, source, token, device, action, context, request, setting.getRuleId(), setting.getRuleCode(), check.getAmountOfHits(), millisecondsUntilFreeSlot);
-									return new DefaultHTTPResponse(429, HTTPCodes.getMessage(429), content);
+									return new DefaultHTTPResponse(request, 429, HTTPCodes.getMessage(429), content);
 								}
 							}
 							// if we make it past the above check, log a hit
