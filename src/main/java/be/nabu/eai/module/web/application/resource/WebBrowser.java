@@ -138,7 +138,10 @@ public class WebBrowser {
 				@Override
 				public void handle(ActionEvent arg0) {
 					try {
-						Main.getInstance().getHostServices().showDocument(getExternalUrl());
+						String externalUrl = getExternalUrl();
+						if (externalUrl != null) {
+							Main.getInstance().getHostServices().showDocument(externalUrl);
+						}
 					}
 					catch (Exception e) {
 						e.printStackTrace();
@@ -203,45 +206,53 @@ public class WebBrowser {
 	private void goHome() throws IOException {
 		firebugInjected = false;
 		String url = getExternalUrl();
-		webView.getEngine().load(url);
+		if (url != null) {
+			webView.getEngine().load(url);
+		}
 	}
 	
 	private void load() throws IOException {
 		WebEngine webEngine = webView.getEngine();
 		String url = getExternalUrl();
-//		String url = getInternalUrl();
-
-		toggleLoading(true);
-		System.out.println("loading url: " + url);
 		
-		webEngine.load(url);
-		webEngine.getLoadWorker().stateProperty().addListener(new ChangeListener<State>() {
-			@Override
-			public void changed(ObservableValue<? extends State> observable, State oldValue, State newValue) {
-				System.out.println(new Date() + " - new state: " + newValue);
-				if (newValue == State.SUCCEEDED) {
-					toggleLoading(false);
+		if (url != null) {
+	//		String url = getInternalUrl();
+	
+			toggleLoading(true);
+			System.out.println("loading url: " + url);
+			
+			webEngine.load(url);
+			webEngine.getLoadWorker().stateProperty().addListener(new ChangeListener<State>() {
+				@Override
+				public void changed(ObservableValue<? extends State> observable, State oldValue, State newValue) {
+					System.out.println(new Date() + " - new state: " + newValue);
+					if (newValue == State.SUCCEEDED) {
+						toggleLoading(false);
+					}
+					else if (newValue == State.SCHEDULED) {
+						toggleLoading(true);
+					}
 				}
-				else if (newValue == State.SCHEDULED) {
-					toggleLoading(true);
+			});
+			webEngine.documentProperty().addListener(new ChangeListener<Document>() {
+				@Override public void changed(ObservableValue<? extends Document> prop, Document oldDoc, Document newDoc) {
+					System.out.println(new Date() + " - Document loaded");
+					try {
+	//					enableFirebug(webEngine);
+					}
+					catch (Exception e) {
+						e.printStackTrace();
+					}
 				}
-			}
-		});
-		webEngine.documentProperty().addListener(new ChangeListener<Document>() {
-			@Override public void changed(ObservableValue<? extends Document> prop, Document oldDoc, Document newDoc) {
-				System.out.println(new Date() + " - Document loaded");
-				try {
-//					enableFirebug(webEngine);
-				}
-				catch (Exception e) {
-					e.printStackTrace();
-				}
-			}
-		});
+			});
+		}
 	}
 	
 	public String getExternalUrl() throws IOException {
 		VirtualHostArtifact host = application.getConfig().getVirtualHost();
+		if (host == null) {
+			return null;
+		}
 		HTTPServerArtifact server = host.getConfig().getServer();
 		
 		String url = (server.isSecure() ? "https" : "http") + "://" + (host.getConfig().getHost() == null ? "localhost" : host.getConfig().getHost());

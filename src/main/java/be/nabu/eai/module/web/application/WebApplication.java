@@ -96,6 +96,7 @@ import be.nabu.libs.authentication.api.DeviceValidator;
 import be.nabu.libs.authentication.api.PermissionHandler;
 import be.nabu.libs.authentication.api.PotentialPermissionHandler;
 import be.nabu.libs.authentication.api.RoleHandler;
+import be.nabu.libs.authentication.api.SecretGenerator;
 import be.nabu.libs.authentication.api.Token;
 import be.nabu.libs.authentication.api.TokenValidator;
 import be.nabu.libs.authentication.impl.TimeoutTokenValidator;
@@ -212,7 +213,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private ServiceMethodProvider serviceMethodProvider;
 	private ResourceHandler resourceHandler;
 	private WebConfiguration fragmentConfiguration;
-	private CombinedAuthenticator authenticator;
+	private Authenticator authenticator;
 	private RoleHandler roleHandler;
 	
 	private boolean authenticatorResolved, roleHandlerResolved, permissionHandlerResolved, potentialPermissionHandlerResolved, tokenValidatorResolved, languageProviderResolved, userLanguageProviderResolved, deviceValidatorResolved,
@@ -224,6 +225,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private DeviceValidator deviceValidator;
 	private Translator translator;
 	private BearerAuthenticator bearerAuthenticator;
+	
+	private boolean secretGeneratorResolved;
+	private SecretGenerator secretGenerator;
 	
 	// typeId > regex > content
 	private Map<String, Map<String, ComplexContent>> fragmentConfigurations;
@@ -968,6 +972,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			listener.setRoleHandler(getRoleHandler());
 			listener.setDeviceValidator(getDeviceValidator());
 			listener.setRealm(realm);
+			listener.setSecretGenerator(getSecretGenerator());
 			// always creating a session can create other issues
 //			listener.setAlwaysCreateSession(true);
 			
@@ -1018,6 +1023,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						// set it globally
 						ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
 						ServiceRuntime.getGlobalContext().put("service.context", getId());
+						ServiceRuntime.getGlobalContext().put("service.source", "glue");
 						return listener.handle(event);
 					}
 					catch (HTTPException e) {
@@ -1093,6 +1099,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 										);
 										ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
 										ServiceRuntime.getGlobalContext().put("service.context", getId());
+										ServiceRuntime.getGlobalContext().put("service.source", "glue");
 										return listener.handle(rewritten);
 									}
 									return null;
@@ -1147,6 +1154,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					// set it globally
 					ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
 					ServiceRuntime.getGlobalContext().put("service.context", getId());
+					ServiceRuntime.getGlobalContext().put("service.source", "glue");
 					return postprocessListener.handle(event);
 				}
 				catch (HTTPException e) {
@@ -1194,6 +1202,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					// set it globally
 					ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
 					ServiceRuntime.getGlobalContext().put("service.context", getId());
+					ServiceRuntime.getGlobalContext().put("service.source", "glue");
 					return preprocessListener.handle(event);
 				}
 				catch (HTTPException e) {
@@ -1410,7 +1419,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							sharedSecretAuthenticator = POJOUtils.newProxy(SecretAuthenticator.class, wrap(getConfiguration().getSecretAuthenticationService(), getMethod(SecretAuthenticator.class, "authenticate")), getRepository(), SystemPrincipal.ROOT);
 						}
 						if (passwordAuthenticator != null || sharedSecretAuthenticator != null) {
-							authenticator = new CombinedAuthenticator(passwordAuthenticator, sharedSecretAuthenticator);
+							authenticator = new WebApplicationAuthenticator(this, new CombinedAuthenticator(passwordAuthenticator, sharedSecretAuthenticator));
 						}
 					}
 					catch(IOException e) {
@@ -1667,6 +1676,20 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 		}
 		return translator;
+	}
+	
+	public SecretGenerator getSecretGenerator() {
+		if (!secretGeneratorResolved) {
+			synchronized(this) {
+				if (!secretGeneratorResolved) {
+					if (getConfig().getSecretGeneratorService() != null) {
+						secretGenerator = POJOUtils.newProxy(SecretGenerator.class, wrap(getConfig().getSecretGeneratorService(), getMethod(SecretGenerator.class, "generate")), getRepository(), SystemPrincipal.ROOT);
+					}
+					secretGeneratorResolved = true;
+				}
+			}
+		}
+		return secretGenerator;
 	}
 	
 	public LanguageProvider getLanguageProvider() {

@@ -343,15 +343,9 @@ public class WebApplicationUtils {
 		// if we are being proxied, get the "actual" source
 		if (request.getContent() != null && application.getConfig().getVirtualHost().getConfig().getServer().getConfig().isProxied()) {
 			SourceImpl actualSource = new SourceImpl();
-			Header header = MimeUtils.getHeader(ServerHeader.REMOTE_HOST.getName(), request.getContent().getHeaders());
-			if (header != null && header.getValue() != null) {
-				actualSource.setRemoteHost(header.getValue());
-			}
-			String forwardedFor = HTTPUtils.getForwardedFor(request.getContent().getHeaders());
-			if (forwardedFor != null) {
-				actualSource.setRemoteIp(forwardedFor);
-			}
-			header = MimeUtils.getHeader(ServerHeader.REMOTE_PORT.getName(), request.getContent().getHeaders());
+			actualSource.setRemoteHost(HTTPUtils.getRemoteHost(application.getConfig().getVirtualHost().getConfig().getServer().getConfig().isProxied(), request.getContent().getHeaders()));
+			actualSource.setRemoteIp(HTTPUtils.getRemoteAddress(application.getConfig().getVirtualHost().getConfig().getServer().getConfig().isProxied(), request.getContent().getHeaders()));
+			Header header = MimeUtils.getHeader(ServerHeader.REMOTE_PORT.getName(), request.getContent().getHeaders());
 			if (header != null && header.getValue() != null) {
 				actualSource.setRemotePort(Integer.parseInt(header.getValue()));
 			}

@@ -113,6 +113,7 @@ import be.nabu.libs.authentication.api.DeviceValidator;
 import be.nabu.libs.authentication.api.PermissionHandler;
 import be.nabu.libs.authentication.api.PotentialPermissionHandler;
 import be.nabu.libs.authentication.api.RoleHandler;
+import be.nabu.libs.authentication.api.SecretGenerator;
 import be.nabu.libs.authentication.api.TokenValidator;
 import be.nabu.libs.property.ValueUtils;
 import be.nabu.libs.property.api.Property;
@@ -353,6 +354,12 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		if (artifact.getConfig().getSecretAuthenticationService() != null) {
 			Method method = WebApplication.getMethod(SecretAuthenticator.class, "authenticate");
 			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getSecretAuthenticationService(), method));
+		}
+		
+		// secret generator
+		if (artifact.getConfig().getSecretGeneratorService() != null) {
+			Method method = WebApplication.getMethod(SecretGenerator.class, "generate");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getSecretGeneratorService(), method));
 		}
 		
 		// token validator

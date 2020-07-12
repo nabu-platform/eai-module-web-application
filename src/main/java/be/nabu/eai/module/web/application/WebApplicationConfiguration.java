@@ -18,7 +18,7 @@ import be.nabu.libs.services.api.DefinedService;
 
 @XmlRootElement(name = "webApplication")
 @XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow",
-		"failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "bearerAuthenticator", "temporaryAuthenticator", 
+		"failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "secretGeneratorService", "bearerAuthenticator", "temporaryAuthenticator", 
 		"temporaryAuthenticationGenerator", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", 
 		"deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", 
 		"defaultLanguage", "rateLimitSettings", "rateLimitChecker", "rateLimitLogger", "corsChecker", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", 
@@ -46,7 +46,7 @@ public class WebApplicationConfiguration {
 	// we assume the proxy strips the path, but to build correct links for the outside world, we need to know this
 	private String proxyPath;
 	
-	private DefinedService passwordAuthenticationService, secretAuthenticationService;
+	private DefinedService passwordAuthenticationService, secretAuthenticationService, secretGeneratorService;
 	private DefinedService permissionService, potentialPermissionService;
 	private DefinedService roleService;
 	private DefinedService tokenValidatorService;
@@ -157,6 +157,16 @@ public class WebApplicationConfiguration {
 	}
 	public void setSecretAuthenticationService(DefinedService secretAuthenticationService) {
 		this.secretAuthenticationService = secretAuthenticationService;
+	}
+	
+	@Comment(title = "This service is responsible for generating a secret for a token so we can be remembered later on")
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	@InterfaceFilter(implement = "be.nabu.libs.authentication.api.SecretGenerator.generate")
+	public DefinedService getSecretGeneratorService() {
+		return secretGeneratorService;
+	}
+	public void setSecretGeneratorService(DefinedService secretGeneratorService) {
+		this.secretGeneratorService = secretGeneratorService;
 	}
 	
 	@Comment(title = "This service is reponsible for temporarily authenticating someone to perform a certain action")

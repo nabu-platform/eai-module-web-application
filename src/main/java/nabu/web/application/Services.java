@@ -25,6 +25,7 @@ import be.nabu.eai.module.web.application.api.RESTFragment;
 import be.nabu.eai.module.web.application.api.RateLimit;
 import be.nabu.eai.module.web.application.api.TemporaryAuthentication;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticationGenerator;
+import be.nabu.eai.module.web.application.api.TemporaryAuthenticator;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.LanguageProvider;
@@ -33,8 +34,11 @@ import be.nabu.eai.repository.events.ResourceEvent;
 import be.nabu.eai.repository.events.ResourceEvent.ResourceState;
 import be.nabu.glue.impl.ImperativeSubstitutor;
 import be.nabu.libs.artifacts.api.Artifact;
+import be.nabu.libs.authentication.api.Authenticator;
+import be.nabu.libs.authentication.api.Device;
 import be.nabu.libs.authentication.api.Permission;
 import be.nabu.libs.authentication.api.Token;
+import be.nabu.libs.authentication.impl.BasicPrincipalWithDeviceImpl;
 import be.nabu.libs.authentication.impl.PermissionImpl;
 import be.nabu.libs.http.api.server.Session;
 import be.nabu.libs.http.core.HTTPUtils;
@@ -489,16 +493,43 @@ public class Services {
 	}
 	
 	@WebResult(name = "authentication")
-	public TemporaryAuthentication newTemporaryAuthentication(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, @NotNull @WebParam(name = "realm") String realm, @NotNull @WebParam(name = "alias") String alias,
-				@WebParam(name = "maxUses") Integer maxUses, @WebParam(name = "until") Date until) throws IOException {
+	public TemporaryAuthentication newTemporaryAuthentication(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, @NotNull @WebParam(name = "alias") String alias, @WebParam(name = "maxUses") Integer maxUses, @WebParam(name = "until") Date until,
+			// you must set a reason for the temporary authentication, for example reason "execution" could be to execute a service (e.g. file download)
+			// you could also set the name of a service itself to be more specific
+			// reason "authentication" might be for authentication
+			@NotNull @WebParam(name = "type") String type,
+			// correlate it to something of interest
+			@WebParam(name = "correlationId") String correlationId) throws IOException {
 		WebApplication resolved = webApplicationId == null ? null : executionContext.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);
 		if (resolved != null) {
 			TemporaryAuthenticationGenerator temporaryAuthenticationGenerator = resolved.getTemporaryAuthenticationGenerator();
 			if (temporaryAuthenticationGenerator != null) {
-				return temporaryAuthenticationGenerator.generate(realm, alias, maxUses, until);
+				return temporaryAuthenticationGenerator.generate(resolved.getId(), resolved.getRealm(), alias, maxUses, until, type, correlationId);
 			}
 		}
 		return null;
 	}
 	
+	public Token temporarilyAuthenticate(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, @NotNull @WebParam(name = "authentication") TemporaryAuthentication authentication, @NotNull @WebParam(name = "type") String type, @WebParam(name = "correlationId") String correlationId, @WebParam(name = "device") Device device) throws IOException {
+		WebApplication resolved = webApplicationId == null ? null : executionContext.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);
+		if (resolved != null) {
+			TemporaryAuthenticator temporaryAuthenticator = resolved.getTemporaryAuthenticator();
+			if (temporaryAuthenticator != null) {
+				temporaryAuthenticator.authenticate(resolved.getRealm(), authentication, device, type, correlationId);
+			}
+		}
+		return null;
+	}
+	
+	@WebResult(name = "token")
+	public Token authenticate(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, @NotNull @WebParam(name = "alias") String alias, @NotNull @WebParam(name = "password") String password, @WebParam(name = "device") Device device) {
+		WebApplication resolved = webApplicationId == null ? null : executionContext.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);
+		if (resolved != null) {
+			Authenticator authenticator = resolved.getAuthenticator();
+			if (authenticator != null) {
+				return authenticator.authenticate(resolved.getRealm(), new BasicPrincipalWithDeviceImpl(alias, password, device));
+			}
+		}
+		return null;
+	}
 }

@@ -19,6 +19,7 @@ public class WebApplicationInterfaceLister implements InterfaceLister {
 					List<InterfaceDescription> descriptions = new ArrayList<InterfaceDescription>();
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Password Authenticator", "be.nabu.eai.authentication.api.PasswordAuthenticator.authenticate"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Secret Authenticator", "be.nabu.eai.authentication.api.SecretAuthenticator.authenticate"));
+					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Secret Generator", "be.nabu.libs.authentication.api.SecretGenerator.generate"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Role Handler", "be.nabu.libs.authentication.api.RoleHandler.hasRole"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Permission Handler", "be.nabu.libs.authentication.api.PermissionHandler.hasPermission"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Potential Permission Handler", "be.nabu.libs.authentication.api.PotentialPermissionHandler.hasPotentialPermission"));
