@@ -817,7 +817,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 									});
 								}
 							});
-							menu.getItems().addAll(createDirectory, createFile);
+							menu.getItems().addAll(createFile);
 							contextMenu.getItems().addAll(menu, uploadFile);
 						}
 						if (selectedItem.getItem().editableProperty().get()) {

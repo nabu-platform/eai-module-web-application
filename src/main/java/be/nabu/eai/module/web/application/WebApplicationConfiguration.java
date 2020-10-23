@@ -13,6 +13,7 @@ import be.nabu.eai.api.InterfaceFilter;
 import be.nabu.eai.module.http.virtual.VirtualHostArtifact;
 import be.nabu.eai.module.keystore.KeyStoreArtifact;
 import be.nabu.eai.repository.api.CacheProviderArtifact;
+import be.nabu.eai.repository.api.VirusScanner;
 import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
 
@@ -24,7 +25,7 @@ import be.nabu.libs.services.api.DefinedService;
 		"defaultLanguage", "rateLimitSettings", "rateLimitChecker", "rateLimitLogger", "corsChecker", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", 
 		"maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", 
 		"maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "services", 
-		"webFragments", "html5Mode", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie", "featureTestingRole" })
+		"webFragments", "html5Mode", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie", "featureTestingRole", "virusScanner" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -70,6 +71,8 @@ public class WebApplicationConfiguration {
 	private boolean forceRequestLanguage;
 	
 	private DefinedService rateLimitSettings, rateLimitChecker, rateLimitLogger;
+	
+	private VirusScanner virusScanner;
 	
 	@Comment(title = "The path that the web application will listen to", description = "Multiple web applications can be hosted on a single host as long as they have different root paths")
 	@EnvironmentSpecific
@@ -547,6 +550,15 @@ public class WebApplicationConfiguration {
 	}
 	public void setServices(List<DefinedService> services) {
 		this.services = services;
+	}
+	
+	@Advanced
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	public VirusScanner getVirusScanner() {
+		return virusScanner;
+	}
+	public void setVirusScanner(VirusScanner virusScanner) {
+		this.virusScanner = virusScanner;
 	}
 
 }

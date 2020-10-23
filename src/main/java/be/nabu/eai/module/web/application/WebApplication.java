@@ -33,6 +33,7 @@ import be.nabu.eai.module.keystore.KeyStoreArtifact;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.module.web.application.api.BearerAuthenticator;
 import be.nabu.eai.module.web.application.api.CORSHandler;
+import be.nabu.eai.module.web.application.api.FeaturedWebArtifact;
 import be.nabu.eai.module.web.application.api.RESTFragment;
 import be.nabu.eai.module.web.application.api.RESTFragmentProvider;
 import be.nabu.eai.module.web.application.api.RateLimitProvider;
@@ -2286,6 +2287,21 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					}
 					catch (IOException e) {
 						logger.error("Could not list features", e);
+					}
+					// recursively check includes, but only in web components and the like
+					// we only want to send features along that exist in javascript or the like, that get streamed to the frontend
+					// not features in for example rest services, they get picked up separately and should _not_ be sent to the frontend unless they are explicitly used there as well
+					if (getConfig().getWebFragments() != null) {
+						for (WebFragment fragment : getConfig().getWebFragments()) {
+							if (fragment instanceof FeaturedWebArtifact) {
+								List<Feature> childFeatures = ((FeaturedWebArtifact) fragment).getAvailableWebFeatures();
+								if (childFeatures != null) {
+									for (Feature feature : childFeatures) {
+										features.put(feature.getName(), feature);
+									}
+								}
+							}
+						}
 					}
 					availableFeatures = new ArrayList<Feature>(features.values());
 				}

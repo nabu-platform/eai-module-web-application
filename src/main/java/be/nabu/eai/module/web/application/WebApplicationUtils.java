@@ -1,8 +1,10 @@
 package be.nabu.eai.module.web.application;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.charset.Charset;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -20,6 +22,9 @@ import be.nabu.eai.module.web.application.api.RateLimitCheck;
 import be.nabu.eai.module.web.application.api.RateLimitProvider;
 import be.nabu.eai.module.web.application.api.RateLimitSettings;
 import be.nabu.eai.repository.api.LanguageProvider;
+import be.nabu.eai.repository.api.VirusInfection;
+import be.nabu.eai.repository.api.VirusScanner;
+import be.nabu.libs.artifacts.api.Artifact;
 import be.nabu.libs.authentication.api.Authenticator;
 import be.nabu.libs.authentication.api.Device;
 import be.nabu.libs.authentication.api.DeviceValidator;
@@ -45,7 +50,15 @@ import be.nabu.libs.resources.URIUtils;
 import be.nabu.libs.services.ServiceRuntime;
 import be.nabu.libs.services.api.ExecutionContext;
 import be.nabu.libs.services.api.FeaturedExecutionContext;
+import be.nabu.libs.types.CollectionHandlerFactory;
+import be.nabu.libs.types.ComplexContentWrapperFactory;
+import be.nabu.libs.types.TypeUtils;
+import be.nabu.libs.types.api.CollectionHandlerProvider;
+import be.nabu.libs.types.api.ComplexContent;
+import be.nabu.libs.types.api.ComplexType;
+import be.nabu.libs.types.api.Element;
 import be.nabu.utils.cep.api.EventSeverity;
+import be.nabu.utils.cep.impl.CEPUtils;
 import be.nabu.utils.cep.impl.HTTPComplexEventImpl;
 import be.nabu.utils.mime.api.Header;
 import be.nabu.utils.mime.impl.FormatException;
@@ -467,5 +480,122 @@ public class WebApplicationUtils {
 			fullPath += childPath.replaceFirst("^[/]+", "");
 		}
 		return fullPath;
+	}
+	
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	public static HTTPResponse scanForVirus(Artifact from, WebApplication application, Device device, Token token, HTTPRequest request, ComplexContent content) {
+		if (application.getConfig().getVirusScanner() != null) {
+			for (Element<?> child : TypeUtils.getAllChildren(content.getType())) {
+				Object object = content.get(child.getName());
+				if (object != null) {
+					if (child.getType().isList(child.getProperties())) {
+						CollectionHandlerProvider handler = CollectionHandlerFactory.getInstance().getHandler().getHandler(object.getClass());
+						for (Object single : handler.getAsIterable(object)) {
+							if (child.getType() instanceof ComplexType) {
+								if (!(single instanceof ComplexContent)) {
+									single = ComplexContentWrapperFactory.getInstance().getWrapper().wrap(single);
+								}
+								if (single != null) {
+									HTTPResponse response = scanForVirus(from, application, device, token, request, (ComplexContent) single);
+									if (response != null) {
+										return response;
+									}
+								}
+							}
+							// NOTE: we don't scan streams (yet) as they are standard read only
+							// to scan them, we would need to simultaneously copy them, either to memory (not ideal for big data) or file (not ideal for small data)
+							// there are plenty of solutions in nabu to deal with that, but currently not (yet) necessary as this focuses on web input, which is always byte[] for base64 stuff
+							else if (single instanceof byte[]) {
+								HTTPResponse response = scanForVirus(from, application, device, token, request, (byte[]) single);
+								if (response != null) {
+									return response;
+								}
+							}
+						}
+					}
+					else if (object instanceof byte[]) {
+						HTTPResponse response = scanForVirus(from, application, device, token, request, (byte[]) object);
+						if (response != null) {
+							return response;
+						}
+					}
+					else if (child.getType() instanceof ComplexType) {
+						if (!(object instanceof ComplexContent)) {
+							object = ComplexContentWrapperFactory.getInstance().getWrapper().wrap(object);
+						}
+						// if it _is_ null at this point, it could not be wrapped...we ignore this for now...
+						if (object != null) {
+							HTTPResponse response = scanForVirus(from, application, device, token, request, (ComplexContent) object);
+							if (response != null) {
+								return response;
+							}
+						}
+					}
+				}
+			}
+		}
+		return null;
+	}
+	
+	public static HTTPResponse scanForVirus(Artifact from, WebApplication application, Device device, Token token, HTTPRequest request) {
+		return scanForVirus(from, application, device, token, request, (byte[]) null);
+	}
+	
+	public static HTTPResponse scanForVirus(Artifact from, WebApplication application, Device device, Token token, HTTPRequest request, byte [] content) {
+		VirusScanner scanner = application.getConfig().getVirusScanner();
+		if (scanner != null) {
+			VirusInfection scan = content != null ? scanner.scan(new ByteArrayInputStream(content)) : scanner.scan(request);
+			// if we found a virus, we don't allow the request!
+			if (scan != null) {
+				HTTPComplexEventImpl event = new HTTPComplexEventImpl();
+				if (device != null) {
+					event.setDeviceId(device.getDeviceId());
+				}
+				if (token != null) {
+					event.setAlias(token.getName());
+					event.setRealm(token.getRealm());
+				}
+				Pipeline pipeline = PipelineUtils.getPipeline();
+				CEPUtils.enrich(event, from.getClass(), "virus-detected", pipeline == null || pipeline.getSourceContext() == null ? null : pipeline.getSourceContext().getSocketAddress(), "Virus detected: " + scan.getThreat(), null);
+				event.setSeverity(EventSeverity.ERROR);
+				event.setMethod(request.getMethod());
+				HTTPServerArtifact server = application.getConfig().getVirtualHost().getConfig().getServer();
+				try {
+					event.setRequestUri(HTTPUtils.getURI(request, server.isSecure()));
+				}
+				catch (FormatException e) {
+					// could not set the request uri... :(
+				}
+				event.setApplicationProtocol(server.isSecure() ? "HTTPS" : "HTTP");
+				event.setArtifactId(server.getId());
+				event.setDestinationPort(server.getConfig().getPort());
+				Header header = MimeUtils.getHeader("User-Agent", request.getContent().getHeaders());
+				if (header != null) {
+					event.setUserAgent(MimeUtils.getFullHeaderValue(header));
+				}
+				header = MimeUtils.getHeader(ServerHeader.REQUEST_RECEIVED.getName(), request.getContent().getHeaders());
+				if (header != null) {
+					try {
+						event.setStarted(HTTPUtils.parseDate(header.getValue()));
+						event.setStopped(new Date());
+					}
+					catch (ParseException e) {
+						// couldn't parse date...
+					}
+				}
+				// inject the correct values based on the headers
+				event.setSourceIp(HTTPUtils.getRemoteAddress(server.getConfig().isProxied(), request.getContent().getHeaders()));
+				event.setSourceHost(HTTPUtils.getRemoteHost(server.getConfig().isProxied(), request.getContent().getHeaders()));
+				event.setSizeIn(MimeUtils.getContentLength(request.getContent().getHeaders()));
+				// the virus code
+				event.setCode(scan.getThreat());
+				event.setArtifactId(from.getId());
+				event.setContext(application.getId());
+				application.getRepository().getComplexEventDispatcher().fire(event, application);
+				// we send back a 403
+				return new DefaultHTTPResponse(request, 403, HTTPCodes.getMessage(403), new PlainMimeEmptyPart(null, new MimeHeader("Content-Length", "0")));
+			}
+		}
+		return null;
 	}
 }

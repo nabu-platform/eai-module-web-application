@@ -5,6 +5,7 @@ import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 
+import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.LanguageProvider;
 import be.nabu.eai.repository.api.ResourceEntry;
@@ -200,5 +201,9 @@ public class WebApplicationMethods {
 			builder.append(line).append("\n");
 		}
 		return builder.toString();
+	}
+	
+	public static boolean hasFeature(String name) {
+		return EAIResourceRepository.getInstance().getEnabledFeatures().contains(name);
 	}
 }
