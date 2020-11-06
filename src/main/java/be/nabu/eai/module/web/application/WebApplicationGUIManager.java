@@ -40,6 +40,7 @@ import javafx.geometry.Orientation;
 import javafx.geometry.Side;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.Accordion;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ContextMenu;
@@ -47,11 +48,13 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.ScrollPane.ScrollBarPolicy;
 import javafx.scene.control.Separator;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TabPane.TabClosingPolicy;
+import javafx.scene.control.TitledPane;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
@@ -62,6 +65,8 @@ import javafx.scene.input.TransferMode;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 import javafx.stage.WindowEvent;
@@ -171,10 +176,14 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 	public void display(MainController controller, AnchorPane pane, final WebApplication artifact) {
 		VBox vbox = new VBox();
 		AnchorPane anchor = new AnchorPane();
-		display(artifact, anchor);
+		Accordion accordion = displayWithAccordion(artifact, anchor);
+//		display(artifact, anchor);
 		vbox.getChildren().addAll(anchor);
 		
-		displayPartConfiguration(artifact, vbox);
+		VBox configuration = new VBox();
+		displayPartConfiguration(artifact, configuration);
+		TitledPane titledPane = new TitledPane("Fragment Configuration", configuration);
+		accordion.getPanes().add(titledPane);
 		
 		ScrollPane scroll = new ScrollPane();
 		scroll.setContent(vbox);
@@ -182,7 +191,8 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		if (tabs == null) {
 			tabs = new TabPane();
 			tabs.setTabClosingPolicy(TabClosingPolicy.UNAVAILABLE);
-			tabs.setSide(Side.RIGHT);
+//			tabs.setSide(Side.RIGHT);
+			tabs.setSide(Side.BOTTOM);
 			Tab browser = new Tab("Application");
 			browser.setContent(new WebBrowser(artifact).asPane());
 			browser.setClosable(false);
@@ -213,7 +223,10 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			}
 		}
 		pane.getChildren().add(tabs);
-		vbox.prefWidthProperty().bind(tabs.widthProperty().subtract(50));
+//		vbox.prefWidthProperty().bind(tabs.widthProperty().subtract(50));
+		scroll.setFitToWidth(true);
+		// the trees don't correctly get smaller
+		scroll.setHbarPolicy(ScrollBarPolicy.NEVER);
 	}
 
 	public static void displayPartConfiguration(final WebApplication artifact, VBox vbox) {
@@ -315,9 +328,17 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 					box.getChildren().addAll(hbox);
 					Tree<ValueWrapper> tree = new ComplexContentEditor(content, true, artifact.getRepository()).getTree();
 					tree.getStyleClass().add("tree");
-					tree.prefWidthProperty().bind(vbox.widthProperty());
-					box.getChildren().addAll(tree, separator);
-					box.prefWidthProperty().bind(vbox.widthProperty());
+					// the fill width does not impact the tree?
+//					tree.prefWidthProperty().bind(box.prefWidthProperty());
+					tree.autoresize();
+					
+					HBox wrapper = new HBox();
+					wrapper.getChildren().add(tree);
+					
+					box.getChildren().addAll(wrapper, separator);
+//					box.prefWidthProperty().bind(vbox.widthProperty());
+					box.setFillWidth(true);
+					vbox.setFillWidth(true);
 					vbox.getChildren().add(box);
 				}
 			}
