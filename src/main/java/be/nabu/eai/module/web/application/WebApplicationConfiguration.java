@@ -9,6 +9,7 @@ import javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter;
 import be.nabu.eai.api.Advanced;
 import be.nabu.eai.api.Comment;
 import be.nabu.eai.api.EnvironmentSpecific;
+import be.nabu.eai.api.Hidden;
 import be.nabu.eai.api.InterfaceFilter;
 import be.nabu.eai.module.http.virtual.VirtualHostArtifact;
 import be.nabu.eai.module.keystore.KeyStoreArtifact;
@@ -16,6 +17,7 @@ import be.nabu.eai.repository.api.CacheProviderArtifact;
 import be.nabu.eai.repository.api.VirusScanner;
 import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
 import be.nabu.libs.services.api.DefinedService;
+import be.nabu.libs.types.api.annotation.Field;
 
 @XmlRootElement(name = "webApplication")
 @XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow",
@@ -92,7 +94,7 @@ public class WebApplicationConfiguration {
 		this.charset = charset;
 	}
 
-	@Comment(title = "This service is responsible for translating content in the web application", description = "Use the syntax %{The sentence} to encapsulate content that has to be translated")
+	@Field(group = "language", comment = "This service is responsible for translating content in the web application. Use the syntax %{The sentence} to encapsulate content that has to be translated")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.eai.repository.api.Translator.translate")
 	public DefinedService getTranslationService() {
@@ -102,7 +104,7 @@ public class WebApplicationConfiguration {
 		this.translationService = translationService;
 	}
 	
-	@Comment(title = "List all of the available languages")
+	@Field(group = "language", comment = "List all of the available languages")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.eai.repository.api.LanguageProvider.getSupportedLanguages")
 	public DefinedService getSupportedLanguagesService() {
@@ -112,7 +114,7 @@ public class WebApplicationConfiguration {
 		this.supportedLanguagesService = supportedLanguagesService;
 	}
 	
-	@Comment(title = "This service is responsible for indicating which language a user wants based on e.g. profile settings")
+	@Field(group = "language", comment = "This service is responsible for indicating which language a user wants based on e.g. profile settings")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.eai.repository.api.UserLanguageProvider.getLanguage")	
 	public DefinedService getLanguageProviderService() {
@@ -122,7 +124,7 @@ public class WebApplicationConfiguration {
 		this.languageProviderService = languageProviderService;
 	}
 	
-	@Comment(title = "This service is responsible for indicating which language a user wants based on the request")
+	@Field(group = "language", comment = "This service is responsible for indicating which language a user wants based on the request.")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.RequestLanguageProvider.getLanguage")	
 	public DefinedService getRequestLanguageProviderService() {
@@ -132,7 +134,7 @@ public class WebApplicationConfiguration {
 		this.requestLanguageProviderService = requestLanguageProviderService;
 	}
 	
-	@Comment(title = "This service is responsible for authenticating a username with a given password", description = "If you return a secret in the response of this service, the secret authenticator can be used to remember users automatically")
+	@Field(group = "security", comment = "This service is responsible for authenticating a username with a given password. If a secret is returned in the response of this service, the secret authenticator can be used to remember users automatically.")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.eai.authentication.api.PasswordAuthenticator.authenticate")
 	public DefinedService getPasswordAuthenticationService() {
@@ -142,7 +144,7 @@ public class WebApplicationConfiguration {
 		this.passwordAuthenticationService = passwordAuthenticationService;
 	}
 
-	@Comment(title = "This service is responsible for creating a valid token from a bearer authentication")
+	@Field(group = "security", comment = "This service is responsible for creating a valid token from a bearer authentication.")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.BearerAuthenticator.authenticate")
 	public DefinedService getBearerAuthenticator() {
@@ -152,7 +154,7 @@ public class WebApplicationConfiguration {
 		this.bearerAuthenticator = bearerAuthenticator;
 	}
 	
-	@Comment(title = "This service is responsible for remembering a previously logged in user based on a shared secret")
+	@Field(group = "security", comment = "This service is responsible for remembering a previously logged in user based on a shared secret.")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.eai.authentication.api.SecretAuthenticator.authenticate")
 	public DefinedService getSecretAuthenticationService() {
@@ -162,7 +164,7 @@ public class WebApplicationConfiguration {
 		this.secretAuthenticationService = secretAuthenticationService;
 	}
 	
-	@Comment(title = "This service is responsible for generating a secret for a token so we can be remembered later on")
+	@Field(group = "security", comment = "This service is responsible for generating a secret for a token so we can be remembered later on")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.libs.authentication.api.SecretGenerator.generate")
 	public DefinedService getSecretGeneratorService() {
@@ -172,7 +174,7 @@ public class WebApplicationConfiguration {
 		this.secretGeneratorService = secretGeneratorService;
 	}
 	
-	@Comment(title = "This service is reponsible for temporarily authenticating someone to perform a certain action")
+	@Field(group = "security", comment = "This service is reponsible for temporarily authenticating someone to perform a certain action")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.TemporaryAuthenticator.authenticate")
 	public DefinedService getTemporaryAuthenticator() {
@@ -182,6 +184,7 @@ public class WebApplicationConfiguration {
 		this.temporaryAuthenticator = temporaryAuthenticator;
 	}
 	
+	@Field(group = "security", comment = "This service is responsible for generating temporary authentication tokens")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.TemporaryAuthenticationGenerator.generate")
 	public DefinedService getTemporaryAuthenticationGenerator() {
@@ -191,7 +194,7 @@ public class WebApplicationConfiguration {
 		this.temporaryAuthenticationGenerator = temporaryAuthenticationGenerator;
 	}
 	
-	@Comment(title = "This service is responsible for checking if a user has a specific permission", description = "A permission is the combination of an action (what are you trying to do) in an optional context (e.g. an action on an entity)")
+	@Field(group = "security", comment = "This service is responsible for checking if a user has a specific permission. A permission is the combination of an action (what are you trying to do) in an optional context (e.g. a CMS node).")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.libs.authentication.api.PermissionHandler.hasPermission")
 	public DefinedService getPermissionService() {
@@ -201,7 +204,7 @@ public class WebApplicationConfiguration {
 		this.permissionService = permissionService;
 	}
 
-	@Comment(title = "This service is responsible for checking if a user has a specific role")
+	@Field(group = "security", comment = "This service is responsible for checking if a user has a specific role")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.libs.authentication.api.RoleHandler.hasRole")
 	public DefinedService getRoleService() {
@@ -211,7 +214,7 @@ public class WebApplicationConfiguration {
 		this.roleService = roleService;
 	}
 
-	@Comment(title = "This service is responsible for checking if a user potentially has a permission regardless of the context. Once a context is known, the permission handler might still not grant the permission though.")
+	@Field(group = "security", comment = "This service is responsible for checking if a user potentially has a permission regardless of the context. Once a context is known, the permission handler might still not grant the permission though.")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.libs.authentication.api.PotentialPermissionHandler.hasPotentialPermission")
 	public DefinedService getPotentialPermissionService() {
@@ -221,8 +224,7 @@ public class WebApplicationConfiguration {
 		this.potentialPermissionService = potentialPermissionService;
 	}
 	
-	@Advanced
-	@Comment(title = "This service is responsible for checking if a previously granted token is still valid")
+	@Field(group = "security", comment = "This service is responsible for checking if a previously granted token is still valid.")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.libs.authentication.api.TokenValidator.isValid")
 	public DefinedService getTokenValidatorService() {
@@ -232,7 +234,7 @@ public class WebApplicationConfiguration {
 		this.tokenValidatorService = tokenValidatorService;
 	}
 
-	@Comment(title = "This service is responsible for checking if a certain device is allowed for a given user")
+	@Field(group = "security", comment = "This service is responsible for checking if a certain device is allowed for a given user.")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.libs.authentication.api.DeviceValidator.isAllowed")	
 	public DefinedService getDeviceValidatorService() {
@@ -242,7 +244,7 @@ public class WebApplicationConfiguration {
 		this.deviceValidatorService = deviceValidatorService;
 	}
 	
-	@Advanced
+	@Field(group = "security", comment = "By default basic authentication is not enabled. Especially when building API's however it can be interesting to turn this on.")
 	public Boolean getAllowBasicAuthentication() {
 		return allowBasicAuthentication;
 	}
@@ -250,6 +252,7 @@ public class WebApplicationConfiguration {
 		this.allowBasicAuthentication = allowBasicAuthentication;
 	}
 
+	@Field(comment = "The realm this web application operates in. This can be important for authentication, especially in shared environments.", group = "security")
 	public String getRealm() {
 		return realm;
 	}
@@ -265,7 +268,7 @@ public class WebApplicationConfiguration {
 		this.whitelistedCodes = whitelistedCodes;
 	}
 
-	@Advanced
+	@Field(group = "caching", comment = "You can configure a session cache provider for this web application. All the session information will be stored there.")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	public CacheProviderArtifact getSessionCacheProvider() {
 		return sessionCacheProvider;
@@ -274,7 +277,7 @@ public class WebApplicationConfiguration {
 		this.sessionCacheProvider = sessionCacheProvider;
 	}
 	
-	@Comment(title = "The script cache provider is used to temporarily cache page results, _always_ use a serializing cache for this and _never_ cache a page with user-specific content on it!", description = "You can set an '@cache <timeout>' at the top of a script to enable caching. The timeout is optional and can be set to 0 for indefinite cached values.")
+	@Field(group = "caching", comment = "The script cache provider is used to temporarily cache page results, _always_ use a serializing cache for this and _never_ cache a page with user-specific content on it! You can set a '@cache <timeout>' annotation at the top of a script to enable caching. The timeout is optional and can be set to 0 for indefinite cached values.")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	public CacheProviderArtifact getScriptCacheProvider() {
 		return scriptCacheProvider;
@@ -283,7 +286,7 @@ public class WebApplicationConfiguration {
 		this.scriptCacheProvider = scriptCacheProvider;
 	}
 	
-	@Advanced
+	@Field(group = "caching", comment = "The max total size of all the active sessions.")
 	public Long getMaxTotalSessionSize() {
 		return maxTotalSessionSize;
 	}
@@ -291,7 +294,7 @@ public class WebApplicationConfiguration {
 		this.maxTotalSessionSize = maxTotalSessionSize;
 	}
 
-	@Advanced
+	@Field(group = "caching", comment = "The max size of a single session.")
 	public Long getMaxSessionSize() {
 		return maxSessionSize;
 	}
@@ -299,7 +302,7 @@ public class WebApplicationConfiguration {
 		this.maxSessionSize = maxSessionSize;
 	}
 
-	@Advanced
+	@Field(group = "caching", comment = "How long it takes a session to time out. The timeout is based on the last time the session was accessed so it is a moving window.")
 	public Long getSessionTimeout() {
 		return sessionTimeout;
 	}
@@ -307,6 +310,7 @@ public class WebApplicationConfiguration {
 		this.sessionTimeout = sessionTimeout;
 	}
 	
+	@Field(comment = "Add web fragments to be exposed, for example REST services, WSDL services, web components...")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	public List<WebFragment> getWebFragments() {
 		return webFragments;
@@ -324,6 +328,7 @@ public class WebApplicationConfiguration {
 		this.virtualHost = virtualHost;
 	}
 	
+	@Hidden
 	@Advanced
 	public Long getFailedLoginThreshold() {
 		return failedLoginThreshold;
@@ -332,6 +337,7 @@ public class WebApplicationConfiguration {
 		this.failedLoginThreshold = failedLoginThreshold;
 	}
 	
+	@Hidden
 	@Advanced
 	public Long getFailedLoginWindow() {
 		return failedLoginWindow;
@@ -340,6 +346,7 @@ public class WebApplicationConfiguration {
 		this.failedLoginWindow = failedLoginWindow;
 	}
 	
+	@Hidden
 	@Advanced
 	public Long getFailedLoginBlacklistDuration() {
 		return failedLoginBlacklistDuration;
@@ -347,34 +354,39 @@ public class WebApplicationConfiguration {
 	public void setFailedLoginBlacklistDuration(Long failedLoginBlacklistDuration) {
 		this.failedLoginBlacklistDuration = failedLoginBlacklistDuration;
 	}
-	@Advanced
+	
+	@Field(group = "caching", comment = "The max total size of all the cached scripts.")
 	public Long getMaxTotalScriptCacheSize() {
 		return maxTotalScriptCacheSize;
 	}
 	public void setMaxTotalScriptCacheSize(Long maxTotalScriptCacheSize) {
 		this.maxTotalScriptCacheSize = maxTotalScriptCacheSize;
 	}
-	@Advanced
+	
+	@Field(group = "caching", comment = "The max size of a single cached script.")
 	public Long getMaxScriptCacheSize() {
 		return maxScriptCacheSize;
 	}
 	public void setMaxScriptCacheSize(Long maxScriptCacheSize) {
 		this.maxScriptCacheSize = maxScriptCacheSize;
 	}
-	@Advanced
+	
+	@Field(group = "caching", comment = "How long it takes for a script cache to time (unless specified otherwise on the script itself). The timeout is based on when the cache was created.")
 	public Long getScriptCacheTimeout() {
 		return scriptCacheTimeout;
 	}
 	public void setScriptCacheTimeout(Long scriptCacheTimeout) {
 		this.scriptCacheTimeout = scriptCacheTimeout;
 	}
-	@Advanced
+	
+	@Field(group = "caching", comment = "You can configure a custom session cache id. This can be used to create complex shared session caches.")
 	public String getSessionCacheId() {
 		return sessionCacheId;
 	}
 	public void setSessionCacheId(String sessionCacheId) {
 		this.sessionCacheId = sessionCacheId;
 	}
+	
 	@Advanced
 	@Comment(title = "This allows you to store the cookies for this web page on a different path than the actual web application which is the default path")
 	public String getCookiePath() {
@@ -396,8 +408,7 @@ public class WebApplicationConfiguration {
 		this.requestSubscriber = requestSubscriber;
 	}
 	
-	@Advanced
-	@Comment(title = "Set a service that provides the rate limit settings for a specific request")
+	@Field(group = "rateLimiting", comment = "Set a service that provides the rate limit settings for a specific request.")
 	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.RateLimitProvider.settings")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	public DefinedService getRateLimitSettings() {
@@ -407,8 +418,7 @@ public class WebApplicationConfiguration {
 		this.rateLimitSettings = rateLimitSettingsProvider;
 	}
 	
-	@Advanced
-	@Comment(title = "Set a service that checks the CORS policies")
+	@Field(group = "crossOrigin", comment = "Set a service that checks the CORS policies")
 	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.CORSHandler.check")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	public DefinedService getCorsChecker() {
@@ -418,8 +428,7 @@ public class WebApplicationConfiguration {
 		this.corsChecker = corsChecker;
 	}
 	
-	@Advanced
-	@Comment(title = "Set a service that will check the rate limits for a specific request")
+	@Field(group = "rateLimiting", comment = "Set a service that will check the rate limits for a specific request")
 	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.RateLimitProvider.check")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	public DefinedService getRateLimitChecker() {
@@ -429,8 +438,7 @@ public class WebApplicationConfiguration {
 		this.rateLimitChecker = rateLimitChecker;
 	}
 	
-	@Advanced
-	@Comment(title = "Set a service that will log a rate limit hit")
+	@Field(group = "rateLimiting", comment = "Set a service that will log a rate limit hit")
 	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.RateLimitProvider.log")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	public DefinedService getRateLimitLogger() {
@@ -440,7 +448,7 @@ public class WebApplicationConfiguration {
 		this.rateLimitLogger = rateLimitLogger;
 	}
 	
-	@Advanced
+	@Field(group = "caching", comment = "When this enabled, explicit no-cache directives will be injected in responses in the absence of other cache headers. This enforces correct caching behavior in browsers.")
 	public boolean isAddCacheHeaders() {
 		return addCacheHeaders;
 	}
@@ -493,8 +501,7 @@ public class WebApplicationConfiguration {
 		this.sessionProviderApplication = sessionProviderApplication;
 	}
 	
-	@Advanced
-	@Comment(title = "All 404 that accept text/html will be served with the index page, assuming html5 mode in the frontend")
+	@Field(comment = "By enabling HTML5 mode, you can use proper paths in an SPA frontend rather than having to resort to hashtag-based routing. In practice all 404 that accept text/html will be served with the index page rather than a 404.")
 	public boolean isHtml5Mode() {
 		return html5Mode;
 	}
@@ -502,8 +509,7 @@ public class WebApplicationConfiguration {
 		this.html5Mode = html5Mode;
 	}
 	
-	@Advanced
-	@Comment(title = "You can force the request language to win from the indirectly chosen browser-configured language")
+	@Field(group = "language", comment = "You can force the request language to win from the indirectly chosen browser-configured language.")
 	public boolean isForceRequestLanguage() {
 		return forceRequestLanguage;
 	}
@@ -518,6 +524,8 @@ public class WebApplicationConfiguration {
 	public void setProxyPath(String proxyPath) {
 		this.proxyPath = proxyPath;
 	}
+	
+	@Field(group = "language", comment = "The default language for this application.")
 	public String getDefaultLanguage() {
 		return defaultLanguage;
 	}
@@ -525,8 +533,7 @@ public class WebApplicationConfiguration {
 		this.defaultLanguage = defaultLanguage;
 	}
 	
-	@Advanced
-	@Comment(title = "You can choose to actively ignore the language cookie")
+	@Field(group = "language", comment = "You can choose to actively ignore the language cookie.")
 	public boolean isIgnoreLanguageCookie() {
 		return ignoreLanguageCookie;
 	}
@@ -552,7 +559,7 @@ public class WebApplicationConfiguration {
 		this.services = services;
 	}
 	
-	@Advanced
+	@Field(group = "security", comment = "Configure a virus scanner for this web application. Once configured, all binary uploads will automatically be scanned for viruses.")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	public VirusScanner getVirusScanner() {
 		return virusScanner;

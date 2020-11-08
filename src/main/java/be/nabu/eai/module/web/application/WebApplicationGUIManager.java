@@ -183,6 +183,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		VBox configuration = new VBox();
 		displayPartConfiguration(artifact, configuration);
 		TitledPane titledPane = new TitledPane("Fragment Configuration", configuration);
+		titledPane.getStyleClass().add("no-top-padding");
 		accordion.getPanes().add(titledPane);
 		
 		ScrollPane scroll = new ScrollPane();
@@ -191,8 +192,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		if (tabs == null) {
 			tabs = new TabPane();
 			tabs.setTabClosingPolicy(TabClosingPolicy.UNAVAILABLE);
-//			tabs.setSide(Side.RIGHT);
-			tabs.setSide(Side.BOTTOM);
+			tabs.setSide(Side.RIGHT);
 			Tab browser = new Tab("Application");
 			browser.setContent(new WebBrowser(artifact).asPane());
 			browser.setClosable(false);
@@ -227,6 +227,35 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		scroll.setFitToWidth(true);
 		// the trees don't correctly get smaller
 		scroll.setHbarPolicy(ScrollBarPolicy.NEVER);
+	}
+
+	
+	@Override
+	protected String getDefaultValue(WebApplication instance, String property) {
+		if ("realm".equals(property)) {
+			return instance.getRealm();
+		}
+		else if ("sessionCacheProvider".equals(property)) {
+			return "In Memory";
+		}
+		else if ("maxTotalSessionSize".equals(property) || "maxSessionSize".equals(property) || "maxTotalScriptCacheSize".equals(property) || "maxScriptCacheSize".equals(property)) {
+			return "Unlimited";
+		}
+		else if ("sessionTimeout".equals(property) || "scriptCacheTimeout".equals(property)) {
+			return "" + (1000l*60*60);
+		}
+		else if ("sessionCacheId".equals(property)) {
+			return instance.getId() + "-session";
+		}
+		else if ("path".equals(property)) {
+			try {
+				return instance.getServerPath();
+			}
+			catch (IOException e) {
+				return "/";
+			}
+		}
+		return super.getDefaultValue(instance, property);
 	}
 
 	public static void displayPartConfiguration(final WebApplication artifact, VBox vbox) {
@@ -270,17 +299,27 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 				}
 			}
 			
+			boolean lastEven = false;
 			// could autoremove unused configurations or just flag them with a button to delete
 			// you might have accidently removed something you didn't mean to and lose precious configuration settings
 			for (String typeId : fragmentConfigurations.keySet()) {
 				for (String regex : fragmentConfigurations.get(typeId).keySet()) {
 					ComplexContent content = fragmentConfigurations.get(typeId).get(regex);
 					VBox box = new VBox();
-					box.getStyleClass().add("web-fragment-configuration");
+					box.getStyleClass().addAll("web-fragment-configuration", "section");
+					if (lastEven) {
+						lastEven = false;
+						box.getStyleClass().add("uneven");
+					}
+					else {
+						lastEven = true;
+						box.getStyleClass().add("even");
+					}
 					HBox hbox = new HBox();
 //					hbox.getStyleClass().add("title");
 					String comment = ValueUtils.getValue(CommentProperty.getInstance(), content.getType().getProperties());
 					Label titleLabel = new Label(comment == null ? typeId : comment);
+					titleLabel.getStyleClass().add("h2");
 					hbox.getChildren().add(titleLabel);
 					hbox.setPadding(new Insets(15, 0, 0, 20));
 //					hbox.getChildren().add(new Label(typeId + " applicable to: " + (regex == null ? ".*" : regex)));
@@ -300,8 +339,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 						hbox.getChildren().add(delete);
 						box.getStyleClass().add("web-fragment-configuration-unused");
 					}
-					Separator separator = new Separator(Orientation.HORIZONTAL);
-					separator.getStyleClass().add("separator");
+					box.getChildren().addAll(hbox);
 					if (includeCheckbox) {
 						CheckBox checkbox = new CheckBox("Environment specific");
 						checkbox.prefWidthProperty().bind(box.widthProperty());
@@ -325,9 +363,9 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 						paddingBox.getChildren().add(checkbox);
 						box.getChildren().add(paddingBox);
 					}
-					box.getChildren().addAll(hbox);
 					Tree<ValueWrapper> tree = new ComplexContentEditor(content, true, artifact.getRepository()).getTree();
-					tree.getStyleClass().add("tree");
+					HBox.setMargin(tree, new Insets(10, 10, 0, 10));
+					
 					// the fill width does not impact the tree?
 //					tree.prefWidthProperty().bind(box.prefWidthProperty());
 					tree.autoresize();
@@ -335,7 +373,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 					HBox wrapper = new HBox();
 					wrapper.getChildren().add(tree);
 					
-					box.getChildren().addAll(wrapper, separator);
+					box.getChildren().addAll(wrapper);
 //					box.prefWidthProperty().bind(vbox.widthProperty());
 					box.setFillWidth(true);
 					vbox.setFillWidth(true);

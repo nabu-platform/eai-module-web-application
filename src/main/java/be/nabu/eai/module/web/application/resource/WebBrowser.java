@@ -83,7 +83,7 @@ public class WebBrowser {
 	public AnchorPane asPane() {
 		try {
 			box = new VBox();
-			box.setAlignment(Pos.CENTER);
+			box.setAlignment(Pos.TOP_CENTER);
 			
 			HBox buttons = new HBox();
 			Button reload = new Button("Reload");

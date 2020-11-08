@@ -1387,7 +1387,21 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	@Override
 	public String getRealm() {
 		try {
-			return getConfiguration().getRealm() == null ? getId() : getConfiguration().getRealm();
+			String realm = getConfiguration().getRealm();
+			if (realm == null) {
+				Entry entry = getRepository().getEntry(getId());
+				while (entry != null) {
+					if (entry.isProject()) {
+						realm = entry.getProject().getName();
+						break;
+					}
+					entry = entry.getParent();
+				}
+			}
+			if (realm == null) {
+				realm = getId();
+			}
+			return realm;
 		}
 		catch (IOException e) {
 			throw new RuntimeException(e);
