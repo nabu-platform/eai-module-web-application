@@ -615,6 +615,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			}
 		});
 		tree.rootProperty().set(new ResourceTreeItem(null, container, id));
+		tree.getStyleClass().add("tree");
 
 		TreeDragDrop.makeDraggable(tree, new TreeDragListener<Resource>() {
 			@Override
@@ -1003,6 +1004,9 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 					});
 					TreeCell<Resource> selectedItem = tree.getSelectionModel().getSelectedItem();
 					Stage owner = MainController.getInstance().getStage(id);
+					if (owner == null) {
+						owner = MainController.getInstance().getStage();
+					}
 					find.show(selectedItem == null ? getResources(tree.rootProperty().get()) : getResources(selectedItem.getItem()), "Find in Web Application", owner);
 					event.consume();
 				}
@@ -1015,6 +1019,9 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 					}, new FindFilter<TreeItem<Resource>>() {
 						@Override
 						public boolean accept(TreeItem<Resource> item, String newValue) {
+							if (newValue == null || newValue.trim().isEmpty()) {
+								return true;
+							}
 							Resource resource = item.itemProperty().get();
 							if (resource instanceof ReadableResource) {
 								try {
@@ -1055,6 +1062,9 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 					find.setHeavySearch(true);
 					TreeCell<Resource> selectedItem = tree.getSelectionModel().getSelectedItem();
 					Stage owner = MainController.getInstance().getStage(id);
+					if (owner == null) {
+						owner = MainController.getInstance().getStage();
+					}
 					find.show(selectedItem == null ? getResources(tree.rootProperty().get()) : getResources(selectedItem.getItem()), "Find in Web Application (content)", owner);
 					event.consume();
 				}

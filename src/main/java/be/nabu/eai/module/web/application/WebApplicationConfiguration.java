@@ -27,7 +27,7 @@ import be.nabu.libs.types.api.annotation.Field;
 		"defaultLanguage", "rateLimitSettings", "rateLimitChecker", "rateLimitLogger", "corsChecker", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", 
 		"maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", 
 		"maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "services", 
-		"webFragments", "html5Mode", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie", "featureTestingRole", "virusScanner" })
+		"webFragments", "html5Mode", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie", "testRole", "virusScanner" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -44,7 +44,7 @@ public class WebApplicationConfiguration {
 	private boolean addCacheHeaders = true;
 	private boolean ignoreLanguageCookie;
 	// which roles can test toggling features
-	private List<String> featureTestingRole;
+	private List<String> testRole;
 	
 	// we assume the proxy strips the path, but to build correct links for the outside world, we need to know this
 	private String proxyPath;
@@ -541,13 +541,12 @@ public class WebApplicationConfiguration {
 		this.ignoreLanguageCookie = ignoreLanguageCookie;
 	}
 	
-	@Advanced
-	@Comment(title = "The people who have this role can dynamically change the availability of features, mostly for testing purposes")
-	public List<String> getFeatureTestingRole() {
-		return featureTestingRole;
+	@Field(group = "security", comment = "The people who have this role can perform additional actions as testers, for example toggle features.")
+	public List<String> getTestRole() {
+		return testRole;
 	}
-	public void setFeatureTestingRole(List<String> featureTestingRole) {
-		this.featureTestingRole = featureTestingRole;
+	public void setTestRole(List<String> testRole) {
+		this.testRole = testRole;
 	}
 
 	@Comment(title = "Services you want to expose through this web application")

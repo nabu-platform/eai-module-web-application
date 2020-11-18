@@ -24,6 +24,7 @@ import be.nabu.eai.module.web.application.api.RateLimitSettings;
 import be.nabu.eai.repository.api.LanguageProvider;
 import be.nabu.eai.repository.api.VirusInfection;
 import be.nabu.eai.repository.api.VirusScanner;
+import be.nabu.eai.server.Server;
 import be.nabu.libs.artifacts.api.Artifact;
 import be.nabu.libs.authentication.api.Authenticator;
 import be.nabu.libs.authentication.api.Device;
@@ -151,6 +152,23 @@ public class WebApplicationUtils {
 			}
 		}
 		return refererMatch;
+	}
+	
+	public static void checkOffline(WebApplication application, HTTPRequest request) {
+		if (application.getRepository().getServiceRunner() instanceof Server) {
+			// if we are offline but the http server is still "online" (so it has no dedicated offline port), we throw exceptions
+			if (((Server) application.getRepository().getServiceRunner()).isOffline()) {
+				VirtualHostArtifact host = application.getConfig().getVirtualHost();
+				if (host != null) {
+					HTTPServerArtifact server = host.getConfig().getServer();
+					if (server != null) {
+						if (server.getConfig().getOfflinePort() == null) {
+							throw new HTTPException(503, "Server is running in offline modus");
+						}
+					}
+				}
+			}
+		}
 	}
 	
 	public static String getLanguage(WebApplication application, HTTPRequest request) throws IOException {

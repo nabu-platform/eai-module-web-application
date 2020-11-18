@@ -112,6 +112,15 @@ public class Services {
 		return rateLimits;
 	}
 	
+	// get the test roles for this application
+	public List<String> testRoles(@NotNull @WebParam(name = "webApplicationId") String id) {
+		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+		if (resolved == null) {
+			throw new IllegalArgumentException("Invalid web application: " + id);
+		}
+		return resolved.getConfig().getTestRole();
+	}
+	
 	@WebResult(name = "roles")
 	public List<String> roles(@NotNull @WebParam(name = "webApplicationId") String id) {
 		List<Permission> permissions = new ArrayList<Permission>();
@@ -144,6 +153,24 @@ public class Services {
 			throw new IllegalArgumentException("Invalid web application: " + id);
 		}
 		return resolved.getTranslator() == null ? key : resolved.getTranslator().translate(category, key, language);
+	}
+	
+	public boolean hasAnyRole(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "token") Token token, @WebParam(name = "role") List<String> role) throws IOException {
+		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+		if (resolved == null) {
+			throw new IllegalArgumentException("Invalid web application: " + id);
+		}
+		if (resolved.getRoleHandler() == null) {
+			return true;
+		}
+		else if (role != null) {
+			for (String single : role) {
+				if (resolved.getRoleHandler().hasRole(token, single)) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 	
 	public boolean hasRole(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "token") Token token, @WebParam(name = "role") String role) throws IOException {

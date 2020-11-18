@@ -28,8 +28,13 @@ public class BearerAuthenticatorHandler implements EventHandler<HTTPRequest, HTT
 	@Override
 	public HTTPResponse handle(HTTPRequest request) {
 		Header header = MimeUtils.getHeader("Authorization", request.getContent().getHeaders());
-		if (header != null && header.getValue().substring(0, 6).equalsIgnoreCase("bearer")) {
-			String bearer = header.getValue().substring(7);
+		if (header != null && header.getValue().length() >= 6 && header.getValue().substring(0, 6).equalsIgnoreCase("bearer")) {
+			// should start with a space now...
+			String bearer = header.getValue().substring(6).trim();
+			// if you have an empty bearer value, don't call the authenticator...
+			if (bearer.isEmpty()) {
+				return null;
+			}
 			Device device = request.getContent() == null ? null : GlueListener.getDevice(realm, request.getContent().getHeaders());
 			try {
 				Token token = authenticator.authenticate(realm, bearer, device);

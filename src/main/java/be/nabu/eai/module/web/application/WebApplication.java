@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -647,6 +648,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				new SimpleExecutionEnvironment(environmentName, environment),
 				serverPath
 			);
+			listener.setOfflineChecker(new Predicate<HTTPRequest>() {
+				@Override
+				public boolean test(HTTPRequest t) {
+					WebApplicationUtils.checkOffline(WebApplication.this, t);
+					return false;
+				}
+			});
 			// we handle this at a higher level
 			listener.setAllowEncoding(false);
 			
@@ -1391,8 +1399,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			if (realm == null) {
 				Entry entry = getRepository().getEntry(getId());
 				while (entry != null) {
-					if (entry.isProject()) {
-						realm = entry.getProject().getName();
+					if (EAIRepositoryUtils.isProject(entry)) {
+						realm = entry.getCollection().getName();
 						break;
 					}
 					entry = entry.getParent();
@@ -2359,8 +2367,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		try {
 			boolean isAllowed = false;
 			RoleHandler roleHandler = this.getRoleHandler();
-			if (roleHandler != null && getConfig().getFeatureTestingRole() != null && !getConfig().getFeatureTestingRole().isEmpty()) {
-				for (String role : getConfig().getFeatureTestingRole()) {
+			if (roleHandler != null && getConfig().getTestRole() != null && !getConfig().getTestRole().isEmpty()) {
+				for (String role : getConfig().getTestRole()) {
 					if (roleHandler.hasRole(token, role)) {
 						isAllowed = true;
 						break;
