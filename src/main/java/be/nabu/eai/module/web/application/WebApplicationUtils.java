@@ -36,6 +36,8 @@ import be.nabu.libs.authentication.api.TokenValidator;
 import be.nabu.libs.events.api.EventSubscription;
 import be.nabu.libs.http.HTTPCodes;
 import be.nabu.libs.http.HTTPException;
+import be.nabu.libs.http.api.HTTPEntity;
+import be.nabu.libs.http.api.HTTPInterceptor;
 import be.nabu.libs.http.api.HTTPRequest;
 import be.nabu.libs.http.api.HTTPResponse;
 import be.nabu.libs.http.api.server.AuthenticationHeader;
@@ -51,6 +53,8 @@ import be.nabu.libs.resources.URIUtils;
 import be.nabu.libs.services.ServiceRuntime;
 import be.nabu.libs.services.api.ExecutionContext;
 import be.nabu.libs.services.api.FeaturedExecutionContext;
+import be.nabu.libs.services.api.ServiceException;
+import be.nabu.libs.services.api.ServiceRuntimeTracker;
 import be.nabu.libs.types.CollectionHandlerFactory;
 import be.nabu.libs.types.ComplexContentWrapperFactory;
 import be.nabu.libs.types.TypeUtils;
@@ -68,6 +72,24 @@ import be.nabu.utils.mime.impl.MimeUtils;
 import be.nabu.utils.mime.impl.PlainMimeEmptyPart;
 
 public class WebApplicationUtils {
+	
+	private static Boolean TRACK_REQUESTS = Boolean.parseBoolean(System.getProperty("http.track", "false"));
+	
+	public static HTTPInterceptor getInterceptor(WebApplication application, ServiceRuntime runtime) {
+		ServiceRuntimeTracker tracker = TRACK_REQUESTS ? runtime.getExecutionContext().getServiceContext().getServiceTrackerProvider().getTracker(runtime) : null;
+		if (tracker != null) {
+			return new HTTPInterceptor() {
+				@Override
+				public HTTPEntity intercept(HTTPEntity entity) {
+					tracker.report(HTTPUtils.toMessage(entity));
+					return entity;
+				}
+			};
+		}
+		else {
+			return null;
+		}
+	}
 	
 	public static void featureRich(WebApplication application, HTTPRequest request, ExecutionContext context) {
 		Header header = MimeUtils.getHeader("Feature", request.getContent().getHeaders());
@@ -501,7 +523,7 @@ public class WebApplicationUtils {
 	}
 	
 	@SuppressWarnings({ "rawtypes", "unchecked" })
-	public static HTTPResponse scanForVirus(Artifact from, WebApplication application, Device device, Token token, HTTPRequest request, ComplexContent content) {
+	public static HTTPResponse scanForVirus(Artifact from, WebApplication application, Device device, Token token, HTTPRequest request, ComplexContent content) throws ServiceException {
 		if (application.getConfig().getVirusScanner() != null) {
 			for (Element<?> child : TypeUtils.getAllChildren(content.getType())) {
 				Object object = content.get(child.getName());
@@ -555,11 +577,11 @@ public class WebApplicationUtils {
 		return null;
 	}
 	
-	public static HTTPResponse scanForVirus(Artifact from, WebApplication application, Device device, Token token, HTTPRequest request) {
+	public static HTTPResponse scanForVirus(Artifact from, WebApplication application, Device device, Token token, HTTPRequest request) throws ServiceException {
 		return scanForVirus(from, application, device, token, request, (byte[]) null);
 	}
 	
-	public static HTTPResponse scanForVirus(Artifact from, WebApplication application, Device device, Token token, HTTPRequest request, byte [] content) {
+	public static HTTPResponse scanForVirus(Artifact from, WebApplication application, Device device, Token token, HTTPRequest request, byte [] content) throws ServiceException {
 		VirusScanner scanner = application.getConfig().getVirusScanner();
 		if (scanner != null) {
 			VirusInfection scan = content != null ? scanner.scan(new ByteArrayInputStream(content)) : scanner.scan(request);
