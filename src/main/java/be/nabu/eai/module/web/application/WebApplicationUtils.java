@@ -46,6 +46,7 @@ import be.nabu.libs.http.core.DefaultHTTPResponse;
 import be.nabu.libs.http.core.HTTPUtils;
 import be.nabu.libs.http.core.ServerHeader;
 import be.nabu.libs.http.glue.GlueListener;
+import be.nabu.libs.http.glue.impl.ResponseMethods;
 import be.nabu.libs.http.server.HTTPServerUtils;
 import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.nio.api.Pipeline;
@@ -62,6 +63,10 @@ import be.nabu.libs.types.api.CollectionHandlerProvider;
 import be.nabu.libs.types.api.ComplexContent;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.Element;
+import be.nabu.libs.types.binding.api.MarshallableBinding;
+import be.nabu.libs.types.binding.form.FormBinding;
+import be.nabu.libs.types.binding.json.JSONBinding;
+import be.nabu.libs.types.binding.xml.XMLBinding;
 import be.nabu.utils.cep.api.EventSeverity;
 import be.nabu.utils.cep.impl.CEPUtils;
 import be.nabu.utils.cep.impl.HTTPComplexEventImpl;
@@ -73,7 +78,7 @@ import be.nabu.utils.mime.impl.PlainMimeEmptyPart;
 
 public class WebApplicationUtils {
 	
-	private static Boolean TRACK_REQUESTS = Boolean.parseBoolean(System.getProperty("http.track", "false"));
+	private static Boolean TRACK_REQUESTS = Boolean.parseBoolean(System.getProperty("http.track", "true"));
 	
 	public static HTTPInterceptor getInterceptor(WebApplication application, ServiceRuntime runtime) {
 		ServiceRuntimeTracker tracker = TRACK_REQUESTS ? runtime.getExecutionContext().getServiceContext().getServiceTrackerProvider().getTracker(runtime) : null;
@@ -88,6 +93,23 @@ public class WebApplicationUtils {
 		}
 		else {
 			return null;
+		}
+	}
+	
+	// if we allow (some) headers as query parameter, override the request
+	// we currently allow you to fixate the "accept" to determine the return type, the language and the content disposition (to force a download)
+	public static void queryToHeader(HTTPRequest request, Map<String, List<String>> queryProperties) throws ParseException, IOException {
+		for (String key : queryProperties.keySet()) {
+			if (key.startsWith("header:") && !queryProperties.get(key).isEmpty()) {
+				String headerName = key.substring("header:".length());
+				for (String allowed : Arrays.asList("Accept", "Accept-Language", "Accept-Content-Disposition")) {
+					if (headerName.equalsIgnoreCase(allowed)) {
+						request.getContent().removeHeader(allowed);
+						request.getContent().setHeader(MimeHeader.parseHeader(allowed + ":" + queryProperties.get(key).get(0)));
+						break;
+					}
+				}
+			}
 		}
 	}
 	
@@ -155,9 +177,10 @@ public class WebApplicationUtils {
 		boolean refererMatch = false;
 		if (referer != null) {
 			VirtualHostArtifact virtualHost = application.getConfig().getVirtualHost();
-			if (referer.getHost() != null) {
-				refererMatch = referer.getHost().equals(virtualHost.getConfig().getHost());
-				if (!refererMatch) {
+			// if we did not define a host in the virtual host, we don't care!
+			if (virtualHost.getConfig().getHost() != null) {
+				refererMatch = referer.getHost() != null && referer.getHost().equals(virtualHost.getConfig().getHost());
+				if (!refererMatch && referer.getHost() != null) {
 					List<String> aliases = virtualHost.getConfig().getAliases();
 					if (aliases != null) {
 						for (String alias : aliases) {
@@ -312,7 +335,10 @@ public class WebApplicationUtils {
 		else if (token != null && session != null) {
 			session.set(GlueListener.buildTokenName(application.getRealm()), token);
 		}
+		Map<String, Object> originalContext = ServiceRuntime.getGlobalContext();
 		try {
+			ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
+			ServiceRuntime.getGlobalContext().put("service.context", application.getId());
 			// check validity of token
 			TokenValidator tokenValidator = application.getTokenValidator();
 			if (tokenValidator != null) {
@@ -327,11 +353,17 @@ public class WebApplicationUtils {
 		catch (IOException e) {
 			throw new RuntimeException(e);
 		}
+		finally {
+			ServiceRuntime.setGlobalContext(originalContext);
+		}
 		return token;
 	}
 	
 	public static Device getDevice(WebApplication application, HTTPRequest request, Token token) {
+		Map<String, Object> originalContext = ServiceRuntime.getGlobalContext();
 		try {
+			ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
+			ServiceRuntime.getGlobalContext().put("service.context", application.getId());
 			DeviceValidator deviceValidator = application.getDeviceValidator();
 			// check validity of device
 			Device device = request.getContent() == null ? null : GlueListener.getDevice(application.getRealm(), request.getContent().getHeaders());
@@ -346,6 +378,9 @@ public class WebApplicationUtils {
 		catch (IOException e) {
 			throw new RuntimeException(e);
 		}
+		finally {
+			ServiceRuntime.setGlobalContext(originalContext);
+		}
 	}
 	
 	public static boolean isNewDevice(WebApplication application, HTTPRequest request) {
@@ -353,7 +388,10 @@ public class WebApplicationUtils {
 	}
 	
 	public static void checkPermission(WebApplication application, Token token, String permissionAction, String permissionContext) {
+		Map<String, Object> originalContext = ServiceRuntime.getGlobalContext();
 		try {
+			ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
+			ServiceRuntime.getGlobalContext().put("service.context", application.getId());
 			PermissionHandler permissionHandler = application.getPermissionHandler();
 			if (permissionHandler != null && permissionAction != null) {
 				if (!permissionHandler.hasPermission(token, permissionContext, permissionAction)) {
@@ -364,10 +402,16 @@ public class WebApplicationUtils {
 		catch (IOException e) {
 			throw new RuntimeException(e);
 		}
+		finally {
+			ServiceRuntime.setGlobalContext(originalContext);
+		}
 	}
 	
 	public static void checkRole(WebApplication application, Token token, List<String> roles) {
+		Map<String, Object> originalContext = ServiceRuntime.getGlobalContext();
 		try {
+			ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
+			ServiceRuntime.getGlobalContext().put("service.context", application.getId());
 			RoleHandler roleHandler = application.getRoleHandler();
 			if (roleHandler != null && roles != null) {
 				boolean hasRole = false;
@@ -384,6 +428,9 @@ public class WebApplicationUtils {
 		}
 		catch (IOException e) {
 			throw new RuntimeException(e);
+		}
+		finally {
+			ServiceRuntime.setGlobalContext(originalContext);
 		}
 	}
 	
@@ -494,8 +541,19 @@ public class WebApplicationUtils {
 				event.setRealm(token.getRealm());
 				event.setAlias(token.getName());
 			}
-			event.setReason("limit reached: " + amount);
-			event.setDuration(duration);
+			event.setReason("limit reached: " + amount + ", try again in: " + duration + "ms");
+			// this is very misleading, it seems like the event itself took that long
+//			event.setDuration(duration);
+			header = MimeUtils.getHeader(ServerHeader.REQUEST_RECEIVED.getName(), request.getContent().getHeaders());
+			if (header != null) {
+				try {
+					event.setStarted(HTTPUtils.parseDate(header.getValue()));
+					event.setStopped(new Date());
+				}
+				catch (ParseException e) {
+					// couldn't parse date...
+				}
+			}
 			application.getRepository().getComplexEventDispatcher().fire(event, application);
 		}
 	}
