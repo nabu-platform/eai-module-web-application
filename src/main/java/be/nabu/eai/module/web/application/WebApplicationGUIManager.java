@@ -88,6 +88,7 @@ import be.nabu.eai.developer.util.Confirm;
 import be.nabu.eai.developer.util.Confirm.ConfirmType;
 import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.developer.util.Find;
+import be.nabu.eai.module.web.application.api.ArbitraryAuthenticator;
 import be.nabu.eai.module.web.application.api.BearerAuthenticator;
 import be.nabu.eai.module.web.application.api.CORSHandler;
 import be.nabu.eai.module.web.application.api.RateLimitProvider;
@@ -509,6 +510,12 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		if (artifact.getConfig().getBearerAuthenticator() != null) {
 			Method method = WebApplication.getMethod(BearerAuthenticator.class, "authenticate");
 			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getBearerAuthenticator(), method));
+		}
+		
+		// arbitrary authenticator
+		if (artifact.getConfig().getArbitraryAuthenticator() != null) {
+			Method method = WebApplication.getMethod(ArbitraryAuthenticator.class, "authenticate");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getArbitraryAuthenticator(), method));
 		}
 		
 		// temporary authenticator

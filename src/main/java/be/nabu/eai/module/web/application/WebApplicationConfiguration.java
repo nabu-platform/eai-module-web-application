@@ -21,7 +21,7 @@ import be.nabu.libs.types.api.annotation.Field;
 
 @XmlRootElement(name = "webApplication")
 @XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow",
-		"failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "secretGeneratorService", "bearerAuthenticator", "temporaryAuthenticator", 
+		"failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "secretGeneratorService", "bearerAuthenticator", "arbitraryAuthenticator", "temporaryAuthenticator", 
 		"temporaryAuthenticationGenerator", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", 
 		"deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", 
 		"defaultLanguage", "rateLimitSettings", "rateLimitChecker", "rateLimitLogger", "corsChecker", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", 
@@ -57,7 +57,7 @@ public class WebApplicationConfiguration {
 	private DefinedService languageProviderService, requestLanguageProviderService;
 	private DefinedService deviceValidatorService;
 	private DefinedService requestSubscriber;
-	private DefinedService bearerAuthenticator;
+	private DefinedService bearerAuthenticator, arbitraryAuthenticator;
 	private DefinedService temporaryAuthenticator, temporaryAuthenticationGenerator;
 	private DefinedService corsChecker;
 	private Boolean allowBasicAuthentication;
@@ -152,6 +152,16 @@ public class WebApplicationConfiguration {
 	}
 	public void setBearerAuthenticator(DefinedService bearerAuthenticator) {
 		this.bearerAuthenticator = bearerAuthenticator;
+	}
+	
+	@Field(group = "security", comment = "This service is responsible for creating a valid token from the generic http request.")
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.ArbitraryAuthenticator.authenticate")
+	public DefinedService getArbitraryAuthenticator() {
+		return arbitraryAuthenticator;
+	}
+	public void setArbitraryAuthenticator(DefinedService arbitraryAuthenticator) {
+		this.arbitraryAuthenticator = arbitraryAuthenticator;
 	}
 	
 	@Field(group = "security", comment = "This service is responsible for remembering a previously logged in user based on a shared secret.")

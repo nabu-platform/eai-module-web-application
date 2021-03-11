@@ -32,6 +32,7 @@ import be.nabu.eai.module.http.server.RepositoryExceptionFormatter;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.keystore.KeyStoreArtifact;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
+import be.nabu.eai.module.web.application.api.ArbitraryAuthenticator;
 import be.nabu.eai.module.web.application.api.BearerAuthenticator;
 import be.nabu.eai.module.web.application.api.CORSHandler;
 import be.nabu.eai.module.web.application.api.FeaturedWebArtifact;
@@ -287,6 +288,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 
 	private static volatile boolean registeredResolver;
 	private ArrayList<Feature> availableFeatures;
+	private boolean arbitraryAuthenticatorResolved;
+	private ArbitraryAuthenticator arbitraryAuthenticator;
 	
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
@@ -524,6 +527,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			BearerAuthenticator bearerAuthenticator = getBearerAuthenticator();
 			if (bearerAuthenticator != null) {
 				EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, new BearerAuthenticatorHandler(bearerAuthenticator, getRealm()));
+				subscription.filter(HTTPServerUtils.limitToPath(serverPath));
+				subscriptions.add(subscription);
+			}
+			
+			ArbitraryAuthenticator arbitraryAuthenticator = getArbitraryAuthenticator();
+			if (arbitraryAuthenticator != null) {
+				EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, new ArbitraryAuthenticatorHandler(arbitraryAuthenticator, getRealm()));
 				subscription.filter(HTTPServerUtils.limitToPath(serverPath));
 				subscriptions.add(subscription);
 			}
@@ -1629,6 +1639,20 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 		}
 		return bearerAuthenticator;
+	}
+	
+	public ArbitraryAuthenticator getArbitraryAuthenticator() throws IOException {
+		if (!arbitraryAuthenticatorResolved) {
+			synchronized(this) {
+				if (!arbitraryAuthenticatorResolved) {
+					if (getConfiguration().getArbitraryAuthenticator() != null) {
+						arbitraryAuthenticator = POJOUtils.newProxy(ArbitraryAuthenticator.class, wrap(getConfiguration().getArbitraryAuthenticator(), getMethod(ArbitraryAuthenticator.class, "authenticate")), getRepository(), SystemPrincipal.ROOT);
+					}
+					arbitraryAuthenticatorResolved = true;
+				}
+			}
+		}
+		return arbitraryAuthenticator;
 	}
 	
 	public TemporaryAuthenticator getTemporaryAuthenticator() throws IOException {
