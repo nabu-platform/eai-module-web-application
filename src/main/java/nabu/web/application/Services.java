@@ -29,6 +29,7 @@ import be.nabu.eai.module.web.application.api.TemporaryAuthenticator;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.LanguageProvider;
+import be.nabu.eai.repository.api.Repository;
 import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.eai.repository.events.ResourceEvent;
 import be.nabu.eai.repository.events.ResourceEvent.ResourceState;
@@ -48,6 +49,7 @@ import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.resources.api.ResourceFilter;
 import be.nabu.libs.services.ServiceRuntime;
 import be.nabu.libs.services.api.ExecutionContext;
+import be.nabu.libs.services.api.ServiceDescription;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.KeyValuePair;
@@ -371,6 +373,7 @@ public class Services {
 		}
 	}
 
+	@ServiceDescription(comment = "List all the static resources in a web application that match the given regex")
 	@WebResult(name = "resources")
 	public List<String> resources(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "regex") final String regex) {
 		List<String> resources = new ArrayList<String>();
@@ -390,7 +393,50 @@ public class Services {
 		}
 		return resources;
 	}
-
+	
+	@ServiceDescription(comment = "List all the files in a web application that match the given regex")
+	public List<String> files(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "regex") final String regex, @WebParam(name = "includeFragments") Boolean includeFragments) throws IOException {
+		List<String> resources = new ArrayList<String>();
+		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+		if (resolved != null) {
+			resources.addAll(providedFolders(resolved.getRepository(), resolved, regex, new ArrayList<String>(), includeFragments != null && includeFragments));
+		}
+		return resources;
+	}
+	
+	private List<String> providedFolders(Repository repository, WebFragmentProvider provider, String regex, List<String> blacklist, boolean includeFragments) throws IOException {
+		List<String> files = new ArrayList<String>();
+		if (provider.getWebFragments() != null && includeFragments) {
+			for (WebFragment fragment : provider.getWebFragments()) {
+				if (fragment instanceof WebFragmentProvider) {
+					if (blacklist.contains(fragment.getId())) {
+						continue;
+					}
+					else {
+						blacklist.add(fragment.getId());
+					}
+					files.addAll(providedFolders(repository, (WebFragmentProvider) fragment, regex, blacklist, includeFragments));
+				}
+			}
+		}
+		if (provider instanceof Artifact) {
+			Entry entry = repository.getEntry(((Artifact) provider).getId());
+			if (entry instanceof ResourceEntry) {
+				ResourceContainer<?> container = ((ResourceEntry) entry).getContainer();
+				List<String> find = find(container, new ResourceFilter() {
+					@Override
+					public boolean accept(Resource resource) {
+						return resource.getName().matches(regex);
+					}
+				}, true, null);
+				for (String resource : find) {
+					files.add("repository:" + ((Artifact) provider).getId() + ":/" + resource);
+				}
+			}
+		}
+		return files;
+	}
+	
 	public static List<String> find(ResourceContainer<?> container, ResourceFilter filter, boolean recursive, String path) {
 		List<String> result = new ArrayList<String>();
 		for (Resource child : container) {
@@ -519,6 +565,7 @@ public class Services {
 		return null;
 	}
 	
+	// the authentication id is meant as a generalization of "userid" which is somewhat human-specific
 	@WebResult(name = "authentication")
 	public TemporaryAuthentication newTemporaryAuthentication(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, @NotNull @WebParam(name = "alias") String alias, @WebParam(name = "maxUses") Integer maxUses, @WebParam(name = "until") Date until,
 			// you must set a reason for the temporary authentication, for example reason "execution" could be to execute a service (e.g. file download)
@@ -526,12 +573,13 @@ public class Services {
 			// reason "authentication" might be for authentication
 			@NotNull @WebParam(name = "type") String type,
 			// correlate it to something of interest
-			@WebParam(name = "correlationId") String correlationId) throws IOException {
+			@WebParam(name = "correlationId") String correlationId,
+			@WebParam(name = "authenticationId") String authenticationId) throws IOException {
 		WebApplication resolved = webApplicationId == null ? null : executionContext.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);
 		if (resolved != null) {
 			TemporaryAuthenticationGenerator temporaryAuthenticationGenerator = resolved.getTemporaryAuthenticationGenerator();
 			if (temporaryAuthenticationGenerator != null) {
-				return temporaryAuthenticationGenerator.generate(resolved.getId(), resolved.getRealm(), alias, maxUses, until, type, correlationId);
+				return temporaryAuthenticationGenerator.generate(resolved.getId(), resolved.getRealm(), alias, authenticationId, maxUses, until, type, correlationId);
 			}
 		}
 		return null;

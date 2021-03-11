@@ -152,7 +152,7 @@ public class RESTServiceListener implements EventHandler<HTTPRequest, HTTPRespon
 				if (!output.getType().equals(fragment.getOutput())) {
 					output = new MaskedContent(output, fragment.getOutput());
 				}
-				
+				// we don't have the rest utils here to choose more dynamically our output binding...
 				List<String> acceptedContentTypes = request.getContent() != null
 						? MimeUtils.getAcceptedContentTypes(request.getContent().getHeaders())
 						: new ArrayList<String>();

@@ -8,16 +8,20 @@ import java.util.Date;
 import org.w3c.dom.Document;
 
 import be.nabu.eai.developer.Main;
+import be.nabu.eai.developer.Main.ServerProfile;
 import be.nabu.eai.developer.MainController;
 import be.nabu.eai.developer.components.RepositoryBrowser;
 import be.nabu.eai.developer.util.Confirm;
+import be.nabu.eai.developer.util.EAIDeveloperUtils;
 import be.nabu.eai.developer.util.Confirm.ConfirmType;
 import be.nabu.eai.module.http.server.HTTPServerArtifact;
 import be.nabu.eai.module.http.virtual.VirtualHostArtifact;
 import be.nabu.eai.module.web.application.WebApplication;
 import be.nabu.eai.module.web.application.WebApplicationManager;
 import be.nabu.eai.module.web.application.WebFragment;
+import be.nabu.eai.module.web.application.WebFragmentProvider;
 import be.nabu.eai.module.web.application.api.DragHandler;
+import be.nabu.eai.module.web.application.api.ModifiableWebFragmentProvider;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.ResourceEntry;
@@ -25,6 +29,7 @@ import be.nabu.jfx.control.tree.drag.TreeDragDrop;
 import be.nabu.libs.artifacts.api.Artifact;
 import be.nabu.libs.services.api.DefinedService;
 import be.nabu.libs.types.api.DefinedType;
+import be.nabu.libs.validator.api.ValidationMessage.Severity;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
@@ -59,6 +64,8 @@ public class WebBrowser {
 	private WebView webView;
 	
 	private static DragHandler handler;
+	
+	private String hardcodedUrl;
 	
 	public static void drag(Node node, DragHandler handler) {
 		WebBrowser.handler = handler;
@@ -113,6 +120,7 @@ public class WebBrowser {
 			
 			buttons.setPadding(new Insets(10));
 			buttons.setAlignment(Pos.CENTER);
+			buttons.getStyleClass().add("buttons");
 			
 			webView = new WebView();
 			spinner = new ProgressIndicator();
@@ -250,17 +258,33 @@ public class WebBrowser {
 	}
 	
 	public String getExternalUrl() throws IOException {
+		if (hardcodedUrl != null) {
+			return hardcodedUrl;
+		}
 		VirtualHostArtifact host = application.getConfig().getVirtualHost();
 		if (host == null) {
 			return null;
 		}
 		HTTPServerArtifact server = host.getConfig().getServer();
-		
-		String url = (server.isSecure() ? "https" : "http") + "://" + (host.getConfig().getHost() == null ? "localhost" : host.getConfig().getHost());
-		if (!server.getConfig().isProxied() && server.getConfig().getPort() != null) {
-			url += ":" + server.getConfig().getPort();
+
+		String url;
+		Integer port = null;
+		// if we have no server but are based on the internal one, we use that
+		if (server == null && host.getConfig().isInternalServer()) {
+			ServerProfile profile = MainController.getInstance().getProfile();
+			boolean secure = profile.isSecure();
+			url = (secure ? "https" : "http") + "://" + (host.getConfig().getHost() == null ? profile.getIp() : host.getConfig().getHost());
+			port = profile.getPort();
+		}
+		else {
+			url = (server != null && server.isSecure() ? "https" : "http") + "://" + (host.getConfig().getHost() == null ? "localhost" : host.getConfig().getHost());
+			port = server.getConfig().isProxied() ? server.getConfig().getProxyPort() : server.getConfig().getPort();
+		}
+		if (port != null) {
+			url += ":" + port;
 		}
 		url += application.getServerPath();
+		
 		return url;
 	}
 
@@ -411,7 +435,24 @@ public class WebBrowser {
 						boolean save = false;
 						if (resolve instanceof WebFragment) {
 							application.getConfig().getWebFragments().add((WebFragment) resolve);
-							save = true;
+							WebFragmentProvider api = application.getApiFragmentProvider();
+							if (api instanceof ModifiableWebFragmentProvider) {
+								((ModifiableWebFragmentProvider) api).addFragment((WebFragment) resolve);
+								if (api instanceof Artifact) {
+									EAIDeveloperUtils.updated(((Artifact) api).getId());
+									// do a synchronous reload of target server before we drop the event to make sure the swagger is updated
+									try {
+										MainController.getInstance().getServer().getRemote().reload(((Artifact) api).getId());
+									}
+									catch (Exception e1) {
+										MainController.getInstance().notify(e1);
+									}
+								}
+							}
+							else {
+								save = true;
+							}
+							MainController.getInstance().getNotificationHandler().notify("Added web fragment " + resolve.getId() + " to the application", 5000l, Severity.INFO);
 						}
 						else if (resolve instanceof DefinedService) {
 							if (application.getConfig().getServices() == null) {
@@ -420,6 +461,7 @@ public class WebBrowser {
 							if (!application.getConfig().getServices().contains((DefinedService) resolve)) {
 								application.getConfig().getServices().add((DefinedService) resolve);
 								save = true;
+								MainController.getInstance().getNotificationHandler().notify("Added service " + resolve.getId() + " to the application", 5000l, Severity.INFO);
 							}
 						}
 						else {
@@ -501,4 +543,14 @@ public class WebBrowser {
 
 	    }
 	}
+
+
+	public String getHardcodedUrl() {
+		return hardcodedUrl;
+	}
+
+	public void setHardcodedUrl(String hardcodedUrl) {
+		this.hardcodedUrl = hardcodedUrl;
+	}
+	
 }

@@ -127,4 +127,10 @@ public class ServiceRESTFragment implements RESTFragment {
 		return service.getId();
 	}
 	
+	// by default in sync with the api component we generated
+	// currently we can't change the tags yet for services
+	public List<String> getTags() {
+		return Arrays.asList("Api");
+	}
+	
 }

@@ -1927,6 +1927,15 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			synchronized(this) {
 				if (restFragments == null) {
 					List<RESTFragment> restFragments = new ArrayList<RESTFragment>();
+					// add services first so they appear higher up in the resulting swagger
+					if (getConfig().getServices() != null) {
+						for (DefinedService service : getConfig().getServices()) {
+							if (service == null) {
+								continue;
+							}
+							restFragments.add(RESTServiceListener.asRestFragment(this, service));
+						}
+					}
 					for (Script script : repository) {
 						try {
 							if (GlueListener.isPublicScript(script)) {
@@ -2040,14 +2049,6 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						}
 						catch (Exception e) {
 							logger.warn("Could not analyze rest services in script: " + ScriptUtils.getFullName(script), e);
-						}
-					}
-					if (getConfig().getServices() != null) {
-						for (DefinedService service : getConfig().getServices()) {
-							if (service == null) {
-								continue;
-							}
-							restFragments.add(RESTServiceListener.asRestFragment(this, service));
 						}
 					}
 					this.restFragments = restFragments;
@@ -2388,11 +2389,38 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		}
 	}
 	
+	public WebFragmentProvider getApiFragmentProvider() {
+		List<WebFragment> fragments = getConfig().getWebFragments();
+		if (fragments != null) {
+			for (WebFragment fragment : fragments) {
+				if (fragment instanceof WebFragmentProvider) {
+					String path = ((WebFragmentProvider) fragment).getRelativePath();
+					// if we have "api" in the path, we assume it is the api artifact
+					if (path != null && path.contains("/api/")) {
+						return (WebFragmentProvider) fragment;
+					}
+				}
+			}
+		}
+		return null;
+	}
+	
 	public String getServicePath() {
 		try {
-			return (getServerPath() + "/api/otr").replaceAll("[/]{2,}", "/");
+			WebFragmentProvider api = getApiFragmentProvider();
+			String result = api == null ? null : api.getRelativePath();
+			// it is possible that we _are_ an API application and that we have it in our path
+			// at that point, the _relative_ url does not need anything added
+			if (result == null && getServerPath().contains("/api/")) {
+				result = "/";
+			}
+			// the default for an internal API
+			if (result == null) {
+				result = "/api/otr";
+			}
+			return result;
 		}
-		catch (Exception e) {
+		catch (IOException e) {
 			throw new RuntimeException(e);
 		}
 	}

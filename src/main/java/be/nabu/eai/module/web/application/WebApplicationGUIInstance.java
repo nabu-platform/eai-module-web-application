@@ -11,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import javafx.application.Platform;
 import javafx.beans.property.ObjectProperty;
 import javafx.scene.control.Tab;
-import javafx.scene.layout.AnchorPane;
 import be.nabu.eai.developer.MainController;
 import be.nabu.eai.developer.api.ArtifactGUIInstanceWithChildren;
 import be.nabu.eai.developer.api.CRUDArtifactGUIInstance;
@@ -97,11 +96,20 @@ public class WebApplicationGUIInstance<T extends Artifact> extends BaseArtifactG
 			path = path.substring("web/".length());
 		}
 		// skip the root, we are resolving in it
-		TreeItem<Resource> resolve = editingTab.get().getTree().resolve(path);
+		TreeItem<Resource> resolve = editingTab.get().getTree().resolve(path, false);
 		if (resolve != null) {
 			Platform.runLater(new Runnable() {
 				public void run() {
 					editingTab.get().getTree().getTreeCell(resolve).refresh();
+				}
+			});
+		}
+		// if we can't find the target, do the root...
+		// it seems if you haven't opened the resources tab yet and someone else triggers a refresh, you then go to the tab, it might fail
+		else {
+			Platform.runLater(new Runnable() {
+				public void run() {
+					editingTab.get().getTree().getRootCell().refresh();
 				}
 			});
 		}

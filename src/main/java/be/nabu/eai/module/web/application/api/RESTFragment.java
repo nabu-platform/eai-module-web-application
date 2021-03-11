@@ -40,4 +40,7 @@ public interface RESTFragment extends Artifact {
 	public default String getRateLimitContext() {
 		return null;
 	}
+	public default List<String> getTags() {
+		return null;
+	}
 }

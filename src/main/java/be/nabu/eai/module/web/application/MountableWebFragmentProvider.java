@@ -14,6 +14,9 @@ public interface MountableWebFragmentProvider extends WebFragmentProvider, WebFr
 	
 	@Override
 	public default void start(WebApplication artifact, String path) throws IOException {
+		if (path == null) {
+			path = "/";
+		}
 		List<WebFragment> webFragments = getWebFragments();
 		if (webFragments != null) {
 			if (getRelativePath() != null) {
@@ -46,6 +49,9 @@ public interface MountableWebFragmentProvider extends WebFragmentProvider, WebFr
 	
 	@Override
 	public default void stop(WebApplication artifact, String path) {
+		if (path == null) {
+			path = "/";
+		}
 		List<WebFragment> webFragments = getWebFragments();
 		if (webFragments != null) {
 			if (getRelativePath() != null) {
