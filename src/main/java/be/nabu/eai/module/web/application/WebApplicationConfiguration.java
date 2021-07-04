@@ -466,6 +466,8 @@ public class WebApplicationConfiguration {
 		this.addCacheHeaders = addCacheHeaders;
 	}
 		
+	@Deprecated
+	@Hidden
 	@Advanced
 	@EnvironmentSpecific
 	public String getJwtKeyAlias() {
@@ -475,6 +477,8 @@ public class WebApplicationConfiguration {
 		this.jwtKeyAlias = jwtKeyAlias;
 	}
 	
+	@Deprecated
+	@Hidden
 	@Advanced
 	@EnvironmentSpecific
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
@@ -485,6 +489,9 @@ public class WebApplicationConfiguration {
 		this.jwtKeyStore = jwtKeyStore;
 	}
 	
+	// there is a generic bearer handler principle, allowing for much more freedom as to how you want to deal with this
+	@Deprecated
+	@Hidden
 	@Advanced
 	public boolean isAllowJwtBearer() {
 		return allowJwtBearer;

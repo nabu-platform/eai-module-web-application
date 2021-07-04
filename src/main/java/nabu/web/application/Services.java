@@ -303,7 +303,10 @@ public class Services {
 	private void translationKeys(ResourceContainer<?> container, List<KeyValuePair> keys, boolean recursive, List<String> uniques) throws IOException {
 		if (container != null) {
 			for (Resource resource : container) {
-				if (resource instanceof ReadableResource && resource.getName().matches(".*\\.(tpl|js|css|gcss|glue|json)")) {
+				// @2021-04-16: added "eglue" which was curiously missing from the list of extensions
+				// it is no longer clear whether this was an active design decision or an oversight
+				// added for OV where eglue is still used a lot, if this breaks somehow, might need to revert and find another solution for OV
+				if (resource instanceof ReadableResource && resource.getName().matches(".*\\.(tpl|js|css|gcss|glue|json|eglue)")) {
 					ReadableContainer<ByteBuffer> readable = ((ReadableResource) resource).getReadable();
 					try {
 						byte[] bytes = IOUtils.toBytes(readable);
