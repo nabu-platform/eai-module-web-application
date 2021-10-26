@@ -31,6 +31,7 @@ import be.nabu.eai.module.http.server.HTTPServerArtifact;
 import be.nabu.eai.module.http.server.RepositoryExceptionFormatter;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.keystore.KeyStoreArtifact;
+import be.nabu.eai.module.types.structure.StructureManager;
 import be.nabu.eai.module.web.application.WebConfiguration.WebConfigurationPart;
 import be.nabu.eai.module.web.application.api.ArbitraryAuthenticator;
 import be.nabu.eai.module.web.application.api.BearerAuthenticator;
@@ -526,14 +527,56 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			
 			BearerAuthenticator bearerAuthenticator = getBearerAuthenticator();
 			if (bearerAuthenticator != null) {
-				EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, new BearerAuthenticatorHandler(bearerAuthenticator, getRealm()));
+				BearerAuthenticatorHandler bearerAuthenticatorHandler = new BearerAuthenticatorHandler(this, bearerAuthenticator, getRealm());
+				EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, new EventHandler<HTTPRequest, HTTPResponse>() {
+					@Override
+					public HTTPResponse handle(HTTPRequest event) {
+						try {
+							// set it globally
+							ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
+							ServiceRuntime.getGlobalContext().put("service.context", getId());
+							ServiceRuntime.getGlobalContext().put("webApplicationId", getId());
+							ServiceRuntime.getGlobalContext().put("service.source", "web");
+							return bearerAuthenticatorHandler.handle(event);
+						}
+						catch (HTTPException e) {
+							e.getContext().add(getId());
+							throw e;
+						}
+						finally {
+							// unset it
+							ServiceRuntime.setGlobalContext(null);	
+						}
+					}
+				});
 				subscription.filter(HTTPServerUtils.limitToPath(serverPath));
 				subscriptions.add(subscription);
 			}
 			
 			ArbitraryAuthenticator arbitraryAuthenticator = getArbitraryAuthenticator();
 			if (arbitraryAuthenticator != null) {
-				EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, new ArbitraryAuthenticatorHandler(arbitraryAuthenticator, getRealm()));
+				ArbitraryAuthenticatorHandler arbitraryAuthenticatorHandler = new ArbitraryAuthenticatorHandler(this, arbitraryAuthenticator, getRealm());
+				EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, new EventHandler<HTTPRequest, HTTPResponse>() {
+					@Override
+					public HTTPResponse handle(HTTPRequest event) {
+						try {
+							// set it globally
+							ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
+							ServiceRuntime.getGlobalContext().put("service.context", getId());
+							ServiceRuntime.getGlobalContext().put("webApplicationId", getId());
+							ServiceRuntime.getGlobalContext().put("service.source", "web");
+							return arbitraryAuthenticatorHandler.handle(event);
+						}
+						catch (HTTPException e) {
+							e.getContext().add(getId());
+							throw e;
+						}
+						finally {
+							// unset it
+							ServiceRuntime.setGlobalContext(null);	
+						}
+					}
+				});
 				subscription.filter(HTTPServerUtils.limitToPath(serverPath));
 				subscriptions.add(subscription);
 			}
@@ -1042,6 +1085,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						// set it globally
 						ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
 						ServiceRuntime.getGlobalContext().put("service.context", getId());
+						ServiceRuntime.getGlobalContext().put("webApplicationId", getId());
 						ServiceRuntime.getGlobalContext().put("service.source", "glue");
 						return listener.handle(event);
 					}
@@ -1409,7 +1453,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			if (realm == null) {
 				Entry entry = getRepository().getEntry(getId());
 				while (entry != null) {
-					if (EAIRepositoryUtils.isProject(entry)) {
+					if (EAIRepositoryUtils.isProject(entry) && entry.getCollection() != null) {
 						realm = entry.getCollection().getName();
 						break;
 					}
@@ -1896,6 +1940,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				part.setType(typeId);
 				part.setEnvironmentSpecific(environmentSpecificConfigurations.contains(content));
 				configuration.getParts().add(part);
+				// we also write the definition in a standardized format because
+				// - we can't guarantee the definition is in the same project
+				// - we can't guarantee the definition is a structure
+				// we need the definition for merge scripts etc to know what is possible in the configuration rather than what is currently there
+				if (content != null) {
+					StructureManager.format(directory, content.getType(), "definition-" + typeId + ".xml");
+				}
 			}
 		}
 		// save properties

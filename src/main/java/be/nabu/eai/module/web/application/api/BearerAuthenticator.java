@@ -9,5 +9,5 @@ import be.nabu.libs.authentication.api.Token;
 
 public interface BearerAuthenticator {
 	@WebResult(name = "token")
-	public Token authenticate(@NotNull @WebParam(name = "realm") String realm, @NotNull @WebParam(name = "bearer") String bearer, @WebParam(name = "device") Device device);
+	public Token authenticate(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, @NotNull @WebParam(name = "realm") String realm, @NotNull @WebParam(name = "bearer") String bearer, @WebParam(name = "device") Device device);
 }

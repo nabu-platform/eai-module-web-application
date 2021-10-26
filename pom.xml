@@ -57,6 +57,11 @@
 			<artifactId>eai-module-glue</artifactId>
 			<scope>provided</scope>
 		</dependency>
+		<dependency>
+			<groupId>nabu</groupId>
+			<artifactId>eai-module-types-structure</artifactId>
+			<scope>provided</scope>
+		</dependency>
 		
 		<dependency>
 			<groupId>be.nabu.libs.cache</groupId>

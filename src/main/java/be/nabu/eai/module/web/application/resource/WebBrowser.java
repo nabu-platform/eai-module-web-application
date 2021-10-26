@@ -1,6 +1,7 @@
 package be.nabu.eai.module.web.application.resource;
 
 import java.io.IOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -27,6 +28,7 @@ import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.ResourceEntry;
 import be.nabu.jfx.control.tree.drag.TreeDragDrop;
 import be.nabu.libs.artifacts.api.Artifact;
+import be.nabu.libs.resources.URIUtils;
 import be.nabu.libs.services.api.DefinedService;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.validator.api.ValidationMessage.Severity;
@@ -264,6 +266,15 @@ public class WebBrowser {
 		VirtualHostArtifact host = application.getConfig().getVirtualHost();
 		if (host == null) {
 			return null;
+		}
+		// if you are using the internal server, we need to get that
+		if (host.getConfig().isInternalServer()) {
+			URI endpoint = MainController.getInstance().getServer().getRemote().getEndpoint();
+			if (application.getServerPath() != null && !application.getServerPath().equals("/")) {
+				endpoint = URIUtils.getChild(endpoint, application.getServerPath());
+			}
+			System.out.println("the endpoint is: " + endpoint.toASCIIString());
+			return endpoint.toASCIIString();
 		}
 		HTTPServerArtifact server = host.getConfig().getServer();
 

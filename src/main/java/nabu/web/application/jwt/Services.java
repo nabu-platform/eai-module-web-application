@@ -46,6 +46,9 @@ public class Services {
 					key = keystoreArtifact.getKeyStore().getSecretKey(keyAlias);
 				}
 			}
+			if (key == null) {
+				throw new IllegalArgumentException("Can not resolve key '" + keyAlias + "' in keystore '" + keystore + "'");
+			}
 		}
 		
 		return JWTUtils.decode(key, content);
@@ -61,23 +64,20 @@ public class Services {
 			@WebParam(name = "subject") String subject,
 			@WebParam(name = "audience") String audience,
 			@WebParam(name = "realm") String realm,
+			@WebParam(name = "jwtId") String jwtId,
 			@WebParam(name = "properties") List<KeyValuePair> pairs,
 			@WebParam(name = "algorithm") JWTAlgorithm algorithm) throws KeyStoreException, IOException {
 		
 		JWTBody body = new JWTBody();
 		
 		body.setRlm(realm);
-		// one hour by default
-		if (validUntil == null) {
-			validUntil = new Date(new Date().getTime() + (1000l*60*60));
+
+		if (validUntil != null) {
+			body.setExp(validUntil.getTime() / 1000);
 		}
-		body.setExp(validUntil.getTime() / 1000);
-		
-		if (issuedAt == null) {
-			issuedAt = new Date();
+		if (issuedAt != null) {
+			body.setIat(issuedAt.getTime() / 1000);
 		}
-		body.setIat(issuedAt.getTime() / 1000);
-		
 		if (notBefore != null) {
 			body.setNbf(notBefore.getTime() / 1000);
 		}
@@ -90,8 +90,12 @@ public class Services {
 		if (audience != null) {
 			body.setAud(audience);
 		}
-		
-		body.setValues(pairs);
+		if (jwtId != null) {
+			body.setJti(jwtId);
+		}
+		if (pairs != null && !pairs.isEmpty()) {
+			body.setValues(pairs);
+		}
 		
 		KeyStoreArtifact keystoreArtifact = context.getServiceContext().getResolver(KeyStoreArtifact.class).resolve(keystore);
 		if (keystoreArtifact == null) {
@@ -104,11 +108,16 @@ public class Services {
 		catch (Exception e) {
 			key = keystoreArtifact.getKeyStore().getSecretKey(keyAlias);
 		}
-		
-		if (algorithm == null) {
-			algorithm = key instanceof SecretKey ? JWTAlgorithm.HS512 : JWTAlgorithm.RS512;
+		if (key == null) {
+			throw new IllegalArgumentException("Can not resolve key '" + keyAlias + "' in keystore '" + keystore + "'");
 		}
 		
+		// instead of opting for the most secure, we balance overall jwt token size with security
+		// if you want the more secure algorithms, set it explicitly
+		if (algorithm == null) {
+			algorithm = key instanceof SecretKey ? JWTAlgorithm.HS256 : JWTAlgorithm.RS256;
+		}
+		System.out.println("SIGNING USING " + algorithm + ": " + keyAlias + "@" + keystore + " (=" + key + ")");
 		return JWTUtils.encode(key, body, algorithm);
 	}
 }

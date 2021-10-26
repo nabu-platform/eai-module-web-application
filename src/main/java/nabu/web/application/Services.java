@@ -48,8 +48,10 @@ import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.resources.api.ResourceFilter;
 import be.nabu.libs.services.ServiceRuntime;
+import be.nabu.libs.services.ServiceUtils;
 import be.nabu.libs.services.api.ExecutionContext;
 import be.nabu.libs.services.api.ServiceDescription;
+import be.nabu.libs.services.api.ServiceException;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.KeyValuePair;
@@ -306,7 +308,7 @@ public class Services {
 				// @2021-04-16: added "eglue" which was curiously missing from the list of extensions
 				// it is no longer clear whether this was an active design decision or an oversight
 				// added for OV where eglue is still used a lot, if this breaks somehow, might need to revert and find another solution for OV
-				if (resource instanceof ReadableResource && resource.getName().matches(".*\\.(tpl|js|css|gcss|glue|json|eglue)")) {
+				if (resource instanceof ReadableResource && resource.getName().matches(".*\\.(tpl|js|css|gcss|glue|json|eglue|scss|sass)")) {
 					ReadableContainer<ByteBuffer> readable = ((ReadableResource) resource).getReadable();
 					try {
 						byte[] bytes = IOUtils.toBytes(readable);
@@ -332,6 +334,24 @@ public class Services {
 					translationKeys((ResourceContainer<?>) resource, keys, recursive, uniques);
 				}
 			}
+		}
+	}
+	
+	@WebResult(name = "current")
+	public WebApplicationInformation current() throws IOException {
+		ServiceRuntime runtime = ServiceRuntime.getRuntime();
+		String id = runtime == null ? null : (String) runtime.getContext().get("webApplicationId");
+		System.out.println("context is: " + runtime.getContext());
+		if (id != null) {
+			WebApplicationInformation information = information(id);
+			// the id is not a web application :(
+			if (information == null) {
+				throw new IllegalStateException("Could not find valid web application wrapper");
+			}
+			return information;
+		}
+		else {
+			throw new IllegalStateException("Could not find valid web application wrapper");
 		}
 	}
 	
@@ -593,7 +613,7 @@ public class Services {
 		if (resolved != null) {
 			TemporaryAuthenticator temporaryAuthenticator = resolved.getTemporaryAuthenticator();
 			if (temporaryAuthenticator != null) {
-				temporaryAuthenticator.authenticate(resolved.getRealm(), authentication, device, type, correlationId);
+				return temporaryAuthenticator.authenticate(resolved.getRealm(), authentication, device, type, correlationId);
 			}
 		}
 		return null;

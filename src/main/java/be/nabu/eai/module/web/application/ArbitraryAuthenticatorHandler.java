@@ -13,8 +13,10 @@ public class ArbitraryAuthenticatorHandler implements EventHandler<HTTPRequest, 
 
 	private ArbitraryAuthenticator authenticator;
 	private String realm;
+	private WebApplication application;
 
-	public ArbitraryAuthenticatorHandler(ArbitraryAuthenticator authenticator, String realm) {
+	public ArbitraryAuthenticatorHandler(WebApplication application, ArbitraryAuthenticator authenticator, String realm) {
+		this.application = application;
 		this.authenticator = authenticator;
 		this.realm = realm;
 	}
@@ -22,8 +24,8 @@ public class ArbitraryAuthenticatorHandler implements EventHandler<HTTPRequest, 
 	@Override
 	public HTTPResponse handle(HTTPRequest request) {
 		Device device = request.getContent() == null ? null : GlueListener.getDevice(realm, request.getContent().getHeaders());
-		authenticator.authenticate(realm, request, device);
-		Token token = authenticator.authenticate(realm, request, device);
+//		authenticator.authenticate(application.getId(), realm, request, device);
+		Token token = authenticator.authenticate(application.getId(), realm, request, device);
 		if (token != null) {
 			request.getContent().setHeader(new SimpleAuthenticationHeader(token));
 		}

@@ -262,7 +262,7 @@ public class WebApplicationConfiguration {
 		this.allowBasicAuthentication = allowBasicAuthentication;
 	}
 
-	@Field(comment = "The realm this web application operates in. This can be important for authentication, especially in shared environments.", group = "security")
+	@Field(comment = "The realm this web application operates in. This can be important for authentication, especially in shared environments.", group = "security", environmentSpecific = true)
 	public String getRealm() {
 		return realm;
 	}
@@ -575,6 +575,7 @@ public class WebApplicationConfiguration {
 		this.services = services;
 	}
 	
+
 	@Field(group = "security", comment = "Configure a virus scanner for this web application. Once configured, all binary uploads will automatically be scanned for viruses.")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	public VirusScanner getVirusScanner() {

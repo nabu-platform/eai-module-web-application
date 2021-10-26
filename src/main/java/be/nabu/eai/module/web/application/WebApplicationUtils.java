@@ -462,6 +462,7 @@ public class WebApplicationUtils {
 			try {
 				ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
 				ServiceRuntime.getGlobalContext().put("service.context", application.getId());
+				Date started = new Date();
 				List<RateLimitSettings> settings = rateLimiter.settings(application.getId(), source, token, device, action, context);
 				if (settings != null && !settings.isEmpty()) {
 						for (RateLimitSettings setting : settings) {
@@ -469,7 +470,7 @@ public class WebApplicationUtils {
 							if (setting == null || setting.getAmount() == null) {
 								continue;
 							}
-							long time = new Date().getTime();
+							long time = started.getTime();
 							// if the interval is null, you just get a fixed amount of calls
 							RateLimitCheck check = rateLimiter.check(application.getId(), setting.getRuleId(), setting.getIdentity(), setting.getContext(), setting.getInterval() == null ? null : new Date(time - setting.getInterval()));
 							// if we get a result, let's validate it
@@ -484,12 +485,13 @@ public class WebApplicationUtils {
 										millisecondsUntilFreeSlot = setting.getInterval() - (time - check.getOldestHit().getTime());
 										content.setHeader(new MimeHeader("Retry-After", "" + (millisecondsUntilFreeSlot / 1000)));
 									}
-									sendEvent(application, source, token, device, action, context, request, setting.getRuleId(), setting.getRuleCode(), check.getAmountOfHits(), millisecondsUntilFreeSlot);
+									sendRateLimitEvent(application, source, token, device, action, context, request, setting.getRuleId(), setting.getRuleCode(), check.getAmountOfHits(), setting.getAmount(), millisecondsUntilFreeSlot, true, started);
 									return new DefaultHTTPResponse(request, 429, HTTPCodes.getMessage(429), content);
 								}
 							}
 							// if we make it past the above check, log a hit
-							rateLimiter.log(application.getId(), setting.getRuleId(), setting.getIdentity(), setting.getContext(), new Date(time));
+							rateLimiter.log(application.getId(), setting.getRuleId(), setting.getIdentity(), setting.getContext(), started);
+							sendRateLimitEvent(application, source, token, device, action, context, request, setting.getRuleId(), setting.getRuleCode(), check.getAmountOfHits() + 1, setting.getAmount(), null, false, started);
 						}
 				}
 			}
@@ -500,11 +502,11 @@ public class WebApplicationUtils {
 		return null;
 	}
 	
-	private static void sendEvent(WebApplication application, Source source, Token token, Device device, String action, String context, HTTPRequest request, String ruleId, String ruleCode, Integer amount, Long duration) {
+	private static void sendRateLimitEvent(WebApplication application, Source source, Token token, Device device, String action, String context, HTTPRequest request, String ruleId, String ruleCode, Integer amount, Integer max, Long duration, boolean hit, Date started) {
 		if (application.getRepository().getComplexEventDispatcher() != null) {
 			HTTPComplexEventImpl event = new HTTPComplexEventImpl();
 			event.setArtifactId(application.getId());
-			event.setEventName("rate-limit-hit");
+			event.setEventName(hit ? "rate-limit-hit" : "rate-limit-miss");
 			event.setEventCategory("rate-limit");
 			event.setMethod(request.getMethod());
 			Header header = MimeUtils.getHeader("User-Agent", request.getContent().getHeaders());
@@ -519,7 +521,7 @@ public class WebApplicationUtils {
 				event.setDestinationPort(source.getLocalPort());
 			}
 			event.setTransportProtocol("TCP");
-			event.setApplicationProtocol(application.getConfig().getVirtualHost().getConfig().getServer().isSecure() ? "HTTPS" : "HTTP");
+			event.setApplicationProtocol(application.isSecure() ? "HTTPS" : "HTTP");
 			event.setSizeIn(MimeUtils.getContentLength(request.getContent().getHeaders()));
 			try {
 				event.setRequestUri(HTTPUtils.getURI(request, event.getApplicationProtocol().equals("HTTPS")));
@@ -528,32 +530,43 @@ public class WebApplicationUtils {
 				// ignore
 			}
 			event.setCreated(new Date());
+			// the duration of the rate limit check
+			event.setStarted(started);
+			event.setStopped(event.getCreated());
 			event.setCode(ruleCode);
-			event.setSeverity(EventSeverity.ERROR);
-			event.setResponseCode(429);
+			if (hit) {
+				event.setSeverity(EventSeverity.ERROR);
+				event.setResponseCode(429);
+				event.setReason("limit reached: " + amount + ", try again in: " + duration + "ms");
+			}
+			else {
+				event.setSeverity(EventSeverity.INFO);
+				event.setReason("limit not reached: " + amount + " <= " + max);
+			}
 			event.setAction(action);
 			event.setContext(context);
-			event.setCorrelationId(ruleId);
+			event.setLocalId(ruleId);
 			if (device != null) {
 				event.setDeviceId(device.getDeviceId());
 			}
 			if (token != null) {
 				event.setRealm(token.getRealm());
 				event.setAlias(token.getName());
+				event.setAuthenticationId(token.getAuthenticationId());
 			}
-			event.setReason("limit reached: " + amount + ", try again in: " + duration + "ms");
 			// this is very misleading, it seems like the event itself took that long
 //			event.setDuration(duration);
-			header = MimeUtils.getHeader(ServerHeader.REQUEST_RECEIVED.getName(), request.getContent().getHeaders());
-			if (header != null) {
-				try {
-					event.setStarted(HTTPUtils.parseDate(header.getValue()));
-					event.setStopped(new Date());
-				}
-				catch (ParseException e) {
-					// couldn't parse date...
-				}
-			}
+			// @2021-09-08 we don't want the duration of the entire request but rather of the rate limit check (see above)
+//			header = MimeUtils.getHeader(ServerHeader.REQUEST_RECEIVED.getName(), request.getContent().getHeaders());
+//			if (header != null) {
+//				try {
+//					event.setStarted(HTTPUtils.parseDate(header.getValue()));
+//					event.setStopped(new Date());
+//				}
+//				catch (ParseException e) {
+//					// couldn't parse date...
+//				}
+//			}
 			application.getRepository().getComplexEventDispatcher().fire(event, application);
 		}
 	}
@@ -642,56 +655,62 @@ public class WebApplicationUtils {
 	public static HTTPResponse scanForVirus(Artifact from, WebApplication application, Device device, Token token, HTTPRequest request, byte [] content) throws ServiceException {
 		VirusScanner scanner = application.getConfig().getVirusScanner();
 		if (scanner != null) {
-			VirusInfection scan = content != null ? scanner.scan(new ByteArrayInputStream(content)) : scanner.scan(request);
-			// if we found a virus, we don't allow the request!
-			if (scan != null) {
-				HTTPComplexEventImpl event = new HTTPComplexEventImpl();
-				if (device != null) {
-					event.setDeviceId(device.getDeviceId());
+			HTTPComplexEventImpl event = new HTTPComplexEventImpl();
+			if (device != null) {
+				event.setDeviceId(device.getDeviceId());
+			}
+			if (token != null) {
+				event.setAlias(token.getName());
+				event.setRealm(token.getRealm());
+				event.setAuthenticationId(token.getAuthenticationId());
+			}
+			Pipeline pipeline = PipelineUtils.getPipeline();
+			event.setMethod(request.getMethod());
+			HTTPServerArtifact server = application.getConfig().getVirtualHost().getConfig().getServer();
+			try {
+				event.setRequestUri(HTTPUtils.getURI(request, server.isSecure()));
+			}
+			catch (FormatException e) {
+				// could not set the request uri... :(
+			}
+			event.setApplicationProtocol(server.isSecure() ? "HTTPS" : "HTTP");
+			event.setArtifactId(server.getId());
+			event.setDestinationPort(server.getConfig().getPort());
+			Header header = MimeUtils.getHeader("User-Agent", request.getContent().getHeaders());
+			if (header != null) {
+				event.setUserAgent(MimeUtils.getFullHeaderValue(header));
+			}
+			// inject the correct values based on the headers
+			event.setSourceIp(HTTPUtils.getRemoteAddress(server.getConfig().isProxied(), request.getContent().getHeaders()));
+			event.setSourceHost(HTTPUtils.getRemoteHost(server.getConfig().isProxied(), request.getContent().getHeaders()));
+			event.setSizeIn(MimeUtils.getContentLength(request.getContent().getHeaders()));
+			// the virus code
+			event.setArtifactId(from.getId());
+			event.setContext(application.getId());
+			// we capture the duration of the virus scan
+			event.setStarted(new Date());
+			try {
+				VirusInfection scan = content != null ? scanner.scan(new ByteArrayInputStream(content)) : scanner.scan(request);
+				event.setStopped(new Date());
+				// if we found a virus, we don't allow the request!
+				if (scan != null) {
+					CEPUtils.enrich(event, from.getClass(), "virus-detected", pipeline == null || pipeline.getSourceContext() == null ? null : pipeline.getSourceContext().getSocketAddress(), "Virus detected: " + scan.getThreat(), null);
+					event.setLocalId(scan.getThreat());
+					event.setSeverity(EventSeverity.ERROR);
+					application.getRepository().getComplexEventDispatcher().fire(event, application);
+					// we send back a 403
+					return new DefaultHTTPResponse(request, 403, HTTPCodes.getMessage(403), new PlainMimeEmptyPart(null, new MimeHeader("Content-Length", "0")));
 				}
-				if (token != null) {
-					event.setAlias(token.getName());
-					event.setRealm(token.getRealm());
+				else {
+					CEPUtils.enrich(event, from.getClass(), "virus-undetected", pipeline == null || pipeline.getSourceContext() == null ? null : pipeline.getSourceContext().getSocketAddress(), "No virus detected", null);
+					event.setSeverity(EventSeverity.INFO);
+					application.getRepository().getComplexEventDispatcher().fire(event, application);
 				}
-				Pipeline pipeline = PipelineUtils.getPipeline();
-				CEPUtils.enrich(event, from.getClass(), "virus-detected", pipeline == null || pipeline.getSourceContext() == null ? null : pipeline.getSourceContext().getSocketAddress(), "Virus detected: " + scan.getThreat(), null);
-				event.setSeverity(EventSeverity.ERROR);
-				event.setMethod(request.getMethod());
-				HTTPServerArtifact server = application.getConfig().getVirtualHost().getConfig().getServer();
-				try {
-					event.setRequestUri(HTTPUtils.getURI(request, server.isSecure()));
-				}
-				catch (FormatException e) {
-					// could not set the request uri... :(
-				}
-				event.setApplicationProtocol(server.isSecure() ? "HTTPS" : "HTTP");
-				event.setArtifactId(server.getId());
-				event.setDestinationPort(server.getConfig().getPort());
-				Header header = MimeUtils.getHeader("User-Agent", request.getContent().getHeaders());
-				if (header != null) {
-					event.setUserAgent(MimeUtils.getFullHeaderValue(header));
-				}
-				header = MimeUtils.getHeader(ServerHeader.REQUEST_RECEIVED.getName(), request.getContent().getHeaders());
-				if (header != null) {
-					try {
-						event.setStarted(HTTPUtils.parseDate(header.getValue()));
-						event.setStopped(new Date());
-					}
-					catch (ParseException e) {
-						// couldn't parse date...
-					}
-				}
-				// inject the correct values based on the headers
-				event.setSourceIp(HTTPUtils.getRemoteAddress(server.getConfig().isProxied(), request.getContent().getHeaders()));
-				event.setSourceHost(HTTPUtils.getRemoteHost(server.getConfig().isProxied(), request.getContent().getHeaders()));
-				event.setSizeIn(MimeUtils.getContentLength(request.getContent().getHeaders()));
-				// the virus code
-				event.setCode(scan.getThreat());
-				event.setArtifactId(from.getId());
-				event.setContext(application.getId());
+			}
+			catch (ServiceException e) {
+				CEPUtils.enrich(event, from.getClass(), "virus-check-failed", pipeline == null || pipeline.getSourceContext() == null ? null : pipeline.getSourceContext().getSocketAddress(), "Virus check failed", e);
 				application.getRepository().getComplexEventDispatcher().fire(event, application);
-				// we send back a 403
-				return new DefaultHTTPResponse(request, 403, HTTPCodes.getMessage(403), new PlainMimeEmptyPart(null, new MimeHeader("Content-Length", "0")));
+				throw e;
 			}
 		}
 		return null;

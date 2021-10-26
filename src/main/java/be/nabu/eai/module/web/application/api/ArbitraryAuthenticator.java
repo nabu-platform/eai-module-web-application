@@ -10,5 +10,5 @@ import be.nabu.libs.http.api.HTTPRequest;
 
 public interface ArbitraryAuthenticator {
 	@WebResult(name = "token")
-	public Token authenticate(@NotNull @WebParam(name = "realm") String realm, @NotNull @WebParam(name = "request") HTTPRequest request, @WebParam(name = "device") Device device);
+	public Token authenticate(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, @NotNull @WebParam(name = "realm") String realm, @NotNull @WebParam(name = "request") HTTPRequest request, @WebParam(name = "device") Device device);
 }

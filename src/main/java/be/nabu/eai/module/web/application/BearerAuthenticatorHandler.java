@@ -19,8 +19,10 @@ public class BearerAuthenticatorHandler implements EventHandler<HTTPRequest, HTT
 	private BearerAuthenticator authenticator;
 	private String realm;
 	private Logger logger = LoggerFactory.getLogger(getClass());
+	private WebApplication application;
 
-	public BearerAuthenticatorHandler(BearerAuthenticator authenticator, String realm) {
+	public BearerAuthenticatorHandler(WebApplication application, BearerAuthenticator authenticator, String realm) {
+		this.application = application;
 		this.authenticator = authenticator;
 		this.realm = realm;
 	}
@@ -37,7 +39,7 @@ public class BearerAuthenticatorHandler implements EventHandler<HTTPRequest, HTT
 			}
 			Device device = request.getContent() == null ? null : GlueListener.getDevice(realm, request.getContent().getHeaders());
 			try {
-				Token token = authenticator.authenticate(realm, bearer, device);
+				Token token = authenticator.authenticate(application.getId(), realm, bearer, device);
 				if (token != null) {
 					request.getContent().setHeader(new SimpleAuthenticationHeader(token));
 				}

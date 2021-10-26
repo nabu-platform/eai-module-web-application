@@ -204,6 +204,6 @@ public class WebApplicationMethods {
 	}
 	
 	public static boolean hasFeature(String name) {
-		return EAIResourceRepository.getInstance().getEnabledFeatures().contains(name);
+		return EAIResourceRepository.getInstance().getEnabledFeatures(null).contains(name);
 	}
 }
