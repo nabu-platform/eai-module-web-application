@@ -1,0 +1,53 @@
+result = xml.objectify(file.read("webartifact.xml"))
+
+tag("HTTP Web Application")
+
+result/virtualHost = parameter(
+	name: "virtualHost",
+	category: "Basic",
+	title: "artifact",
+	description: "The virtual host the application is available on",
+	type: null,
+	encrypted: false,
+	optional: true,
+	raw: result/virtualHost)/current
+
+result/path = parameter(
+	name: "path",
+	category: "Basic",
+	title: null,
+	description: "The path this application is available on",
+	type: null,
+	encrypted: false,
+	optional: true,
+	raw: result/path)/current
+
+file.write("webartifact.xml", xml.stringify(result))
+
+
+
+
+
+fragments = xml.objectify(file.read("fragments.xml"))
+
+for (part : fragments/parts)
+	string definition = file.read("definition-" + part/type + ".xml")
+	if (definition != null)
+		keyValuePairs = derive(lambda(x, structure(key: x["@key"], value: x["$value"])), part/configuration/property)
+		object = propertiesToObject(definition, properties: unwrap(keyValuePairs))
+		parameters = parameters(definition, lambda(x, object[x]), part/environmentSpecific == true)
+		
+		parsedDefinition = xml.objectify(definition)
+		
+		for (parameter : parameters)
+			if (parameter/list)
+				object[/parameter/name] = split("[\s]*,[\s]*", parameter/current)
+			else
+				object[/parameter/name] = parameter/current
+			#parameter/category = replace("^.*\\.([^.]+)$", "$1", part/type)
+			parameter/category = when(parsedDefinition["@comment"] != null, parsedDefinition["@comment"], part/type)
+		part/configuration/property = objectToProperties(object)
+	else
+		echo("Could not find definition for: " + part/type)
+
+file.write("fragments.xml", xml.stringify(fragments))
