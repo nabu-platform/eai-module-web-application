@@ -1945,7 +1945,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				// - we can't guarantee the definition is a structure
 				// we need the definition for merge scripts etc to know what is possible in the configuration rather than what is currently there
 				if (content != null) {
-					StructureManager.format(directory, content.getType(), "definition-" + typeId + ".xml");
+					StructureManager.format(directory, content.getType(), "definition-" + typeId + ".xml", true);
 				}
 			}
 		}
