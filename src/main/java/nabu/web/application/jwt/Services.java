@@ -11,7 +11,9 @@ import javax.crypto.SecretKey;
 import javax.jws.WebParam;
 import javax.jws.WebService;
 
+import be.nabu.eai.api.Comment;
 import be.nabu.eai.module.keystore.KeyStoreArtifact;
+import be.nabu.eai.module.web.application.WebApplication;
 import be.nabu.libs.http.jwt.JWTBody;
 import be.nabu.libs.http.jwt.JWTUtils;
 import be.nabu.libs.http.jwt.enums.JWTAlgorithm;
@@ -23,17 +25,39 @@ public class Services {
 	
 	private ExecutionContext context;
 	
+	@Comment(title = "Either you provide a valid keystore/keyalias combination or you provide a web application which has these things configured in it")
 	public JWTBody unmarshal(
+			@WebParam(name = "webApplicationId") String webApplicationId,
 			@WebParam(name = "keystore") String keystore, 
 			@WebParam(name = "keyAlias") String keyAlias,
 			@WebParam(name = "content") String content) throws KeyStoreException, IOException, ParseException {
 		
 		Key key = null;
 		
-		if (keystore != null && keyAlias != null) {
-			KeyStoreArtifact keystoreArtifact = context.getServiceContext().getResolver(KeyStoreArtifact.class).resolve(keystore);
+		// if you provide input for actual validation, we will validate or throw an exception
+		// if you explicitly do not provide these inputs, we will simply parse without validating
+		if (keystore != null || keyAlias != null || webApplicationId != null) {
+			KeyStoreArtifact keystoreArtifact = keystore == null ? null : context.getServiceContext().getResolver(KeyStoreArtifact.class).resolve(keystore);
+			WebApplication resolve = null;
+			// if no keystore was found, check the web application (if any)
+			// if you fill in both the keystore input and the web application input, you are already doing something "weird" and hopefully know the sequence of events that takes place here
+			if (webApplicationId != null && keystoreArtifact == null) {
+				resolve = context.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);
+				keystoreArtifact = resolve.getConfig().getJwtKeyStore();
+			}
+			
 			if (keystoreArtifact == null) {
-				throw new IllegalArgumentException("No keystore found by the name: " + keystore);
+				throw new IllegalArgumentException("No keystore found (keystore: " + keystore + ", web application: " + webApplicationId + ")");
+			}
+			
+			if (keyAlias == null && webApplicationId != null) {
+				if (resolve == null) {
+					resolve = context.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);	
+				}
+				keyAlias = resolve.getConfig().getJwtKeyAlias();
+			}
+			if (keyAlias == null) {
+				throw new IllegalArgumentException("Can not find correct key alias");
 			}
 			try {
 				key = keystoreArtifact.getKeyStore().getCertificate(keyAlias).getPublicKey();
@@ -49,12 +73,15 @@ public class Services {
 			if (key == null) {
 				throw new IllegalArgumentException("Can not resolve key '" + keyAlias + "' in keystore '" + keystore + "'");
 			}
+			
 		}
 		
 		return JWTUtils.decode(key, content);
 	}
 	
+	@Comment(title = "Either you provide a valid keystore/keyalias combination or you provide a web application which has these things configured in it")
 	public String marshal(
+			@WebParam(name = "webApplicationId") String webApplicationId,
 			@WebParam(name = "keystore") String keystore, 
 			@WebParam(name = "keyAlias") String keyAlias, 
 			@WebParam(name = "issuedAt") Date issuedAt, 
@@ -97,10 +124,28 @@ public class Services {
 			body.setValues(pairs);
 		}
 		
-		KeyStoreArtifact keystoreArtifact = context.getServiceContext().getResolver(KeyStoreArtifact.class).resolve(keystore);
-		if (keystoreArtifact == null) {
-			throw new IllegalArgumentException("No keystore found by the name: " + keystore);
+		KeyStoreArtifact keystoreArtifact = keystore == null ? null : context.getServiceContext().getResolver(KeyStoreArtifact.class).resolve(keystore);
+		WebApplication resolve = null;
+		// if no keystore was found, check the web application (if any)
+		// if you fill in both the keystore input and the web application input, you are already doing something "weird" and hopefully know the sequence of events that takes place here
+		if (webApplicationId != null && keystoreArtifact == null) {
+			resolve = context.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);
+			keystoreArtifact = resolve.getConfig().getJwtKeyStore();
 		}
+		
+		if (keystoreArtifact == null) {
+			throw new IllegalArgumentException("No keystore found (keystore: " + keystore + ", web application: " + webApplicationId + ")");
+		}
+		if (keyAlias == null && webApplicationId != null) {
+			if (resolve == null) {
+				resolve = context.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);	
+			}
+			keyAlias = resolve.getConfig().getJwtKeyAlias();
+		}
+		if (keyAlias == null) {
+			throw new IllegalArgumentException("Can not find correct key alias");
+		}
+		
 		Key key;
 		try {
 			key = keystoreArtifact.getKeyStore().getPrivateKey(keyAlias);

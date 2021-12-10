@@ -67,8 +67,15 @@ public class WebApplicationConfiguration {
 	// you can reuse the sessions from another application
 	private WebApplication sessionProviderApplication;
 	
+	/**
+	 * You can define jwt keystore and alias in the web application itself
+	 * JWT tokens can be used for a whole host of reasons, and having to configure this in every separate module is annoying
+	 * You can still provide overrides in the modules if you want, but there should be a default for each web application
+	 * The tokens you generate here are mostly meant to be consumed by the same web application, so symmetric encryption is vastly preferred for speed & size considerations
+	 */
 	private String jwtKeyAlias;
 	private KeyStoreArtifact jwtKeyStore;
+	
 	private boolean allowJwtBearer, allowContentEncoding = true, html5Mode;
 	private boolean forceRequestLanguage;
 	
@@ -466,8 +473,6 @@ public class WebApplicationConfiguration {
 		this.addCacheHeaders = addCacheHeaders;
 	}
 		
-	@Deprecated
-	@Hidden
 	@Advanced
 	@EnvironmentSpecific
 	public String getJwtKeyAlias() {
@@ -477,8 +482,6 @@ public class WebApplicationConfiguration {
 		this.jwtKeyAlias = jwtKeyAlias;
 	}
 	
-	@Deprecated
-	@Hidden
 	@Advanced
 	@EnvironmentSpecific
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
