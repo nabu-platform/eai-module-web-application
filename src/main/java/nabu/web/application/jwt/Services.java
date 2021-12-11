@@ -162,7 +162,6 @@ public class Services {
 		if (algorithm == null) {
 			algorithm = key instanceof SecretKey ? JWTAlgorithm.HS256 : JWTAlgorithm.RS256;
 		}
-		System.out.println("SIGNING USING " + algorithm + ": " + keyAlias + "@" + keystore + " (=" + key + ")");
 		return JWTUtils.encode(key, body, algorithm);
 	}
 }

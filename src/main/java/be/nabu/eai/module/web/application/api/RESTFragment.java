@@ -1,6 +1,7 @@
 package be.nabu.eai.module.web.application.api;
 
 import java.util.List;
+import java.util.Map;
 
 import be.nabu.eai.repository.api.Documented;
 import be.nabu.libs.artifacts.api.Artifact;
@@ -41,6 +42,9 @@ public interface RESTFragment extends Artifact {
 		return null;
 	}
 	public default List<String> getTags() {
+		return null;
+	}
+	public default Map<String, Object> getExtensions() {
 		return null;
 	}
 }

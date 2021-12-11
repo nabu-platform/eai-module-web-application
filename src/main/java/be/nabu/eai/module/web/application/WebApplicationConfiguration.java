@@ -473,7 +473,7 @@ public class WebApplicationConfiguration {
 		this.addCacheHeaders = addCacheHeaders;
 	}
 		
-	@Advanced
+	@Field(group = "security", comment = "Set the default key alias to use when generating jwt tokens for this web application. It should point to a key in the accompanying keystore property. Generally speaking, a symmetric key is the best option here.")
 	@EnvironmentSpecific
 	public String getJwtKeyAlias() {
 		return jwtKeyAlias;
@@ -482,7 +482,7 @@ public class WebApplicationConfiguration {
 		this.jwtKeyAlias = jwtKeyAlias;
 	}
 	
-	@Advanced
+	@Field(group = "security", comment = "Set the default keystore to use when generating jwt tokens for this web application.")
 	@EnvironmentSpecific
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	public KeyStoreArtifact getJwtKeyStore() {
