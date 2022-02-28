@@ -276,6 +276,10 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 							String typeId = ((DefinedType) fragmentConfiguration.getType()).getId();
 							// get the path claimed by the configuration
 							String path = fragmentConfiguration.getPath();
+							// fallback if no path provided
+							if (path == null) {
+								path = "/";
+							}
 							// append anything that the web application itself adds (if it is not on the root)
 							if (artifact.getConfiguration().getPath() != null && !artifact.getConfiguration().getPath().isEmpty() && !"/".equals(artifact.getConfiguration().getPath())) {
 								path = artifact.getConfiguration().getPath().replaceFirst("[/]+$", "") + "/" + path.replaceFirst("^[/]+", "");
