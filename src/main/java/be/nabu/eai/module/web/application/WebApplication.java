@@ -1,12 +1,20 @@
 package be.nabu.eai.module.web.application;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.nio.charset.Charset;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
 import java.security.Key;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.InvalidParameterSpecException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -21,6 +29,14 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.jws.WebParam;
+import javax.jws.WebResult;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -192,6 +208,8 @@ import be.nabu.utils.mime.api.Header;
 import be.nabu.utils.mime.impl.MimeHeader;
 import be.nabu.utils.mime.impl.MimeUtils;
 import be.nabu.utils.mime.impl.PlainMimeContentPart;
+import be.nabu.utils.security.PBEAlgorithm;
+import be.nabu.utils.security.SecurityUtils;
 
 /**
  * TODO: integrate session provider to use same cache as service cache
@@ -2498,5 +2516,60 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		catch (IOException e) {
 			throw new RuntimeException(e);
 		}
+	}
+	
+	public InputStream encrypt(InputStream input) throws InvalidKeyException, InvalidAlgorithmParameterException, NoSuchAlgorithmException, InvalidKeySpecException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, IOException, InvalidParameterSpecException {
+		byte[] bytes = IOUtils.toBytes(IOUtils.wrap(input));
+		if (getConfig().getJwtKeyAlias() != null && getConfig().getJwtKeyStore() != null) {
+			KeyStoreArtifact keystore = getConfig().getJwtKeyStore();
+			try {
+				SecretKey secretKey = keystore.getKeyStore().getSecretKey(getConfig().getJwtKeyAlias());
+				return processEncryption(input, secretKey, Cipher.ENCRYPT_MODE);
+			}
+			catch (Exception e) {
+				try {
+					PrivateKey privateKey = keystore.getKeyStore().getPrivateKey(getConfig().getJwtKeyAlias());
+					return processEncryption(input, privateKey, Cipher.ENCRYPT_MODE);
+				}
+				catch (Exception f) {
+					throw new IllegalStateException("A keystore and alias are configured but do not point to a valid key for application: " + getId());
+				}
+			}
+		}
+		return new ByteArrayInputStream(SecurityUtils.pbeEncrypt(bytes, getId(), PBEAlgorithm.AES256, true).getBytes("ASCII"));
+	}
+	
+	private InputStream processEncryption(InputStream input, Key secretKey, Integer mode) throws KeyStoreException, IOException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException {
+		Cipher cipher = Cipher.getInstance(secretKey.getAlgorithm());
+		cipher.init(mode, secretKey);
+		int read = 0;
+		byte [] buffer = new byte[8092];
+		ByteArrayOutputStream output = new ByteArrayOutputStream();
+		while ((read = input.read(buffer)) >= 0) {
+			output.write(cipher.update(buffer, 0, read));
+		}
+		output.write(cipher.doFinal());
+		return new ByteArrayInputStream(output.toByteArray());
+	}
+	
+	public InputStream decrypt(InputStream input) throws InvalidKeyException, InvalidAlgorithmParameterException, NoSuchAlgorithmException, InvalidKeySpecException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException, IOException {
+		byte[] bytes = IOUtils.toBytes(IOUtils.wrap(input));
+		if (getConfig().getJwtKeyAlias() != null && getConfig().getJwtKeyStore() != null) {
+			KeyStoreArtifact keystore = getConfig().getJwtKeyStore();
+			try {
+				SecretKey secretKey = keystore.getKeyStore().getSecretKey(getConfig().getJwtKeyAlias());
+				return processEncryption(input, secretKey, Cipher.DECRYPT_MODE);
+			}
+			catch (Exception e) {
+				try {
+					PrivateKey privateKey = keystore.getKeyStore().getPrivateKey(getConfig().getJwtKeyAlias());
+					return processEncryption(input, privateKey, Cipher.DECRYPT_MODE);
+				}
+				catch (Exception f) {
+					throw new IllegalStateException("A keystore and alias are configured but do not point to a valid key for application: " + getId());
+				}
+			}
+		}
+		return new ByteArrayInputStream(SecurityUtils.pbeDecrypt(new String(bytes, "ASCII"), getId(), PBEAlgorithm.AES256, true));
 	}
 }
