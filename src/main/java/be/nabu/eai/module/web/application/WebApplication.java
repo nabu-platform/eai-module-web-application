@@ -35,14 +35,13 @@ import javax.crypto.Cipher;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
-import javax.jws.WebParam;
-import javax.jws.WebResult;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import be.nabu.eai.authentication.api.PasswordAuthenticator;
 import be.nabu.eai.authentication.api.SecretAuthenticator;
+import be.nabu.eai.authentication.api.TypedAuthenticator;
 import be.nabu.eai.module.http.server.HTTPServerArtifact;
 import be.nabu.eai.module.http.server.RepositoryExceptionFormatter;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
@@ -238,7 +237,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private Authenticator authenticator;
 	private RoleHandler roleHandler;
 	
-	private boolean authenticatorResolved, roleHandlerResolved, permissionHandlerResolved, potentialPermissionHandlerResolved, tokenValidatorResolved, languageProviderResolved, userLanguageProviderResolved, deviceValidatorResolved,
+	private boolean passwordAuthenticatorResolved, secretAuthenticatorResolved, authenticatorResolved, roleHandlerResolved, permissionHandlerResolved, potentialPermissionHandlerResolved, tokenValidatorResolved, languageProviderResolved, userLanguageProviderResolved, deviceValidatorResolved,
 		translatorResolved, bearerAuthenticatorResolved;
 	private PermissionHandler permissionHandler;
 	private PotentialPermissionHandler potentialPermissionHandler;
@@ -292,9 +291,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				((RepositoryExceptionFormatter) server.getExceptionFormatter()).unregister(getId());
 			}
 		}
-		if (getConfiguration().getSessionCacheProvider() != null) {
-			getConfiguration().getSessionCacheProvider().remove(getConfig().getSessionCacheId() != null ? getConfig().getSessionCacheId() : getId() + "-session");
-		}
+		// @2022-03-22: due to a bug clustered caches were never reset correctly on shutdown. this bug has been fixed but we wanted to keep this behavior, in the future we might reenable it with a checkbox 
+//		if (getConfiguration().getSessionCacheProvider() != null) {
+//			getConfiguration().getSessionCacheProvider().remove(getConfig().getSessionCacheId() != null ? getConfig().getSessionCacheId() : getId() + "-session");
+//		}
 		List<WebFragment> webFragments = getConfiguration().getWebFragments();
 		if (webFragments != null) {
 			for (WebFragment fragment : webFragments) {
@@ -309,6 +309,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private ArrayList<Feature> availableFeatures;
 	private boolean arbitraryAuthenticatorResolved;
 	private ArbitraryAuthenticator arbitraryAuthenticator;
+	private PasswordAuthenticator passwordAuthenticator;
+	private SecretAuthenticator secretAuthenticator;
+	private boolean typedAuthenticatorResolved;
+	private TypedAuthenticator typedAuthenticator;
 	
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
@@ -1497,6 +1501,51 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			serverPath = "/" + serverPath;
 		}
 		return serverPath;
+	}
+	
+	public PasswordAuthenticator getPasswordAuthenticator() {
+		if (!passwordAuthenticatorResolved) {
+			synchronized(this) {
+				if (!passwordAuthenticatorResolved) {
+					passwordAuthenticator = null;
+					if (getConfig().getPasswordAuthenticationService() != null) {
+						passwordAuthenticator = POJOUtils.newProxy(PasswordAuthenticator.class, wrap(getConfig().getPasswordAuthenticationService(), getMethod(PasswordAuthenticator.class, "authenticate")), getRepository(), SystemPrincipal.ROOT);
+					}
+					passwordAuthenticatorResolved = true;
+				}
+			}
+		}
+		return passwordAuthenticator;
+	}
+	
+	public TypedAuthenticator getTypedAuthenticator() {
+		if (!typedAuthenticatorResolved) {
+			synchronized(this) {
+				if (!typedAuthenticatorResolved) {
+					typedAuthenticator = null;
+					if (getConfig().getTypedAuthenticationService() != null) {
+						typedAuthenticator = POJOUtils.newProxy(TypedAuthenticator.class, wrap(getConfig().getTypedAuthenticationService(), getMethod(TypedAuthenticator.class, "authenticate")), getRepository(), SystemPrincipal.ROOT);
+					}
+					typedAuthenticatorResolved = true;
+				}
+			}
+		}
+		return typedAuthenticator;
+	}
+	
+	public SecretAuthenticator getSecretAuthenticator() {
+		if (!secretAuthenticatorResolved) {
+			synchronized(this) {
+				if (!secretAuthenticatorResolved) {
+					secretAuthenticator = null;
+					if (getConfig().getSecretAuthenticationService() != null) {
+						secretAuthenticator = POJOUtils.newProxy(SecretAuthenticator.class, wrap(getConfig().getSecretAuthenticationService(), getMethod(SecretAuthenticator.class, "authenticate")), getRepository(), SystemPrincipal.ROOT);
+					}
+					secretAuthenticatorResolved = true;
+				}
+			}
+		}
+		return secretAuthenticator;
 	}
 	
 	@Override

@@ -21,8 +21,8 @@ import be.nabu.libs.types.api.annotation.Field;
 
 @XmlRootElement(name = "webApplication")
 @XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow",
-		"failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "secretGeneratorService", "bearerAuthenticator", "arbitraryAuthenticator", "temporaryAuthenticator", 
-		"temporaryAuthenticationGenerator", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", 
+		"failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "secretGeneratorService", "bearerAuthenticator", "arbitraryAuthenticator", "temporaryAuthenticator",  
+		"temporaryAuthenticationGenerator", "typedAuthenticationService", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", 
 		"deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", 
 		"defaultLanguage", "rateLimitSettings", "rateLimitChecker", "rateLimitLogger", "corsChecker", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", 
 		"maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", 
@@ -59,6 +59,7 @@ public class WebApplicationConfiguration {
 	private DefinedService requestSubscriber;
 	private DefinedService bearerAuthenticator, arbitraryAuthenticator;
 	private DefinedService temporaryAuthenticator, temporaryAuthenticationGenerator;
+	private DefinedService typedAuthenticationService;
 	private DefinedService corsChecker;
 	private Boolean allowBasicAuthentication;
 	private List<WebFragment> webFragments;
@@ -199,6 +200,16 @@ public class WebApplicationConfiguration {
 	}
 	public void setTemporaryAuthenticator(DefinedService temporaryAuthenticator) {
 		this.temporaryAuthenticator = temporaryAuthenticator;
+	}
+	
+	@Field(group = "security", comment = "Typed authenticator is a catch all for anything that combines an identifier with a secret (password, secret, temporary, oauth2,...)")
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	@InterfaceFilter(implement = "be.nabu.eai.authentication.api.TypedAuthenticator.authenticate")
+	public DefinedService getTypedAuthenticationService() {
+		return typedAuthenticationService;
+	}
+	public void setTypedAuthenticationService(DefinedService typedAuthenticationService) {
+		this.typedAuthenticationService = typedAuthenticationService;
 	}
 	
 	@Field(group = "security", comment = "This service is responsible for generating temporary authentication tokens")

@@ -15,6 +15,7 @@ import javax.validation.constraints.NotNull;
 import nabu.web.application.types.Cookie;
 import nabu.web.application.types.PropertyImpl;
 import nabu.web.application.types.WebApplicationInformation;
+import nabu.web.application.types.WebFragmentInformation;
 import be.nabu.eai.module.web.application.RateLimitImpl;
 import be.nabu.eai.module.web.application.WebApplication;
 import be.nabu.eai.module.web.application.WebApplicationUtils;
@@ -501,6 +502,42 @@ public class Services {
 		EAIResourceRepository.getInstance().getEventDispatcher().fire(event, this);
 	}
 
+	@WebResult(name = "fragment")
+	public WebFragmentInformation fragment(@NotNull @WebParam(name = "webApplicationId") String id, @NotNull @WebParam(name = "fragmentId") String fragmentId) {
+		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+		if (resolved == null) {
+			throw new IllegalArgumentException("Could not find web application: " + id);
+		}
+		return fragment(resolved, resolved, fragmentId, null);
+	}
+	private WebFragmentInformation fragment(WebApplication application, WebFragmentProvider provider, String fragmentId, String path) {
+		if (provider.getWebFragments() != null) {
+			String relativePath = provider.getRelativePath();
+			if (relativePath == null) {
+				relativePath = "";
+			}
+			else {
+				relativePath = relativePath.replaceAll("^[/]+", "");
+			}
+			String fragmentProviderPath = (path == null ? "/" : path + "/") + relativePath;
+			for (WebFragment fragment : provider.getWebFragments()) {
+				if (fragment != null && fragmentId.equals(fragment.getId())) {
+					WebFragmentInformation information = new WebFragmentInformation();
+					information.setActive(fragment.isStarted(application, path));
+					information.setPath(fragmentProviderPath);
+					return information;
+				}
+				else if (fragment instanceof WebFragmentProvider) {
+					WebFragmentInformation potential = fragment(application, (WebFragmentProvider) fragment, fragmentId, fragmentProviderPath);
+					if (potential != null) {
+						return potential;
+					}
+				}
+			}
+		}
+		return null;
+	}
+	
 	@WebResult(name = "has")
 	public boolean hasFragment(@NotNull @WebParam(name = "webApplicationId") String id, @NotNull @WebParam(name = "fragmentId") String fragmentId, @WebParam(name = "active") Boolean active) {
 		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);

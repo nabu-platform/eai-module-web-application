@@ -244,10 +244,27 @@ public class WebApplicationUtils {
 				LanguageProvider provider = application.getLanguageProvider();
 				supportedLanguages = provider == null ? null : provider.getSupportedLanguages();
 				for (String acceptedLanguage : acceptedLanguages) {
-					String potential = acceptedLanguage.replaceAll("-.*$", "");
-					if (supportedLanguages == null || supportedLanguages.contains(potential)) {
-						language = potential;
+					// you may want to support different dialects, for instance fr-BE vs fr-FR
+					// we check first if the full language is present
+					if (supportedLanguages != null && supportedLanguages.contains(acceptedLanguage)) {
+						language = acceptedLanguage;
 						break;
+					}
+				}
+				if (language == null) {
+					for (String acceptedLanguage : acceptedLanguages) {
+						// you may want to support different dialects, for instance fr-BE vs fr-FR
+						// we check first if the full language is present
+						if (supportedLanguages != null && supportedLanguages.contains(acceptedLanguage)) {
+							language = acceptedLanguage;
+							break;
+						}
+						// if not, we check if you support the language as a whole, without the regional implication, for example "fr"
+						String potential = acceptedLanguage.replaceAll("-.*$", "");
+						if (supportedLanguages == null || supportedLanguages.contains(potential)) {
+							language = potential;
+							break;
+						}
 					}
 				}
 			}
