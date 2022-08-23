@@ -267,6 +267,8 @@ public class WebBrowser {
 		if (host == null) {
 			return null;
 		}
+		
+		
 		// if you are using the internal server, we need to get that
 		if (host.getConfig().isInternalServer()) {
 			URI endpoint = MainController.getInstance().getServer().getRemote().getEndpoint();
@@ -277,7 +279,7 @@ public class WebBrowser {
 			return endpoint.toASCIIString();
 		}
 		HTTPServerArtifact server = host.getConfig().getServer();
-
+		
 		String url;
 		Integer port = null;
 		// if we have no server but are based on the internal one, we use that
@@ -287,6 +289,10 @@ public class WebBrowser {
 			url = (secure ? "https" : "http") + "://" + (host.getConfig().getHost() == null ? profile.getIp() : host.getConfig().getHost());
 			port = profile.getPort();
 		}
+		else if (server != null && MainController.getInstance().isTunneled(server.getId())) {
+			url = "http://localhost";
+			port = MainController.getInstance().getTunnelPort(server.getId());
+		}
 		else {
 			url = (server != null && server.isSecure() ? "https" : "http") + "://" + (host.getConfig().getHost() == null ? "localhost" : host.getConfig().getHost());
 			port = server.getConfig().isProxied() ? server.getConfig().getProxyPort() : server.getConfig().getPort();
@@ -295,7 +301,7 @@ public class WebBrowser {
 			url += ":" + port;
 		}
 		url += application.getServerPath();
-		
+		System.out.println("Connecting to: " + url);
 		return url;
 	}
 
