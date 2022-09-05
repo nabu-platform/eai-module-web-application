@@ -44,6 +44,7 @@ import be.nabu.eai.authentication.api.SecretAuthenticator;
 import be.nabu.eai.authentication.api.TypedAuthenticator;
 import be.nabu.eai.module.http.server.HTTPServerArtifact;
 import be.nabu.eai.module.http.server.RepositoryExceptionFormatter;
+import be.nabu.eai.module.http.virtual.HeartbeatListener;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.keystore.KeyStoreArtifact;
 import be.nabu.eai.module.types.structure.StructureManager;
@@ -1087,8 +1088,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			});
 			subscriptions.add(robotSubscription);
 			
-			EventSubscription<HTTPRequest, HTTPResponse> heartbeatSubscription = dispatcher.subscribe(HTTPRequest.class, new HeartbeatListener(this));
-			subscriptions.add(heartbeatSubscription);
+//			EventSubscription<HTTPRequest, HTTPResponse> heartbeatSubscription = dispatcher.subscribe(HTTPRequest.class, new HeartbeatListener(this.getConfig().getVirtualHost()));
+//			subscriptions.add(heartbeatSubscription);
 			
 			// first start everything above normal priority
 			for (WebFragment fragment : webFragments) {
