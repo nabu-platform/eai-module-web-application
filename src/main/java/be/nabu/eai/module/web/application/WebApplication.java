@@ -1087,6 +1087,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			});
 			subscriptions.add(robotSubscription);
 			
+			EventSubscription<HTTPRequest, HTTPResponse> heartbeatSubscription = dispatcher.subscribe(HTTPRequest.class, new HeartbeatListener(this));
+			subscriptions.add(heartbeatSubscription);
+			
 			// first start everything above normal priority
 			for (WebFragment fragment : webFragments) {
 				if (fragment != null) {
@@ -1562,9 +1565,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						if (getConfiguration().getSecretAuthenticationService() != null) {
 							sharedSecretAuthenticator = POJOUtils.newProxy(SecretAuthenticator.class, wrap(getConfiguration().getSecretAuthenticationService(), getMethod(SecretAuthenticator.class, "authenticate")), getRepository(), SystemPrincipal.ROOT);
 						}
-						if (passwordAuthenticator != null || sharedSecretAuthenticator != null) {
-							authenticator = new WebApplicationAuthenticator(this, new CombinedAuthenticator(passwordAuthenticator, sharedSecretAuthenticator));
-						}
+						// we also want an authenticator if no password or shared secret is configured, for example only using the typed
+//						if (passwordAuthenticator != null || sharedSecretAuthenticator != null) {
+						authenticator = new WebApplicationAuthenticator(this, new CombinedAuthenticator(passwordAuthenticator, sharedSecretAuthenticator));
+//						}
 					}
 					catch(IOException e) {
 						throw new RuntimeException(e);
