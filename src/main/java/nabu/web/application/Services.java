@@ -12,10 +12,6 @@ import javax.jws.WebResult;
 import javax.jws.WebService;
 import javax.validation.constraints.NotNull;
 
-import nabu.web.application.types.Cookie;
-import nabu.web.application.types.PropertyImpl;
-import nabu.web.application.types.WebApplicationInformation;
-import nabu.web.application.types.WebFragmentInformation;
 import be.nabu.eai.module.web.application.RateLimitImpl;
 import be.nabu.eai.module.web.application.WebApplication;
 import be.nabu.eai.module.web.application.WebApplicationUtils;
@@ -49,10 +45,8 @@ import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
 import be.nabu.libs.resources.api.ResourceFilter;
 import be.nabu.libs.services.ServiceRuntime;
-import be.nabu.libs.services.ServiceUtils;
 import be.nabu.libs.services.api.ExecutionContext;
 import be.nabu.libs.services.api.ServiceDescription;
-import be.nabu.libs.services.api.ServiceException;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.KeyValuePair;
@@ -60,6 +54,10 @@ import be.nabu.utils.io.IOUtils;
 import be.nabu.utils.io.api.ByteBuffer;
 import be.nabu.utils.io.api.ReadableContainer;
 import be.nabu.utils.mime.api.Header;
+import nabu.web.application.types.Cookie;
+import nabu.web.application.types.PropertyImpl;
+import nabu.web.application.types.WebApplicationInformation;
+import nabu.web.application.types.WebFragmentInformation;
 
 @WebService
 public class Services {
@@ -102,6 +100,8 @@ public class Services {
 				}
 			}
 		}
+		// the permission needed to update the service context via header
+		permissions.add(new PermissionImpl("$application.setServiceContext", "=\"webApplication:\" + input/webApplicationId"));
 		return permissions;
 	}
 	

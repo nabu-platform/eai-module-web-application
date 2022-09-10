@@ -44,7 +44,6 @@ import be.nabu.eai.authentication.api.SecretAuthenticator;
 import be.nabu.eai.authentication.api.TypedAuthenticator;
 import be.nabu.eai.module.http.server.HTTPServerArtifact;
 import be.nabu.eai.module.http.server.RepositoryExceptionFormatter;
-import be.nabu.eai.module.http.virtual.HeartbeatListener;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.keystore.KeyStoreArtifact;
 import be.nabu.eai.module.types.structure.StructureManager;
@@ -271,6 +270,12 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private TemporaryAuthenticationGenerator temporaryAuthenticationGenerator;
 	private boolean corsHandlerResolved;
 	private CORSHandler corsHandler;
+	
+	// the permission necessary to be able to update the service context for a call
+	// you can also be more specific, for instance if you can only set the "telemetrics" context but not the "fira" context, you might set a permission $application.setServiceContext.telemetrics
+	// if the broad one is not allowed, the specific one is checked
+	// the context remains the web application id
+	public static final String PERMISSION_UPDATE_SERVICE_CONTEXT = "$application.setServiceContext";
 	
 	public WebApplication(String id, ResourceContainer<?> directory, Repository repository) {
 		super(id, directory, repository, "webartifact.xml", WebApplicationConfiguration.class);

@@ -456,6 +456,29 @@ public class WebApplicationUtils {
 		return checkRateLimits(application, source, token, device, action, context, request);
 	}
 	
+	public static String getServiceContext(Token token, WebApplication application, HTTPRequest request) {
+		Header header = MimeUtils.getHeader("X-Service-Context", request.getContent().getHeaders());
+		if (header != null && !header.getValue().trim().isEmpty()) {
+			try {
+				PermissionHandler permissionHandler = application.getPermissionHandler();
+				// because of the potential security implications, you MUST have a permission handler to allow for custom context setting
+				if (permissionHandler != null) {
+					// this reuses the webapplication security logic used by page builder
+					// you must either have a generic permission to switch to any context
+					// or a specific permission to switch to the specifically requested context
+					if (permissionHandler.hasPermission(token, "webApplication:" + application.getId(), WebApplication.PERMISSION_UPDATE_SERVICE_CONTEXT) || permissionHandler.hasPermission(token, "webApplication:" + application.getId(), WebApplication.PERMISSION_UPDATE_SERVICE_CONTEXT + "." + header.getValue().trim())) {
+						return header.getValue().trim();
+					}
+				}
+			}
+			catch (Exception e) {
+				throw new RuntimeException(e);
+			}
+		}
+		// the default is the application id
+		return application.getId();
+	}
+	
 	public static HTTPResponse checkRateLimits(WebApplication application, Source source, Token token, Device device, String action, String context, HTTPRequest request) throws IOException {
 		// if we are being proxied, get the "actual" source
 		if (request.getContent() != null && application.getConfig().getVirtualHost().getConfig().getServer().getConfig().isProxied()) {
