@@ -169,6 +169,7 @@ import be.nabu.libs.resources.CombinedContainer;
 import be.nabu.libs.resources.ResourceFactory;
 import be.nabu.libs.resources.ResourceReadableContainer;
 import be.nabu.libs.resources.ResourceUtils;
+import be.nabu.libs.resources.URIUtils;
 import be.nabu.libs.resources.api.ManageableContainer;
 import be.nabu.libs.resources.api.ReadableResource;
 import be.nabu.libs.resources.api.Resource;
@@ -203,6 +204,8 @@ import be.nabu.utils.io.IOUtils;
 import be.nabu.utils.io.api.ByteBuffer;
 import be.nabu.utils.io.api.ReadableContainer;
 import be.nabu.utils.io.api.WritableContainer;
+import be.nabu.utils.io.buffers.bytes.ByteBufferFactory;
+import be.nabu.utils.mime.api.ContentPart;
 import be.nabu.utils.mime.api.Header;
 import be.nabu.utils.mime.impl.MimeHeader;
 import be.nabu.utils.mime.impl.MimeUtils;
@@ -1118,7 +1121,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						ServiceRuntime.getGlobalContext().put("service.context", getId());
 						ServiceRuntime.getGlobalContext().put("webApplicationId", getId());
 						ServiceRuntime.getGlobalContext().put("service.source", "glue");
-						return listener.handle(event);
+						HTTPResponse response = listener.handle(event);
+						response = optimizeResponse(privateDirectory, event, response);
+						return response;
 					}
 					catch (HTTPException e) {
 						e.getContext().add(getId());
@@ -1129,6 +1134,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						ServiceRuntime.setGlobalContext(null);	
 					}
 				}
+
+				
 			});
 			subscription.filter(HTTPServerUtils.limitToPath(serverPath));
 			subscriptions.add(subscription);
@@ -1194,7 +1201,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 										ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
 										ServiceRuntime.getGlobalContext().put("service.context", getId());
 										ServiceRuntime.getGlobalContext().put("service.source", "glue");
-										return listener.handle(rewritten);
+										HTTPResponse response = listener.handle(rewritten);
+										response = optimizeResponse(privateDirectory, event, response);
+										return response;
 									}
 									return null;
 								}
@@ -1217,6 +1226,79 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			started = true;
 			logger.info("Started " + subscriptions.size() + " subscriptions");
 		}
+	}
+	
+	private HTTPResponse optimizeResponse(ResourceContainer<?> privateDirectory, HTTPRequest event, HTTPResponse response) {
+		if (response != null && getConfig().isOptimizedLoad() && EAIResourceRepository.isDevelopment() && response.getContent() instanceof ContentPart) {
+			String contentType = MimeUtils.getContentType(response.getContent().getHeaders());
+			if (contentType != null) {
+				// we want to keep a compiled version of these for easy serving in target environments
+				if (contentType.trim().equals("application/javascript") || contentType.trim().equals("text/css") || contentType.trim().equals("text/html")) {
+					try {
+						ResourceContainer<?> cacheFolder = (ResourceContainer<?>) privateDirectory.getChild("cache");
+						if (cacheFolder == null) {
+							cacheFolder = (ResourceContainer<?>) ((ManageableContainer<?>) privateDirectory).create("cache", Resource.CONTENT_TYPE_DIRECTORY);
+						}
+						URI uri = HTTPUtils.getURI(event, isSecure());
+						String path = uri.getPath();
+						if (path != null && path.startsWith(getServerPath())) {
+							path = path.substring(getServerPath().length());
+							// encode so we don't have issues
+							path = URIUtils.encodeURIComponent(path);
+							// give it a correct extension, this can be useful for compiling
+							if (contentType.trim().equals("application/javascript")) {
+								path += ".js";
+							}
+							else if (contentType.trim().equals("text/css")) {
+								path += ".css";
+							}
+							else if (contentType.trim().equals("text/html")) {
+								path += ".html";
+							}
+							Resource cacheFile = cacheFolder.getChild(path);
+							if (cacheFile == null) {
+								cacheFile = ((ManageableContainer<?>) cacheFolder).create(path, contentType);
+							}
+							if (cacheFile instanceof WritableResource) {
+								ReadableContainer<ByteBuffer> readable = ((ContentPart) response.getContent()).getReadable();
+								if (readable != null) {
+									try {
+										WritableContainer<ByteBuffer> writable = ((WritableResource) cacheFile).getWritable();
+										try {
+											// if it can be reopened, we just push it to the file system
+											if (((ContentPart) response.getContent()).isReopenable()) {
+												IOUtils.copyBytes(readable, writable);
+											}
+											// otherwise, we push it to the file system and keep a copy in memory
+											else {
+												ByteBuffer buffer = ByteBufferFactory.getInstance().newInstance();
+												IOUtils.copyBytes(readable, IOUtils.multicast(writable, buffer));
+												buffer.close();
+												// set a new response that can be streamed...
+												response = new DefaultHTTPResponse(response.getCode(), response.getMessage(), new PlainMimeContentPart(null, buffer, response.getContent().getHeaders()));
+											}
+										}
+										finally {
+											writable.close();
+										}
+									}
+									finally {
+										readable.close();
+									}
+								}
+								else {
+									logger.warn("Could not retrieve readable for: " + path);
+								}
+							}
+						}
+					}
+					catch (Exception e) {
+						logger.warn("Could not compile cache", e);
+					}
+				}
+			}
+		}
+		return response;
 	}
 	
 	private String getFragmentPath() {

@@ -27,7 +27,7 @@ import be.nabu.libs.types.api.annotation.Field;
 		"defaultLanguage", "rateLimitSettings", "rateLimitChecker", "rateLimitLogger", "corsChecker", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", 
 		"maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", 
 		"maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "services", 
-		"webFragments", "html5Mode", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie", "testRole", "virusScanner" })
+		"webFragments", "html5Mode", "optimizedLoad", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie", "testRole", "virusScanner" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -77,7 +77,9 @@ public class WebApplicationConfiguration {
 	private String jwtKeyAlias;
 	private KeyStoreArtifact jwtKeyStore;
 	
-	private boolean allowJwtBearer, allowContentEncoding = true, html5Mode;
+	// the optimized load option will store the last compiled version of javascript & css AND minify it upon commit
+	// in the target environment (assuming development mode is turned off), this highly optimized compiled version is used instead of recalculating everything
+	private boolean allowJwtBearer, allowContentEncoding = true, html5Mode, optimizedLoad;
 	private boolean forceRequestLanguage;
 	
 	private DefinedService rateLimitSettings, rateLimitChecker, rateLimitLogger;
@@ -598,5 +600,13 @@ public class WebApplicationConfiguration {
 	public void setVirusScanner(VirusScanner virusScanner) {
 		this.virusScanner = virusScanner;
 	}
-
+	
+	@Field(comment = "By enabling optimization, you compile the application in development. The advantage is instant production availability of compilable resources. The downside is there must be no difference between the environments")
+	public boolean isOptimizedLoad() {
+		return optimizedLoad;
+	}
+	public void setOptimizedLoad(boolean optimizedLoad) {
+		this.optimizedLoad = optimizedLoad;
+	}
+	
 }
