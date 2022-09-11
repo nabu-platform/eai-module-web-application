@@ -2,6 +2,7 @@ package nabu.web.application.types;
 
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import javax.xml.bind.annotation.XmlRootElement;
@@ -10,7 +11,7 @@ import javax.xml.bind.annotation.XmlType;
 import be.nabu.libs.types.api.KeyValuePair;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "id", "realm", "path", "root", "cookiePath", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties", "html5Mode", "errorCodes", "defaultLanguage" })
+@XmlType(propOrder = { "id", "realm", "path", "root", "cookiePath", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties", "html5Mode", "errorCodes", "defaultLanguage", "lastModified" })
 public class WebApplicationInformation {
 	// root is slightly different from path: path is the actual configured path
 	// root is the interpreted path guaranteed to end in a "/" for concatenation
@@ -25,6 +26,7 @@ public class WebApplicationInformation {
 	private List<KeyValuePair> properties;
 	private boolean html5Mode;
 	private List<String> errorCodes;
+	private Date lastModified;
 
 	public String getId() {
 		return id;
@@ -141,4 +143,11 @@ public class WebApplicationInformation {
 	public void setDefaultLanguage(String defaultLanguage) {
 		this.defaultLanguage = defaultLanguage;
 	}
+	public Date getLastModified() {
+		return lastModified;
+	}
+	public void setLastModified(Date lastModified) {
+		this.lastModified = lastModified;
+	}
+	
 }

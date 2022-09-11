@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -127,6 +128,7 @@ import be.nabu.libs.cache.impl.StringSerializer;
 import be.nabu.libs.events.api.EventDispatcher;
 import be.nabu.libs.events.api.EventHandler;
 import be.nabu.libs.events.api.EventSubscription;
+import be.nabu.libs.events.api.ResponseHandler;
 import be.nabu.libs.events.filters.AndEventFilter;
 import be.nabu.libs.http.HTTPCodes;
 import be.nabu.libs.http.HTTPException;
@@ -207,9 +209,11 @@ import be.nabu.utils.io.api.WritableContainer;
 import be.nabu.utils.io.buffers.bytes.ByteBufferFactory;
 import be.nabu.utils.mime.api.ContentPart;
 import be.nabu.utils.mime.api.Header;
+import be.nabu.utils.mime.impl.FormatException;
 import be.nabu.utils.mime.impl.MimeHeader;
 import be.nabu.utils.mime.impl.MimeUtils;
 import be.nabu.utils.mime.impl.PlainMimeContentPart;
+import be.nabu.utils.mime.impl.PlainMimeEmptyPart;
 import be.nabu.utils.security.PBEAlgorithm;
 import be.nabu.utils.security.SecurityUtils;
 
@@ -322,6 +326,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private SecretAuthenticator secretAuthenticator;
 	private boolean typedAuthenticatorResolved;
 	private TypedAuthenticator typedAuthenticator;
+	
+	// we keep track in production mode of which optimized versions we have checked and which turned up nothing
+	private Map<String, byte[]> checkedOptimizations = new HashMap<String, byte[]>();
 	
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Override
@@ -1110,6 +1117,25 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					}
 				}
 			}
+			
+			// TODO: IF you have a script cache configured, we should save the loaded data there, this can allow for resets (?)
+			// this needs to be part of a bigger push to recalculate everything though, otherwise we just keep picking up from the hard cache
+			// if we are in production mode and we have optimize load turned on, check if we have a cache folder
+			ResourceContainer<?> cacheFolder = (ResourceContainer<?>) privateDirectory.getChild("cache");
+			if (!EAIResourceRepository.isDevelopment() && getConfig().isOptimizedLoad()) {
+				// if we do have a cache folder, we turned on optimize in development
+				if (cacheFolder != null) {
+					EventSubscription<HTTPRequest, HTTPResponse> optimizationSubscription = dispatcher.subscribe(HTTPRequest.class, new EventHandler<HTTPRequest, HTTPResponse>() {
+						@Override
+						public HTTPResponse handle(HTTPRequest event) {
+							return getOptimizedResponse(cacheFolder, event, null);
+						}
+					});
+					optimizationSubscription.filter(HTTPServerUtils.limitToPath(serverPath));
+					subscriptions.add(optimizationSubscription);
+				}
+			}
+			
 			// start the glue listener
 			//EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, listener);
 			EventSubscription<HTTPRequest, HTTPResponse> subscription = dispatcher.subscribe(HTTPRequest.class, new EventHandler<HTTPRequest, HTTPResponse>() {
@@ -1122,7 +1148,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						ServiceRuntime.getGlobalContext().put("webApplicationId", getId());
 						ServiceRuntime.getGlobalContext().put("service.source", "glue");
 						HTTPResponse response = listener.handle(event);
-						response = optimizeResponse(privateDirectory, event, response);
+						response = optimizeResponse(privateDirectory, event, response, null);
 						return response;
 					}
 					catch (HTTPException e) {
@@ -1201,8 +1227,14 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 										ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
 										ServiceRuntime.getGlobalContext().put("service.context", getId());
 										ServiceRuntime.getGlobalContext().put("service.source", "glue");
-										HTTPResponse response = listener.handle(rewritten);
-										response = optimizeResponse(privateDirectory, event, response);
+										
+										// attempt to get an optimized response
+										HTTPResponse response = getOptimizedResponse(cacheFolder, rewritten, "$root");
+										if (response == null) {
+											response = listener.handle(rewritten);
+											// we force it on the server path because of html5
+											response = optimizeResponse(privateDirectory, event, response, "$root");
+										}
 										return response;
 									}
 									return null;
@@ -1228,7 +1260,129 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		}
 	}
 	
-	private HTTPResponse optimizeResponse(ResourceContainer<?> privateDirectory, HTTPRequest event, HTTPResponse response) {
+	private HTTPResponse getOptimizedResponse(ResourceContainer<?> cacheFolder, HTTPRequest event, String forcedName) {
+		DefaultHTTPResponse response = null;
+		try {
+			if (!EAIResourceRepository.isDevelopment() && getConfig().isOptimizedLoad() && cacheFolder != null) {
+				URI uri = HTTPUtils.getURI(event, isSecure());
+				String path = uri.getPath();
+				if (path != null && path.startsWith(getServerPath())) {
+					path = path.substring(getServerPath().length());
+					// encode so we don't have issues
+					path = forcedName == null ? URIUtils.encodeURIComponent(path) : forcedName;
+		
+					byte[] bytes = checkedOptimizations.get(path);
+					// if we have no content but did check before, just skip, we don't want to waste i/o cycles on this
+					if (bytes == null && checkedOptimizations.containsKey(path)) {
+						return null;
+					}
+					
+					Resource finalChild = null;
+					String contentType = null;
+					
+					// the extension determines the contentType
+					Resource htmlChild = cacheFolder.getChild(path + ".html");
+					if (htmlChild != null) {
+						finalChild = htmlChild;
+						contentType = "text/html";
+					}
+					else {
+						Resource javascriptChild = cacheFolder.getChild(path + ".js");
+						if (javascriptChild != null) {
+							contentType = "application/javascript";
+							// we check if there is a compiled version
+							Resource compiledChild = cacheFolder.getChild(path + ".compiled.js");
+							if (compiledChild instanceof TimestampedResource && javascriptChild instanceof TimestampedResource) {
+								if (((TimestampedResource) compiledChild).getLastModified().before(((TimestampedResource) javascriptChild).getLastModified())) {
+									compiledChild = null;
+								}
+							}
+							finalChild = compiledChild != null ? compiledChild : javascriptChild; 
+						}
+						else {
+							Resource cssChild = cacheFolder.getChild(path + ".css");
+							if (cssChild != null) {
+								contentType = "text/css";
+								// we check if there is a compiled version
+								Resource compiledChild = cacheFolder.getChild(path + ".compiled.css");
+								if (compiledChild instanceof TimestampedResource && cssChild instanceof TimestampedResource) {
+									if (((TimestampedResource) compiledChild).getLastModified().before(((TimestampedResource) cssChild).getLastModified())) {
+										compiledChild = null;
+									}
+								}
+								finalChild = compiledChild != null ? compiledChild : cssChild; 
+							}
+						}
+					}
+					// if we have a final child to stream and its content type, lets go!
+					if (finalChild != null && contentType != null) {
+						Date resourceLastModified = null;
+						// in this case we don't set the checkedoptimizations because we don't have the bytes
+						if (finalChild instanceof TimestampedResource) {
+							Header lastModifiedHeader = MimeUtils.getHeader("If-Modified-Since", event.getContent().getHeaders());
+							Date lastModified = lastModifiedHeader == null ? null : HTTPUtils.parseDate(lastModifiedHeader.getValue());
+							resourceLastModified = ((TimestampedResource) finalChild).getLastModified();
+							if (resourceLastModified != null && lastModified != null) {
+								// want to get rid of ms precision...
+								resourceLastModified = new Date(resourceLastModified.getTime() - (resourceLastModified.getTime() % 1000));
+								// if the resource wasn't modified since your last call, let's pretend everything is ok!
+								if (!resourceLastModified.after(lastModified)) {
+									response = new DefaultHTTPResponse(event, 304, HTTPCodes.getMessage(304), new PlainMimeEmptyPart(null,
+										new MimeHeader("Content-Length", "0"),
+										// the charset is currently hardcoded
+										new MimeHeader("Content-Type", contentType + "; charset=" + Charset.forName("UTF-8").name()),
+										// we are not sure, let's just play it like this for now
+										new MimeHeader("Cache-Control", "no-cache, must-revalidate")
+									)); 
+								}
+							}
+						}
+						// if we can't respond with a 304, actually stream the bytes
+						if (response == null && finalChild instanceof ReadableResource) {
+							if (bytes == null) {
+								ReadableContainer<ByteBuffer> readable = ((ReadableResource) finalChild).getReadable();
+								try {
+									bytes = IOUtils.toBytes(readable);
+								}
+								finally {
+									readable.close();
+								}
+							}
+							PlainMimeContentPart part = new PlainMimeContentPart(null, IOUtils.wrap(bytes, true),
+								new MimeHeader("Content-Length", Integer.toString(bytes.length)),
+								// the charset is currently hardcoded
+								new MimeHeader("Content-Type", contentType + "; charset=" + Charset.forName("UTF-8").name()),
+								// we are not sure, let's just play it like this for now
+								new MimeHeader("Cache-Control", "no-cache, must-revalidate")
+							);
+							// we fed it bytes, it can be reopened
+							part.setReopenable(true);
+							response = new DefaultHTTPResponse(event, 200, HTTPCodes.getMessage(200), part);
+							// save the bytes for the future!
+							synchronized (checkedOptimizations) {
+								checkedOptimizations.put(path, bytes);
+							}
+						}
+						if (resourceLastModified != null && response != null) {
+							response.getContent().setHeader(new MimeHeader("Last-Modified", HTTPUtils.formatDate(resourceLastModified)));
+						}
+					}
+					else {
+						// let's mark this for the future
+						synchronized (checkedOptimizations) {
+							checkedOptimizations.put(path, null);
+						}
+					}
+				}
+			}
+		}
+		catch (Exception e) {
+			throw new HTTPException(500, e);
+		}
+		return response;
+	}
+	
+	private HTTPResponse optimizeResponse(ResourceContainer<?> privateDirectory, HTTPRequest event, HTTPResponse response, String forcedName) {
 		if (response != null && getConfig().isOptimizedLoad() && EAIResourceRepository.isDevelopment() && response.getContent() instanceof ContentPart) {
 			String contentType = MimeUtils.getContentType(response.getContent().getHeaders());
 			if (contentType != null) {
@@ -1244,7 +1398,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						if (path != null && path.startsWith(getServerPath())) {
 							path = path.substring(getServerPath().length());
 							// encode so we don't have issues
-							path = URIUtils.encodeURIComponent(path);
+							path = forcedName == null ? URIUtils.encodeURIComponent(path) : forcedName;
 							// give it a correct extension, this can be useful for compiling
 							if (contentType.trim().equals("application/javascript")) {
 								path += ".js";

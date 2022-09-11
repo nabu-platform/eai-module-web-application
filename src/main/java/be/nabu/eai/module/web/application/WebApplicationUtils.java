@@ -21,6 +21,7 @@ import be.nabu.eai.module.http.virtual.api.SourceImpl;
 import be.nabu.eai.module.web.application.api.RateLimitCheck;
 import be.nabu.eai.module.web.application.api.RateLimitProvider;
 import be.nabu.eai.module.web.application.api.RateLimitSettings;
+import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.LanguageProvider;
 import be.nabu.eai.repository.api.VirusInfection;
 import be.nabu.eai.repository.api.VirusScanner;
@@ -50,6 +51,8 @@ import be.nabu.libs.http.server.HTTPServerUtils;
 import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.nio.api.Pipeline;
 import be.nabu.libs.resources.URIUtils;
+import be.nabu.libs.resources.api.Resource;
+import be.nabu.libs.resources.api.TimestampedResource;
 import be.nabu.libs.services.ServiceRuntime;
 import be.nabu.libs.services.api.ExecutionContext;
 import be.nabu.libs.services.api.FeaturedExecutionContext;
@@ -283,6 +286,10 @@ public class WebApplicationUtils {
 		information.setCharset(application.getConfig().getCharset() == null ? Charset.defaultCharset() : Charset.forName(application.getConfig().getCharset()));
 		information.setCookiePath(application.getCookiePath());
 		information.setDefaultLanguage(application.getConfig().getDefaultLanguage());
+		Resource child = application.getDirectory().getChild("node.xml");
+		if (child instanceof TimestampedResource) {
+			information.setLastModified(((TimestampedResource) child).getLastModified());
+		}
 		// the default error code is HTTP-500
 		information.setErrorCodes(new ArrayList<String>(Arrays.asList("HTTP-*", "HTTP-400", "HTTP-401", "HTTP-403", "HTTP-404", "HTTP-429", "HTTP-500", "HTTP-502", "HTTP-503")));
 		if (application.getConfig().getWhitelistedCodes() != null) {
