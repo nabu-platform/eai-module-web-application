@@ -1446,6 +1446,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		environment.put("version", getVersion());
 		environment.put("cookiePath", getCookiePath());
 		environment.put("serverPath", getServerPath());
+		// whether or not it is optimized
+		// when optimized, the resulting javascript etc is static between environments and should not leak data
+		environment.put("optimized", Boolean.toString(getConfig().isOptimizedLoad()));
 		return environment;
 	}
 

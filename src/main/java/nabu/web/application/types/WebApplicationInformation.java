@@ -10,7 +10,7 @@ import javax.xml.bind.annotation.XmlType;
 import be.nabu.libs.types.api.KeyValuePair;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "id", "realm", "path", "root", "cookiePath", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties", "html5Mode", "errorCodes" })
+@XmlType(propOrder = { "id", "realm", "path", "root", "cookiePath", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties", "html5Mode", "errorCodes", "defaultLanguage" })
 public class WebApplicationInformation {
 	// root is slightly different from path: path is the actual configured path
 	// root is the interpreted path guaranteed to end in a "/" for concatenation
@@ -21,7 +21,7 @@ public class WebApplicationInformation {
 	private Integer port;
 	private Boolean secure;
 	private String translationService;
-	private String scriptCacheProviderId;
+	private String scriptCacheProviderId, defaultLanguage;
 	private List<KeyValuePair> properties;
 	private boolean html5Mode;
 	private List<String> errorCodes;
@@ -135,5 +135,10 @@ public class WebApplicationInformation {
 	public void setErrorCodes(List<String> errorCodes) {
 		this.errorCodes = errorCodes;
 	}
-	
+	public String getDefaultLanguage() {
+		return defaultLanguage;
+	}
+	public void setDefaultLanguage(String defaultLanguage) {
+		this.defaultLanguage = defaultLanguage;
+	}
 }

@@ -282,6 +282,7 @@ public class WebApplicationUtils {
 		information.setHtml5Mode(application.getConfig().isHtml5Mode());
 		information.setCharset(application.getConfig().getCharset() == null ? Charset.defaultCharset() : Charset.forName(application.getConfig().getCharset()));
 		information.setCookiePath(application.getCookiePath());
+		information.setDefaultLanguage(application.getConfig().getDefaultLanguage());
 		// the default error code is HTTP-500
 		information.setErrorCodes(new ArrayList<String>(Arrays.asList("HTTP-*", "HTTP-400", "HTTP-401", "HTTP-403", "HTTP-404", "HTTP-429", "HTTP-500", "HTTP-502", "HTTP-503")));
 		if (application.getConfig().getWhitelistedCodes() != null) {
