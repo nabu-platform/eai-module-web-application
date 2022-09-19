@@ -362,8 +362,20 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			String realm = getRealm();
 			String serverPath = getServerPath();
 
-			ResourceContainer<?> publicDirectory = (ResourceContainer<?>) getDirectory().getChild(EAIResourceRepository.PUBLIC);
-			ResourceContainer<?> privateDirectory = (ResourceContainer<?>) getDirectory().getChild(EAIResourceRepository.PRIVATE);
+			ResourceContainer<?> localPublicDirectory = (ResourceContainer<?>) getDirectory().getChild(EAIResourceRepository.PUBLIC);
+			ResourceContainer<?> localPrivateDirectory = (ResourceContainer<?>) getDirectory().getChild(EAIResourceRepository.PRIVATE);
+			
+			if (EAIResourceRepository.isDevelopment()) {
+				if (localPublicDirectory == null) {
+					localPublicDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) getDirectory()).create(EAIResourceRepository.PRIVATE, Resource.CONTENT_TYPE_DIRECTORY);
+				}
+				if (localPrivateDirectory == null) {
+					localPrivateDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) getDirectory()).create(EAIResourceRepository.PUBLIC, Resource.CONTENT_TYPE_DIRECTORY);
+				}
+			}
+			
+			final ResourceContainer<?> publicDirectory = localPublicDirectory;
+			final ResourceContainer<?> privateDirectory = localPrivateDirectory;
 			
 			ResourceContainer<?> meta = privateDirectory == null ? null : (ResourceContainer<?>) privateDirectory.getChild("meta");
 			ScriptRepository metaRepository = null;
@@ -1121,7 +1133,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			// TODO: IF you have a script cache configured, we should save the loaded data there, this can allow for resets (?)
 			// this needs to be part of a bigger push to recalculate everything though, otherwise we just keep picking up from the hard cache
 			// if we are in production mode and we have optimize load turned on, check if we have a cache folder
-			ResourceContainer<?> cacheFolder = (ResourceContainer<?>) privateDirectory.getChild("cache");
+			ResourceContainer<?> cacheFolder = privateDirectory == null ? null :(ResourceContainer<?>) privateDirectory.getChild("cache");
 			if (!EAIResourceRepository.isDevelopment() && getConfig().isOptimizedLoad()) {
 				// if we do have a cache folder, we turned on optimize in development
 				if (cacheFolder != null) {
@@ -1229,7 +1241,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 										ServiceRuntime.getGlobalContext().put("service.source", "glue");
 										
 										// attempt to get an optimized response
-										HTTPResponse response = getOptimizedResponse(cacheFolder, rewritten, "$root");
+										HTTPResponse response = cacheFolder == null ? null : getOptimizedResponse(cacheFolder, rewritten, "$root");
 										if (response == null) {
 											response = listener.handle(rewritten);
 											// we force it on the server path because of html5
@@ -1383,7 +1395,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	}
 	
 	private HTTPResponse optimizeResponse(ResourceContainer<?> privateDirectory, HTTPRequest event, HTTPResponse response, String forcedName) {
-		if (response != null && getConfig().isOptimizedLoad() && EAIResourceRepository.isDevelopment() && response.getContent() instanceof ContentPart) {
+		// in prd mode, the private directory can be null
+		if (privateDirectory != null && response != null && getConfig().isOptimizedLoad() && EAIResourceRepository.isDevelopment() && response.getContent() instanceof ContentPart) {
 			String contentType = MimeUtils.getContentType(response.getContent().getHeaders());
 			if (contentType != null) {
 				// we want to keep a compiled version of these for easy serving in target environments
