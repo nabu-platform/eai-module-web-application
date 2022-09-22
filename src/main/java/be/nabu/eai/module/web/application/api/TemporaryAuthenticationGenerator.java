@@ -5,6 +5,34 @@ import java.util.Date;
 import javax.jws.WebParam;
 import javax.validation.constraints.NotNull;
 
+import be.nabu.libs.authentication.api.Device;
+import be.nabu.libs.types.base.Duration;
+
 public interface TemporaryAuthenticationGenerator {
-	public TemporaryAuthentication generate(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, @NotNull @WebParam(name = "realm") String realm, @NotNull @WebParam(name = "alias") String alias, @WebParam(name = "authenticationId") String authenticationId, @WebParam(name = "maxUses") Integer maxUses, @WebParam(name = "until") Date until, @WebParam(name = "type") String type, @WebParam(name = "correlationId") String correlationId);
+	public TemporaryAuthentication generate(
+		// the web application this is for
+		@NotNull @WebParam(name = "webApplicationId") String webApplicationId,
+		// the realm (although this can be deduced from the web application?)
+		@NotNull @WebParam(name = "realm") String realm, 
+		// the alias of the user you want to authenticate as
+		@NotNull @WebParam(name = "alias") String alias,
+		// the authentication id is a unique reference to the realm and alias combination
+		@WebParam(name = "authenticationId") String authenticationId,
+		// how many times it can be used
+		@WebParam(name = "maxUses") Integer maxUses, 
+		// until when it can be used
+		@WebParam(name = "until") Date until, 
+		// you may set an until for example 1 day in the future, this is a hard cutoff
+		// timeout can be added at say 30minutes meaning if you don't use it for 30 minutes, it expires
+		@WebParam(name = "timeout") Duration timeout,
+		// the type of authentication, for example a temporary authentication for file downloads should not be usable for fully authenticating
+		// so you define the usecase for this temporary authentication
+		@WebParam(name = "type") String type,
+		// you can pre-generate the secret according to your own rules
+		// if not, one will be generated for you
+		@WebParam(name = "secret") String secret, 
+		// this allows you to correlate it to something else
+		@WebParam(name = "correlationId") String correlationId,
+		// the device this is requested on
+		@WebParam(name = "device") Device device);
 }

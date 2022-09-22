@@ -11,7 +11,7 @@ import javax.xml.bind.annotation.XmlType;
 import be.nabu.libs.types.api.KeyValuePair;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "id", "realm", "path", "root", "cookiePath", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties", "html5Mode", "errorCodes", "defaultLanguage", "lastModified" })
+@XmlType(propOrder = { "id", "realm", "path", "root", "cookiePath", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties", "html5Mode", "errorCodes", "defaultLanguage", "lastModified", "stateless", "optimizedLoad" })
 public class WebApplicationInformation {
 	// root is slightly different from path: path is the actual configured path
 	// root is the interpreted path guaranteed to end in a "/" for concatenation
@@ -24,7 +24,7 @@ public class WebApplicationInformation {
 	private String translationService;
 	private String scriptCacheProviderId, defaultLanguage;
 	private List<KeyValuePair> properties;
-	private boolean html5Mode;
+	private boolean html5Mode, stateless, optimizedLoad;
 	private List<String> errorCodes;
 	private Date lastModified;
 
@@ -148,6 +148,18 @@ public class WebApplicationInformation {
 	}
 	public void setLastModified(Date lastModified) {
 		this.lastModified = lastModified;
+	}
+	public boolean isStateless() {
+		return stateless;
+	}
+	public void setStateless(boolean stateless) {
+		this.stateless = stateless;
+	}
+	public boolean isOptimizedLoad() {
+		return optimizedLoad;
+	}
+	public void setOptimizedLoad(boolean optimizedLoad) {
+		this.optimizedLoad = optimizedLoad;
 	}
 	
 }

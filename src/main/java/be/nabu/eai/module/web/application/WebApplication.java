@@ -209,6 +209,7 @@ import be.nabu.utils.io.api.WritableContainer;
 import be.nabu.utils.io.buffers.bytes.ByteBufferFactory;
 import be.nabu.utils.mime.api.ContentPart;
 import be.nabu.utils.mime.api.Header;
+import be.nabu.utils.mime.api.ModifiableHeader;
 import be.nabu.utils.mime.impl.FormatException;
 import be.nabu.utils.mime.impl.MimeHeader;
 import be.nabu.utils.mime.impl.MimeUtils;
@@ -1378,6 +1379,35 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						if (resourceLastModified != null && response != null) {
 							response.getContent().setHeader(new MimeHeader("Last-Modified", HTTPUtils.formatDate(resourceLastModified)));
 						}
+						// we want to ensure that we have a device-id
+						// this is mostly relevant in the initial call (the html get)
+						if (response != null) {
+							String deviceId = null;
+							boolean isNewDevice = false;
+							// check validity of device
+							Device device = event.getContent() == null ? null : GlueListener.getDevice(getRealm(), event.getContent().getHeaders());
+							if (device == null && deviceValidator != null) {
+								device = GlueListener.newDevice(getRealm(), event.getContent().getHeaders());
+								deviceId = device.getDeviceId();
+								isNewDevice = true;
+							}
+							// if it's a new device, set it
+							if (isNewDevice) {
+								ModifiableHeader cookieHeader = HTTPUtils.newSetCookieHeader(
+									"Device-" + getRealm(), 
+									deviceId,
+									new Date(new Date().getTime() + 1000l*60*60*24*365*100),
+									getCookiePath(),
+									// domain
+									null, 
+									// secure
+									isSecure(),
+									// http only
+									true
+								);
+								response.getContent().setHeader(cookieHeader);
+							}
+						}
 					}
 					else {
 						// let's mark this for the future
@@ -2046,7 +2076,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		if (!temporaryAuthenticationGeneratorResolved) {
 			synchronized(this) {
 				if (!temporaryAuthenticationGeneratorResolved) {
-					if (getConfiguration().getTemporaryAuthenticator() != null) {
+					if (getConfiguration().getTemporaryAuthenticationGenerator() != null) {
 						temporaryAuthenticationGenerator = POJOUtils.newProxy(TemporaryAuthenticationGenerator.class, wrap(getConfiguration().getTemporaryAuthenticationGenerator(), getMethod(TemporaryAuthenticationGenerator.class, "generate")), getRepository(), SystemPrincipal.ROOT);
 					}
 					temporaryAuthenticationGeneratorResolved = true;

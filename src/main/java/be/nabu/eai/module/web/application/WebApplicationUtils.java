@@ -286,6 +286,8 @@ public class WebApplicationUtils {
 		information.setCharset(application.getConfig().getCharset() == null ? Charset.defaultCharset() : Charset.forName(application.getConfig().getCharset()));
 		information.setCookiePath(application.getCookiePath());
 		information.setDefaultLanguage(application.getConfig().getDefaultLanguage());
+		information.setStateless(application.getConfig().isStateless());
+		information.setOptimizedLoad(application.getConfig().isOptimizedLoad());
 		Resource child = application.getDirectory().getChild("node.xml");
 		if (child instanceof TimestampedResource) {
 			information.setLastModified(((TimestampedResource) child).getLastModified());
@@ -462,16 +464,32 @@ public class WebApplicationUtils {
 	public static String getServiceContext(Token token, WebApplication application, HTTPRequest request) {
 		Header header = MimeUtils.getHeader("X-Service-Context", request.getContent().getHeaders());
 		if (header != null && !header.getValue().trim().isEmpty()) {
+			// by default you are NOT allowed to do this
+			boolean allowed = false;
 			try {
+				// if we have configured roles that are allowed to do this (e.g. manager), we check that
+				List<String> contextSwitchingRole = application.getConfig().getContextSwitchingRole();
+				if (contextSwitchingRole != null && !contextSwitchingRole.isEmpty()) {
+					RoleHandler roleHandler = application.getRoleHandler();
+					// only if you have a role handler
+					if (roleHandler != null) {
+						for (String single : contextSwitchingRole) {
+							if (roleHandler.hasRole(token, single)) {
+								allowed = true;
+							}
+						}
+					}
+				}
+				// if we didn't get a generic role check OK, check the permission
 				PermissionHandler permissionHandler = application.getPermissionHandler();
-				// because of the potential security implications, you MUST have a permission handler to allow for custom context setting
-				if (permissionHandler != null) {
+				if (!allowed && permissionHandler != null) {
 					// this reuses the webapplication security logic used by page builder
 					// you must either have a generic permission to switch to any context
 					// or a specific permission to switch to the specifically requested context
-					if (permissionHandler.hasPermission(token, "webApplication:" + application.getId(), WebApplication.PERMISSION_UPDATE_SERVICE_CONTEXT) || permissionHandler.hasPermission(token, "webApplication:" + application.getId(), WebApplication.PERMISSION_UPDATE_SERVICE_CONTEXT + "." + header.getValue().trim())) {
-						return header.getValue().trim();
-					}
+					allowed = permissionHandler.hasPermission(token, "context:" + application.getId(), WebApplication.PERMISSION_UPDATE_SERVICE_CONTEXT) || permissionHandler.hasPermission(token, "context:" + application.getId(), WebApplication.PERMISSION_UPDATE_SERVICE_CONTEXT + "." + header.getValue().trim());
+				}
+				if (allowed) {
+					return header.getValue().trim();
 				}
 			}
 			catch (Exception e) {

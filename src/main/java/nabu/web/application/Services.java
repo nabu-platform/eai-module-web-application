@@ -50,10 +50,13 @@ import be.nabu.libs.services.api.ServiceDescription;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.KeyValuePair;
+import be.nabu.libs.types.base.Duration;
 import be.nabu.utils.io.IOUtils;
 import be.nabu.utils.io.api.ByteBuffer;
 import be.nabu.utils.io.api.ReadableContainer;
 import be.nabu.utils.mime.api.Header;
+import be.nabu.utils.mime.api.ModifiableHeader;
+import be.nabu.utils.mime.impl.MimeUtils;
 import nabu.web.application.types.Cookie;
 import nabu.web.application.types.PropertyImpl;
 import nabu.web.application.types.WebApplicationInformation;
@@ -63,6 +66,13 @@ import nabu.web.application.types.WebFragmentInformation;
 public class Services {
 	private ExecutionContext executionContext;
 
+	@WebResult(name = "cookie")
+	public String formatCookie(@WebParam(name = "webApplicationId") @NotNull String id, @WebParam(name = "key") String key, @WebParam(name = "value") String value, @WebParam(name = "expires") Date expires) {
+		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
+		ModifiableHeader newSetCookieHeader = HTTPUtils.newSetCookieHeader(key, value, expires, resolved.getCookiePath(), null, resolved.isSecure(), true);
+		return MimeUtils.getFullHeaderValue(newSetCookieHeader);
+	}
+	
 	@WebResult(name = "cookies")
 	public List<Cookie> cookies(@WebParam(name = "headers") List<Header> headers) {
 		Map<String, List<String>> cookies = HTTPUtils.getCookies(headers.toArray(new Header[0]));
@@ -342,7 +352,6 @@ public class Services {
 	public WebApplicationInformation current() throws IOException {
 		ServiceRuntime runtime = ServiceRuntime.getRuntime();
 		String id = runtime == null ? null : (String) runtime.getContext().get("webApplicationId");
-		System.out.println("context is: " + runtime.getContext());
 		if (id != null) {
 			WebApplicationInformation information = information(id);
 			// the id is not a web application :(
@@ -632,20 +641,27 @@ public class Services {
 			// you could also set the name of a service itself to be more specific
 			// reason "authentication" might be for authentication
 			@NotNull @WebParam(name = "type") String type,
+			// pregenerate a secret
+			@WebParam(name = "secret") String secret,
 			// correlate it to something of interest
 			@WebParam(name = "correlationId") String correlationId,
-			@WebParam(name = "authenticationId") String authenticationId) throws IOException {
+			@WebParam(name = "timeout") Duration timeout,
+			@WebParam(name = "authenticationId") String authenticationId,
+			@WebParam(name = "device") Device device) throws IOException {
 		WebApplication resolved = webApplicationId == null ? null : executionContext.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);
 		if (resolved != null) {
 			TemporaryAuthenticationGenerator temporaryAuthenticationGenerator = resolved.getTemporaryAuthenticationGenerator();
 			if (temporaryAuthenticationGenerator != null) {
-				return temporaryAuthenticationGenerator.generate(resolved.getId(), resolved.getRealm(), alias, authenticationId, maxUses, until, type, correlationId);
+				return temporaryAuthenticationGenerator.generate(resolved.getId(), resolved.getRealm(), alias, authenticationId, maxUses, until, timeout, type, secret, correlationId, device);
 			}
 		}
 		return null;
 	}
 	
-	public Token temporarilyAuthenticate(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, @NotNull @WebParam(name = "authentication") TemporaryAuthentication authentication, @NotNull @WebParam(name = "type") String type, @WebParam(name = "correlationId") String correlationId, @WebParam(name = "device") Device device) throws IOException {
+	public Token temporarilyAuthenticate(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, @NotNull @WebParam(name = "authentication") TemporaryAuthentication authentication, 
+			@NotNull @WebParam(name = "type") String type, 
+			@WebParam(name = "correlationId") String correlationId, 
+			@WebParam(name = "device") Device device) throws IOException {
 		WebApplication resolved = webApplicationId == null ? null : executionContext.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);
 		if (resolved != null) {
 			TemporaryAuthenticator temporaryAuthenticator = resolved.getTemporaryAuthenticator();
@@ -657,12 +673,16 @@ public class Services {
 	}
 	
 	@WebResult(name = "token")
-	public Token authenticate(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, @NotNull @WebParam(name = "alias") String alias, @NotNull @WebParam(name = "password") String password, @WebParam(name = "device") Device device) {
+	public Token authenticate(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, @WebParam(name = "type") String type, @NotNull @WebParam(name = "alias") String alias, @NotNull @WebParam(name = "password") String password, @WebParam(name = "device") Device device) {
 		WebApplication resolved = webApplicationId == null ? null : executionContext.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);
 		if (resolved != null) {
 			Authenticator authenticator = resolved.getAuthenticator();
 			if (authenticator != null) {
-				return authenticator.authenticate(resolved.getRealm(), new BasicPrincipalWithDeviceImpl(alias, password, device));
+				BasicPrincipalWithDeviceImpl basicPrincipalWithDeviceImpl = new BasicPrincipalWithDeviceImpl(alias, password, device);
+				if (type != null) {
+					basicPrincipalWithDeviceImpl.setType(type);
+				}
+				return authenticator.authenticate(resolved.getRealm(), basicPrincipalWithDeviceImpl);
 			}
 		}
 		return null;

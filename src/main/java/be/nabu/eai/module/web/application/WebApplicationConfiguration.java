@@ -27,7 +27,7 @@ import be.nabu.libs.types.api.annotation.Field;
 		"defaultLanguage", "rateLimitSettings", "rateLimitChecker", "rateLimitLogger", "corsChecker", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", 
 		"maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", 
 		"maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "services", 
-		"webFragments", "html5Mode", "optimizedLoad", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie", "testRole", "virusScanner" })
+		"webFragments", "html5Mode", "optimizedLoad", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie", "testRole", "contextSwitchingRole", "virusScanner", "stateless" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -45,6 +45,10 @@ public class WebApplicationConfiguration {
 	private boolean ignoreLanguageCookie;
 	// which roles can test toggling features
 	private List<String> testRole;
+	
+	// which roles can switch between contexts
+	// if nothing is defined, we don't do a role check and only a permission check
+	private List<String> contextSwitchingRole;
 	
 	// we assume the proxy strips the path, but to build correct links for the outside world, we need to know this
 	private String proxyPath;
@@ -81,6 +85,9 @@ public class WebApplicationConfiguration {
 	// in the target environment (assuming development mode is turned off), this highly optimized compiled version is used instead of recalculating everything
 	private boolean allowJwtBearer, allowContentEncoding = true, html5Mode, optimizedLoad;
 	private boolean forceRequestLanguage;
+	
+	// in a stateless application, we don't have sessions at all
+	private boolean stateless;
 	
 	private DefinedService rateLimitSettings, rateLimitChecker, rateLimitLogger;
 	
@@ -298,7 +305,7 @@ public class WebApplicationConfiguration {
 		this.whitelistedCodes = whitelistedCodes;
 	}
 
-	@Field(group = "caching", comment = "You can configure a session cache provider for this web application. All the session information will be stored there.")
+	@Field(group = "caching", comment = "You can configure a session cache provider for this web application. All the session information will be stored there.", hide = "stateless == true")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	public CacheProviderArtifact getSessionCacheProvider() {
 		return sessionCacheProvider;
@@ -307,7 +314,8 @@ public class WebApplicationConfiguration {
 		this.sessionCacheProvider = sessionCacheProvider;
 	}
 	
-	@Field(group = "caching", comment = "The script cache provider is used to temporarily cache page results, _always_ use a serializing cache for this and _never_ cache a page with user-specific content on it! You can set a '@cache <timeout>' annotation at the top of a script to enable caching. The timeout is optional and can be set to 0 for indefinite cached values.")
+	@Field(group = "caching", comment = "The script cache provider is used to temporarily cache page results, _always_ use a serializing cache for this and _never_ cache a page with user-specific content on it! You can set a '@cache <timeout>' annotation at the top of a script to enable caching. The timeout is optional and can be set to 0 for indefinite cached values.",
+		hide = "optimizedLoad == true")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	public CacheProviderArtifact getScriptCacheProvider() {
 		return scriptCacheProvider;
@@ -316,7 +324,7 @@ public class WebApplicationConfiguration {
 		this.scriptCacheProvider = scriptCacheProvider;
 	}
 	
-	@Field(group = "caching", comment = "The max total size of all the active sessions.")
+	@Field(group = "caching", comment = "The max total size of all the active sessions.", hide = "stateless == true")
 	public Long getMaxTotalSessionSize() {
 		return maxTotalSessionSize;
 	}
@@ -324,7 +332,7 @@ public class WebApplicationConfiguration {
 		this.maxTotalSessionSize = maxTotalSessionSize;
 	}
 
-	@Field(group = "caching", comment = "The max size of a single session.")
+	@Field(group = "caching", comment = "The max size of a single session.", hide = "stateless == true")
 	public Long getMaxSessionSize() {
 		return maxSessionSize;
 	}
@@ -332,7 +340,7 @@ public class WebApplicationConfiguration {
 		this.maxSessionSize = maxSessionSize;
 	}
 
-	@Field(group = "caching", comment = "How long it takes a session to time out. The timeout is based on the last time the session was accessed so it is a moving window.")
+	@Field(group = "caching", comment = "How long it takes a session to time out. The timeout is based on the last time the session was accessed so it is a moving window.", hide = "stateless == true")
 	public Long getSessionTimeout() {
 		return sessionTimeout;
 	}
@@ -385,7 +393,7 @@ public class WebApplicationConfiguration {
 		this.failedLoginBlacklistDuration = failedLoginBlacklistDuration;
 	}
 	
-	@Field(group = "caching", comment = "The max total size of all the cached scripts.")
+	@Field(group = "caching", comment = "The max total size of all the cached scripts.", hide = "optimizedLoad == true")
 	public Long getMaxTotalScriptCacheSize() {
 		return maxTotalScriptCacheSize;
 	}
@@ -393,7 +401,7 @@ public class WebApplicationConfiguration {
 		this.maxTotalScriptCacheSize = maxTotalScriptCacheSize;
 	}
 	
-	@Field(group = "caching", comment = "The max size of a single cached script.")
+	@Field(group = "caching", comment = "The max size of a single cached script.", hide = "optimizedLoad == true")
 	public Long getMaxScriptCacheSize() {
 		return maxScriptCacheSize;
 	}
@@ -401,7 +409,7 @@ public class WebApplicationConfiguration {
 		this.maxScriptCacheSize = maxScriptCacheSize;
 	}
 	
-	@Field(group = "caching", comment = "How long it takes for a script cache to time (unless specified otherwise on the script itself). The timeout is based on when the cache was created.")
+	@Field(group = "caching", comment = "How long it takes for a script cache to time (unless specified otherwise on the script itself). The timeout is based on when the cache was created.", hide = "optimizedLoad == true")
 	public Long getScriptCacheTimeout() {
 		return scriptCacheTimeout;
 	}
@@ -409,7 +417,7 @@ public class WebApplicationConfiguration {
 		this.scriptCacheTimeout = scriptCacheTimeout;
 	}
 	
-	@Field(group = "caching", comment = "You can configure a custom session cache id. This can be used to create complex shared session caches.")
+	@Field(group = "caching", comment = "You can configure a custom session cache id. This can be used to create complex shared session caches.", hide = "stateless == true")
 	public String getSessionCacheId() {
 		return sessionCacheId;
 	}
@@ -581,7 +589,15 @@ public class WebApplicationConfiguration {
 	public void setTestRole(List<String> testRole) {
 		this.testRole = testRole;
 	}
-
+	
+	@Field(group = "security", comment = "The people who have this role can choose a different execution context in the frontend. If you have a permission handler, that will always be checked as well.")
+	public List<String> getContextSwitchingRole() {
+		return contextSwitchingRole;
+	}
+	public void setContextSwitchingRole(List<String> contextSwitchingRole) {
+		this.contextSwitchingRole = contextSwitchingRole;
+	}
+	
 	@Comment(title = "Services you want to expose through this web application")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	public List<DefinedService> getServices() {
@@ -609,4 +625,12 @@ public class WebApplicationConfiguration {
 		this.optimizedLoad = optimizedLoad;
 	}
 	
+	@Field(comment = "By enabling statelessness, sessions are disabled on the web application.")
+	public boolean isStateless() {
+		return stateless;
+	}
+	public void setStateless(boolean stateless) {
+		this.stateless = stateless;
+	}
+
 }
