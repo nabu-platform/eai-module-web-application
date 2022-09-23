@@ -40,6 +40,11 @@ import javax.crypto.SecretKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.javascript.jscomp.CompilationLevel;
+import com.google.javascript.jscomp.CompilerOptions;
+import com.google.javascript.jscomp.SourceFile;
+import com.google.javascript.jscomp.CompilerOptions.LanguageMode;
+
 import be.nabu.eai.authentication.api.PasswordAuthenticator;
 import be.nabu.eai.authentication.api.SecretAuthenticator;
 import be.nabu.eai.authentication.api.TypedAuthenticator;
@@ -106,6 +111,7 @@ import be.nabu.glue.utils.MultipleRepository;
 import be.nabu.glue.utils.ScriptRuntime;
 import be.nabu.glue.utils.ScriptUtils;
 import be.nabu.libs.artifacts.FeatureImpl;
+import be.nabu.libs.artifacts.api.CommitableArtifact;
 import be.nabu.libs.artifacts.api.Feature;
 import be.nabu.libs.artifacts.api.FeaturedArtifact;
 import be.nabu.libs.artifacts.api.StartableArtifact;
@@ -229,7 +235,7 @@ import be.nabu.utils.security.SecurityUtils;
  * We could still support the (very rare) occassion when you want to mount something twice by allowing webcomponent-level configuration
  * This would require you to add the fragment the second time to a web component, configure it there and add the web component to the application
  */
-public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> implements StartableArtifact, StoppableArtifact, AuthenticatorProvider, WebFragmentProvider, RESTFragmentProvider, FeaturedArtifact {
+public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> implements StartableArtifact, StoppableArtifact, AuthenticatorProvider, WebFragmentProvider, RESTFragmentProvider, FeaturedArtifact, CommitableArtifact {
 
 	public static final String MODULE = "nabu.web.application";
 	private Map<ResourceContainer<?>, ScriptRepository> additionalRepositories = new HashMap<ResourceContainer<?>, ScriptRepository>();
@@ -1305,8 +1311,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							contentType = "application/javascript";
 							// we check if there is a compiled version
 							Resource compiledChild = cacheFolder.getChild(path + ".compiled.js");
+							System.out.println("found compiled: " + path + " / " + javascriptChild + " / " + compiledChild);
 							if (compiledChild instanceof TimestampedResource && javascriptChild instanceof TimestampedResource) {
 								if (((TimestampedResource) compiledChild).getLastModified().before(((TimestampedResource) javascriptChild).getLastModified())) {
+									System.out.println("timestamps don't align: " + ((TimestampedResource) compiledChild).getLastModified() + " vs " +  ((TimestampedResource) javascriptChild).getLastModified());
 									compiledChild = null;
 								}
 							}
@@ -1440,8 +1448,16 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						String path = uri.getPath();
 						if (path != null && path.startsWith(getServerPath())) {
 							path = path.substring(getServerPath().length());
-							// encode so we don't have issues
-							path = forcedName == null ? URIUtils.encodeURIComponent(path) : forcedName;
+							if (forcedName != null) {
+								path = forcedName;
+							}
+							else if (path == null || path.trim().isEmpty()) {
+								path = "$root";
+							}
+							else {
+								// encode so we don't have issues
+								path = URIUtils.encodeURIComponent(path);
+							}
 							// give it a correct extension, this can be useful for compiling
 							if (contentType.trim().equals("application/javascript")) {
 								path += ".js";
@@ -2912,5 +2928,94 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 		}
 		return new ByteArrayInputStream(SecurityUtils.pbeDecrypt(new String(bytes, "ASCII"), getId(), PBEAlgorithm.AES256, true));
+	}
+
+	@Override
+	public void beforeCommit() {
+		ResourceContainer<?> privateDirectory = (ResourceContainer<?>) getDirectory().getChild(EAIResourceRepository.PRIVATE);
+		ResourceContainer<?> cacheFolder = privateDirectory == null ? null : (ResourceContainer<?>) privateDirectory.getChild("cache");
+		// if we have a cache folder, we look for javascript and css and compress it
+		if (cacheFolder != null) {
+			// we probably need to delete some children as well, so let's not work on the iterator directly
+			List<Resource> children = new ArrayList<Resource>();
+			for (Resource child : cacheFolder) {
+				children.add(child);
+			}
+			for (Resource child : children) {
+				try {
+					Charset charset = Charset.forName("UTF-8");
+					// if we have a javascript that might need compilation, let's do that!
+					if (child instanceof ReadableResource && child.getName().endsWith(".js") && !child.getName().endsWith(".compiled.js")) {
+						// check if there is already a compiled one, let's remove it
+						// if our compilation fails, we don't want it to be mistakingly used
+						String compiledName = child.getName().replaceAll("\\.js$", ".compiled.js");
+						Resource compiledChild = cacheFolder.getChild(compiledName);
+						if (compiledChild != null) {
+							((ManageableContainer<?>) cacheFolder).delete(compiledName);
+						}
+						
+						CompilerOptions options = new CompilerOptions();
+						CompilationLevel.SIMPLE_OPTIMIZATIONS.setOptionsForCompilationLevel(options);
+	//						CompilationLevel.ADVANCED_OPTIMIZATIONS.setOptionsForCompilationLevel(options);
+						boolean allowEs6 = true;
+						if (allowEs6) {
+							options.setLanguageIn(LanguageMode.ECMASCRIPT6_TYPED);
+						}
+						else {
+							options.setLanguageIn(LanguageMode.ECMASCRIPT5);
+						}
+						// set output mode
+	//					options.setLanguageOut(LanguageMode.ECMASCRIPT3);
+							
+						try (ReadableContainer<ByteBuffer> readable = ((ReadableResource) child).getReadable()) {
+							byte [] originalContent = IOUtils.toBytes(readable);
+							
+							SourceFile file = SourceFile.fromCode("file.js", new String(originalContent, charset));
+							SourceFile external = SourceFile.fromCode("file2.js", "");
+							
+							com.google.javascript.jscomp.Compiler compiler = new com.google.javascript.jscomp.Compiler();
+							compiler.compile(external, file, options);
+		
+							String source = compiler.toSource();
+							byte [] compressedContent = source.getBytes(charset);
+							
+							compiledChild = ((ManageableContainer<?>) cacheFolder).create(compiledName, "application/javascript");
+							
+							try (WritableContainer<ByteBuffer> writable = ((WritableResource) compiledChild).getWritable()) {
+								writable.write(IOUtils.wrap(compressedContent, true));
+							}
+						}
+					}
+					else if (child instanceof ReadableResource && child.getName().endsWith(".css") && !child.getName().endsWith(".compiled.css")) {
+						// check if there is already a compiled one, let's remove it
+						// if our compilation fails, we don't want it to be mistakingly used
+						String compiledName = child.getName().replaceAll("\\.css$", ".compiled.css");
+						Resource compiledChild = cacheFolder.getChild(compiledName);
+						if (compiledChild != null) {
+							((ManageableContainer<?>) cacheFolder).delete(compiledName);
+						}
+						try (ReadableContainer<ByteBuffer> readable = ((ReadableResource) child).getReadable()) {
+							byte[] originalContent = IOUtils.toBytes(readable);
+							
+							String css = new String(originalContent, charset);
+							// strip comments
+							css = css.replaceAll("(?s)/\\*.*?\\*/", "");
+							// strip all whitespace
+							css = css.replaceAll("(\\{|:|;|\\}|,)[\\s]+", "$1");
+							byte [] compressedContent = css.getBytes(charset);
+							
+							compiledChild = ((ManageableContainer<?>) cacheFolder).create(compiledName, "text/css");
+							
+							try (WritableContainer<ByteBuffer> writable = ((WritableResource) compiledChild).getWritable()) {
+								writable.write(IOUtils.wrap(compressedContent, true));
+							}
+						}
+					}
+				}
+				catch (IOException e) {
+					logger.warn("Could not compile javascript content", e);
+				}
+			}
+		}
 	}
 }

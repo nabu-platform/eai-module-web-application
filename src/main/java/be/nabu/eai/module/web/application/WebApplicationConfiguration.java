@@ -151,7 +151,8 @@ public class WebApplicationConfiguration {
 		this.requestLanguageProviderService = requestLanguageProviderService;
 	}
 	
-	@Field(group = "security", comment = "This service is responsible for authenticating a username with a given password. If a secret is returned in the response of this service, the secret authenticator can be used to remember users automatically.")
+	@Field(group = "security", comment = "This service is responsible for authenticating a username with a given password. If a secret is returned in the response of this service, the secret authenticator can be used to remember users automatically.",
+		hide = "typedAuthenticationService != null")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.eai.authentication.api.PasswordAuthenticator.authenticate")
 	public DefinedService getPasswordAuthenticationService() {
@@ -181,7 +182,8 @@ public class WebApplicationConfiguration {
 		this.arbitraryAuthenticator = arbitraryAuthenticator;
 	}
 	
-	@Field(group = "security", comment = "This service is responsible for remembering a previously logged in user based on a shared secret.")
+	@Field(group = "security", comment = "This service is responsible for remembering a previously logged in user based on a shared secret.",
+		hide = "typedAuthenticationService != null")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.eai.authentication.api.SecretAuthenticator.authenticate")
 	public DefinedService getSecretAuthenticationService() {
@@ -191,7 +193,8 @@ public class WebApplicationConfiguration {
 		this.secretAuthenticationService = secretAuthenticationService;
 	}
 	
-	@Field(group = "security", comment = "This service is responsible for generating a secret for a token so we can be remembered later on")
+	@Field(group = "security", comment = "This service is responsible for generating a secret for a token so we can be remembered later on",
+		hide = "stateless == true")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.libs.authentication.api.SecretGenerator.generate")
 	public DefinedService getSecretGeneratorService() {
