@@ -11,7 +11,7 @@ import javax.xml.bind.annotation.XmlType;
 import be.nabu.libs.types.api.KeyValuePair;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "id", "realm", "path", "root", "cookiePath", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties", "html5Mode", "errorCodes", "defaultLanguage", "lastModified", "stateless", "optimizedLoad" })
+@XmlType(propOrder = { "id", "realm", "path", "root", "cookiePath", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties", "html5Mode", "errorCodes", "defaultLanguage", "lastModified", "lastCacheUpdate", "stateless", "optimizedLoad" })
 public class WebApplicationInformation {
 	// root is slightly different from path: path is the actual configured path
 	// root is the interpreted path guaranteed to end in a "/" for concatenation
@@ -26,7 +26,7 @@ public class WebApplicationInformation {
 	private List<KeyValuePair> properties;
 	private boolean html5Mode, stateless, optimizedLoad;
 	private List<String> errorCodes;
-	private Date lastModified;
+	private Date lastModified, lastCacheUpdate;
 
 	public String getId() {
 		return id;
@@ -161,5 +161,10 @@ public class WebApplicationInformation {
 	public void setOptimizedLoad(boolean optimizedLoad) {
 		this.optimizedLoad = optimizedLoad;
 	}
-	
+	public Date getLastCacheUpdate() {
+		return lastCacheUpdate;
+	}
+	public void setLastCacheUpdate(Date lastCacheUpdate) {
+		this.lastCacheUpdate = lastCacheUpdate;
+	}
 }

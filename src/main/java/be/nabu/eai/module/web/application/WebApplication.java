@@ -284,6 +284,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private TemporaryAuthenticationGenerator temporaryAuthenticationGenerator;
 	private boolean corsHandlerResolved;
 	private CORSHandler corsHandler;
+	// in prd mode the cache is not updated (normally), so once we calculate the last update, we can keep track of that date to prevent further I/O
+	private Date lastCacheUpdate;
 	
 	// the permission necessary to be able to update the service context for a call
 	// you can also be more specific, for instance if you can only set the "telemetrics" context but not the "fira" context, you might set a permission $application.setServiceContext.telemetrics
@@ -1287,8 +1289,16 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				String path = uri.getPath();
 				if (path != null && path.startsWith(getServerPath())) {
 					path = path.substring(getServerPath().length());
-					// encode so we don't have issues
-					path = forcedName == null ? URIUtils.encodeURIComponent(path) : forcedName;
+					if (forcedName != null) {
+						path = forcedName;
+					}
+					else if (path == null || path.trim().isEmpty()) {
+						path = "$root";
+					}
+					else {
+						// encode so we don't have issues
+						path = URIUtils.encodeURIComponent(path);
+					}
 		
 					byte[] bytes = checkedOptimizations.get(path);
 					// if we have no content but did check before, just skip, we don't want to waste i/o cycles on this
@@ -1302,8 +1312,14 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					// the extension determines the contentType
 					Resource htmlChild = cacheFolder.getChild(path + ".html");
 					if (htmlChild != null) {
-						finalChild = htmlChild;
 						contentType = "text/html";
+						Resource compiledChild = cacheFolder.getChild(path + ".compiled.html");
+						if (compiledChild instanceof TimestampedResource && htmlChild instanceof TimestampedResource) {
+							if (((TimestampedResource) compiledChild).getLastModified().before(((TimestampedResource) htmlChild).getLastModified())) {
+								compiledChild = null;
+							}
+						}
+						finalChild = compiledChild != null ? compiledChild : htmlChild;
 					}
 					else {
 						Resource javascriptChild = cacheFolder.getChild(path + ".js");
@@ -1311,10 +1327,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							contentType = "application/javascript";
 							// we check if there is a compiled version
 							Resource compiledChild = cacheFolder.getChild(path + ".compiled.js");
-							System.out.println("found compiled: " + path + " / " + javascriptChild + " / " + compiledChild);
 							if (compiledChild instanceof TimestampedResource && javascriptChild instanceof TimestampedResource) {
 								if (((TimestampedResource) compiledChild).getLastModified().before(((TimestampedResource) javascriptChild).getLastModified())) {
-									System.out.println("timestamps don't align: " + ((TimestampedResource) compiledChild).getLastModified() + " vs " +  ((TimestampedResource) javascriptChild).getLastModified());
 									compiledChild = null;
 								}
 							}
@@ -3011,6 +3025,35 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							}
 						}
 					}
+					else if (child instanceof ReadableResource && child.getName().endsWith(".html") && !child.getName().endsWith(".compiled.html")) {
+						// check if there is already a compiled one, let's remove it
+						// if our compilation fails, we don't want it to be mistakingly used
+						String compiledName = child.getName().replaceAll("\\.html$", ".compiled.html");
+						Resource compiledChild = cacheFolder.getChild(compiledName);
+						if (compiledChild != null) {
+							((ManageableContainer<?>) cacheFolder).delete(compiledName);
+						}
+						try (ReadableContainer<ByteBuffer> readable = ((ReadableResource) child).getReadable()) {
+							byte[] originalContent = IOUtils.toBytes(readable);
+							
+							String html = new String(originalContent, charset);
+							
+							// remove html comments
+							html = html.replaceAll("(?s)<!--.*?-->", "");
+							
+							// remove whitespace between tags
+							html = html.replaceAll("(?s)>[\\s]+<", "><");
+							
+							// remove all additional whitespace
+							html = html.replaceAll("(?s)[\\s]+", " ");
+							
+							byte [] compressedContent = html.getBytes(charset);
+							compiledChild = ((ManageableContainer<?>) cacheFolder).create(compiledName, "text/html");
+							try (WritableContainer<ByteBuffer> writable = ((WritableResource) compiledChild).getWritable()) {
+								writable.write(IOUtils.wrap(compressedContent, true));
+							}
+						}
+					}
 				}
 				catch (IOException e) {
 					logger.warn("Could not compile javascript content", e);
@@ -3018,4 +3061,28 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 		}
 	}
+
+	public Date getLastCacheUpdate() {
+		if (EAIResourceRepository.isDevelopment()) {
+			return null;
+		}
+		if (lastCacheUpdate == null) {
+			ResourceContainer<?> privateDirectory = (ResourceContainer<?>) getDirectory().getChild(EAIResourceRepository.PRIVATE);
+			ResourceContainer<?> cacheFolder = privateDirectory == null ? null : (ResourceContainer<?>) privateDirectory.getChild("cache");
+			if (cacheFolder != null) {
+				Date latest = null;
+				for (Resource child : cacheFolder) {
+					if (child instanceof TimestampedResource) {
+						Date lastModified = ((TimestampedResource) child).getLastModified();
+						if (lastModified != null && (latest == null || lastModified.after(latest))) {
+							latest = lastModified;
+						}
+					}
+				}
+				lastCacheUpdate = latest;
+			}
+		}
+		return lastCacheUpdate;
+	}
+	
 }

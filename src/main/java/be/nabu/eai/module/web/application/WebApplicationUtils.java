@@ -288,6 +288,7 @@ public class WebApplicationUtils {
 		information.setDefaultLanguage(application.getConfig().getDefaultLanguage());
 		information.setStateless(application.getConfig().isStateless());
 		information.setOptimizedLoad(application.getConfig().isOptimizedLoad());
+		information.setLastCacheUpdate(application.getLastCacheUpdate());
 		Resource child = application.getDirectory().getChild("node.xml");
 		if (child instanceof TimestampedResource) {
 			information.setLastModified(((TimestampedResource) child).getLastModified());
