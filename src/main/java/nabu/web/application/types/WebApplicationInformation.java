@@ -11,7 +11,7 @@ import javax.xml.bind.annotation.XmlType;
 import be.nabu.libs.types.api.KeyValuePair;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "id", "realm", "path", "root", "cookiePath", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties", "html5Mode", "errorCodes", "defaultLanguage", "lastModified", "lastCacheUpdate", "stateless", "optimizedLoad" })
+@XmlType(propOrder = { "id", "realm", "path", "root", "cookiePath", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties", "html5Mode", "errorCodes", "defaultLanguage", "lastModified", "lastCacheUpdate", "stateless", "optimizedLoad", "hasRoleHandler", "hasPermissionHandler" })
 public class WebApplicationInformation {
 	// root is slightly different from path: path is the actual configured path
 	// root is the interpreted path guaranteed to end in a "/" for concatenation
@@ -27,6 +27,7 @@ public class WebApplicationInformation {
 	private boolean html5Mode, stateless, optimizedLoad;
 	private List<String> errorCodes;
 	private Date lastModified, lastCacheUpdate;
+	private boolean hasRoleHandler, hasPermissionHandler;
 
 	public String getId() {
 		return id;
@@ -166,5 +167,17 @@ public class WebApplicationInformation {
 	}
 	public void setLastCacheUpdate(Date lastCacheUpdate) {
 		this.lastCacheUpdate = lastCacheUpdate;
+	}
+	public boolean isHasRoleHandler() {
+		return hasRoleHandler;
+	}
+	public void setHasRoleHandler(boolean hasRoleHandler) {
+		this.hasRoleHandler = hasRoleHandler;
+	}
+	public boolean isHasPermissionHandler() {
+		return hasPermissionHandler;
+	}
+	public void setHasPermissionHandler(boolean hasPermissionHandler) {
+		this.hasPermissionHandler = hasPermissionHandler;
 	}
 }

@@ -53,6 +53,8 @@ public class WebApplicationAuthenticator implements Authenticator {
 			Device device = getDevice(credentials);
 			
 			// set it globally
+			// this is actually not ok because we can call authenticate from another service!
+			// this should be refactored to only be called if it is the root service?
 			ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
 			ServiceRuntime.getGlobalContext().put("service.context", application.getId());
 			ServiceRuntime.getGlobalContext().put("webApplicationId", application.getId());
@@ -82,7 +84,7 @@ public class WebApplicationAuthenticator implements Authenticator {
 						if (secretAuthenticator == null) {
 							throw new IllegalStateException("No secret authenticator has been configured for application: " + application.getId());
 						}
-						return secretAuthenticator.authenticate(realm, new SharedSecretPrincipalImplementation((BasicPrincipal) credential), device);
+						return secretAuthenticator.authenticate(realm, credential instanceof SharedSecretPrincipal ? (SharedSecretPrincipal) credential : new SharedSecretPrincipalImplementation((BasicPrincipal) credential), device);
 					}
 					else if (type.equals("temporary")) {
 						try {

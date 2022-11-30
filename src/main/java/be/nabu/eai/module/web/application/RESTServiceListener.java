@@ -92,7 +92,7 @@ public class RESTServiceListener implements EventHandler<HTTPRequest, HTTPRespon
 				return checkRateLimits;
 			}
 			
-			WebApplicationUtils.checkPermission(application, token, service.getId(), null);
+			WebApplicationUtils.checkPermission(application, request, token, service.getId(), null);
 			
 			ComplexType inputType = fragment.getScopedInput();
 			ComplexContent input = null;
@@ -139,6 +139,8 @@ public class RESTServiceListener implements EventHandler<HTTPRequest, HTTPRespon
 			
 			ExecutionContext newExecutionContext = application.getRepository().newExecutionContext(token);
 			ServiceRuntime runtime = new ServiceRuntime(service, newExecutionContext);
+			runtime.setSlaProvider(application);
+			
 			// we can use the tracker to report our HTTP shizzles to anyone who might be listening
 			ServiceRuntimeTracker tracker = newExecutionContext.getServiceContext().getServiceTrackerProvider().getTracker(runtime);
 			if (tracker != null) {

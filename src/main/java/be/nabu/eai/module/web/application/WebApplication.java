@@ -187,6 +187,8 @@ import be.nabu.libs.resources.api.WritableResource;
 import be.nabu.libs.services.ServiceRuntime;
 import be.nabu.libs.services.api.DefinedService;
 import be.nabu.libs.services.api.Service;
+import be.nabu.libs.services.api.ServiceLevelAgreement;
+import be.nabu.libs.services.api.ServiceLevelAgreementProvider;
 import be.nabu.libs.services.fixed.FixedInputService;
 import be.nabu.libs.services.pojo.POJOUtils;
 import be.nabu.libs.types.ComplexContentWrapperFactory;
@@ -208,6 +210,7 @@ import be.nabu.libs.types.map.MapTypeGenerator;
 import be.nabu.libs.types.properties.MaxOccursProperty;
 import be.nabu.libs.types.properties.MinOccursProperty;
 import be.nabu.libs.types.structure.StructureGenerator;
+import be.nabu.utils.cep.api.EventSeverity;
 import be.nabu.utils.io.IOUtils;
 import be.nabu.utils.io.api.ByteBuffer;
 import be.nabu.utils.io.api.ReadableContainer;
@@ -235,7 +238,7 @@ import be.nabu.utils.security.SecurityUtils;
  * We could still support the (very rare) occassion when you want to mount something twice by allowing webcomponent-level configuration
  * This would require you to add the fragment the second time to a web component, configure it there and add the web component to the application
  */
-public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> implements StartableArtifact, StoppableArtifact, AuthenticatorProvider, WebFragmentProvider, RESTFragmentProvider, FeaturedArtifact, CommitableArtifact {
+public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> implements StartableArtifact, StoppableArtifact, AuthenticatorProvider, WebFragmentProvider, RESTFragmentProvider, FeaturedArtifact, CommitableArtifact, ServiceLevelAgreementProvider {
 
 	public static final String MODULE = "nabu.web.application";
 	private Map<ResourceContainer<?>, ScriptRepository> additionalRepositories = new HashMap<ResourceContainer<?>, ScriptRepository>();
@@ -291,7 +294,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	// you can also be more specific, for instance if you can only set the "telemetrics" context but not the "fira" context, you might set a permission $application.setServiceContext.telemetrics
 	// if the broad one is not allowed, the specific one is checked
 	// the context remains the web application id
-	public static final String PERMISSION_UPDATE_SERVICE_CONTEXT = "$application.setServiceContext";
+	public static final String PERMISSION_UPDATE_SERVICE_CONTEXT = "context.switch";
 	
 	public WebApplication(String id, ResourceContainer<?> directory, Repository repository) {
 		super(id, directory, repository, "webartifact.xml", WebApplicationConfiguration.class);
@@ -1284,7 +1287,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private HTTPResponse getOptimizedResponse(ResourceContainer<?> cacheFolder, HTTPRequest event, String forcedName) {
 		DefaultHTTPResponse response = null;
 		try {
-			if (!EAIResourceRepository.isDevelopment() && getConfig().isOptimizedLoad() && cacheFolder != null) {
+			// only gets can be optimized!!
+			if (!EAIResourceRepository.isDevelopment() && getConfig().isOptimizedLoad() && cacheFolder != null && event.getMethod().equalsIgnoreCase("get")) {
 				URI uri = HTTPUtils.getURI(event, isSecure());
 				String path = uri.getPath();
 				if (path != null && path.startsWith(getServerPath())) {
@@ -1448,7 +1452,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	
 	private HTTPResponse optimizeResponse(ResourceContainer<?> privateDirectory, HTTPRequest event, HTTPResponse response, String forcedName) {
 		// in prd mode, the private directory can be null
-		if (privateDirectory != null && response != null && getConfig().isOptimizedLoad() && EAIResourceRepository.isDevelopment() && response.getContent() instanceof ContentPart) {
+		if (privateDirectory != null && response != null && getConfig().isOptimizedLoad() && EAIResourceRepository.isDevelopment() && response.getContent() instanceof ContentPart && event.getMethod().equalsIgnoreCase("get")) {
 			String contentType = MimeUtils.getContentType(response.getContent().getHeaders());
 			if (contentType != null) {
 				// we want to keep a compiled version of these for easy serving in target environments
@@ -2010,8 +2014,17 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					DefinedService checker = getConfig().getRateLimitChecker();
 					DefinedService settings = getConfig().getRateLimitSettings();
 					DefinedService logger = getConfig().getRateLimitLogger();
+					DefinedService rateLimiter = getConfig().getRateLimiter();
+					if (rateLimiter != null) {
+						Service rateLimiterWrap = rateLimiter == null ? null : wrap(rateLimiter, getMethod(RateLimitProvider.class, "rateLimit"));
+						rateLimitProvider = POJOUtils.newProxy(RateLimitProvider.class,
+							getRepository(),
+							SystemPrincipal.ROOT,
+							rateLimiterWrap
+						);
+					}
 					// we need all these services to be of any use
-					if (checker != null && settings != null && logger != null) {
+					else if (checker != null && settings != null && logger != null) {
 						Service checkerWrap = checker == null ? null : wrap(checker, getMethod(RateLimitProvider.class, "check"));
 						Service settingsWrap = settings == null ? null : wrap(settings, getMethod(RateLimitProvider.class, "settings"));
 						Service loggerWrap = logger == null ? null : wrap(logger, getMethod(RateLimitProvider.class, "log"));
@@ -2843,7 +2856,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			// check permission handler as well
 			if (!isAllowed) {
 				PermissionHandler permissionHandler = this.getPermissionHandler();
-				isAllowed = permissionHandler != null && permissionHandler.hasPermission(token, null, "feature:" + featureName);
+				isAllowed = permissionHandler != null && permissionHandler.hasPermission(token, "context:" + getId(), "application.test");
+//				if (!isAllowed) {
+//					isAllowed = permissionHandler != null && permissionHandler.hasPermission(token, "context:" + getId(), "application.test." + featureName);
+//				}
 			}
 			return isAllowed;
 		}
@@ -3083,6 +3099,27 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 		}
 		return lastCacheUpdate;
+	}
+
+	// TODO: we want service level agreement managers where you can finetune all this
+	// but for now, we just set a 2s warning limit on all calls
+	// anything longer than that should probably be reported
+	@Override
+	public ServiceLevelAgreement getAgreementFor(Service service) {
+		return service instanceof WebFragment ? new ServiceLevelAgreement() {
+			@Override
+			public Long getThresholdDuration() {
+				return 2l * 60 * 1000;
+			}
+			@Override
+			public EventSeverity getSeverity() {
+				return EventSeverity.WARNING;
+			}
+			@Override
+			public boolean isExplicit() {
+				return false;
+			}
+		} : null; 
 	}
 	
 }

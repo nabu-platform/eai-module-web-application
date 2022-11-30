@@ -533,7 +533,8 @@ public class Services {
 				if (fragment != null && fragmentId.equals(fragment.getId())) {
 					WebFragmentInformation information = new WebFragmentInformation();
 					information.setActive(fragment.isStarted(application, path));
-					information.setPath(fragmentProviderPath);
+					// we always want to end in a "/" to be predictable
+					information.setPath((fragmentProviderPath + "/").replaceAll("[/]{2,}", "/"));
 					return information;
 				}
 				else if (fragment instanceof WebFragmentProvider) {
@@ -547,6 +548,7 @@ public class Services {
 		return null;
 	}
 	
+	@ServiceDescription(comment = "Check if {webApplicationId|a web application} has {fragmentId|a web fragment}")
 	@WebResult(name = "has")
 	public boolean hasFragment(@NotNull @WebParam(name = "webApplicationId") String id, @NotNull @WebParam(name = "fragmentId") String fragmentId, @WebParam(name = "active") Boolean active) {
 		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
@@ -647,12 +649,17 @@ public class Services {
 			@WebParam(name = "correlationId") String correlationId,
 			@WebParam(name = "timeout") Duration timeout,
 			@WebParam(name = "authenticationId") String authenticationId,
-			@WebParam(name = "device") Device device) throws IOException {
+			@WebParam(name = "device") Device device,
+			@WebParam(name = "impersonator") String impersonator,
+			@WebParam(name = "impersonatorRealm") String impersonatorRealm,
+			@WebParam(name = "impersonatorId") String impersonatorId,
+			@WebParam(name = "tokenId") String tokenId,
+			@WebParam(name = "authenticator") String authenticator) throws IOException {
 		WebApplication resolved = webApplicationId == null ? null : executionContext.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);
 		if (resolved != null) {
 			TemporaryAuthenticationGenerator temporaryAuthenticationGenerator = resolved.getTemporaryAuthenticationGenerator();
 			if (temporaryAuthenticationGenerator != null) {
-				return temporaryAuthenticationGenerator.generate(resolved.getId(), resolved.getRealm(), alias, authenticationId, maxUses, until, timeout, type, secret, correlationId, device);
+				return temporaryAuthenticationGenerator.generate(resolved.getId(), resolved.getRealm(), alias, authenticationId, maxUses, until, timeout, type, secret, correlationId, device, impersonator, impersonatorRealm, impersonatorId, tokenId, authenticator);
 			}
 		}
 		return null;

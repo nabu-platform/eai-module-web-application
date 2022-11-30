@@ -44,6 +44,12 @@ public interface RESTFragment extends Artifact {
 	public default List<String> getTags() {
 		return null;
 	}
+	public default String getSummary() {
+		return null;
+	}
+	public default String getDescription() {
+		return null;
+	}
 	public default Map<String, Object> getExtensions() {
 		return null;
 	}

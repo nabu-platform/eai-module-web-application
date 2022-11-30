@@ -34,5 +34,13 @@ public interface TemporaryAuthenticationGenerator {
 		// this allows you to correlate it to something else
 		@WebParam(name = "correlationId") String correlationId,
 		// the device this is requested on
-		@WebParam(name = "device") Device device);
+		@WebParam(name = "device") Device device,
+		@WebParam(name = "impersonator") String impersonator,
+		@WebParam(name = "impersonatorRealm") String impersonatorRealm,
+		// when you are impersonating someone else, store the id of the original impersonator!
+		@WebParam(name = "impersonatorId") String impersonatorId,
+		// when the temporary authentication is resolved into a token, you can give it a particular token id
+		@WebParam(name = "tokenId") String tokenId,
+		// when a temporary authentication is resolved into a token, you can set the authenticator
+		@WebParam(name = "authenticator") String authenticator);
 }

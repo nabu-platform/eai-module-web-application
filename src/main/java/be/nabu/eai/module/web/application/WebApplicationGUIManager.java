@@ -504,6 +504,12 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getRateLimitLogger(), method));
 		}
 		
+		// rate limiterer
+		if (artifact.getConfig().getRateLimiter() != null) {
+			Method method = WebApplication.getMethod(RateLimitProvider.class, "rateLimit");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getRateLimiter(), method));
+		}
+		
 		// cors checker
 		if (artifact.getConfig().getCorsChecker() != null) {
 			Method method = WebApplication.getMethod(CORSHandler.class, "check");

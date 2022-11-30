@@ -30,9 +30,10 @@ public class WebApplicationInterfaceLister implements InterfaceLister {
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Language Provider", "be.nabu.eai.repository.api.LanguageProvider.getSupportedLanguages"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Token Validator", "be.nabu.libs.authentication.api.TokenValidator.isValid"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Request Subscriber", "be.nabu.eai.module.web.application.api.RequestSubscriber.handle"));
-					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Rate Limit Settings", "be.nabu.eai.module.web.application.api.RateLimitProvider.settings"));
-					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Rate Limit Checker", "be.nabu.eai.module.web.application.api.RateLimitProvider.check"));
-					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Rate Limit Logger", "be.nabu.eai.module.web.application.api.RateLimitProvider.log"));
+//					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Rate Limit Settings", "be.nabu.eai.module.web.application.api.RateLimitProvider.settings"));
+//					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Rate Limit Checker", "be.nabu.eai.module.web.application.api.RateLimitProvider.check"));
+//					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Rate Limit Logger", "be.nabu.eai.module.web.application.api.RateLimitProvider.log"));
+					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Rate Limiter", "be.nabu.eai.module.web.application.api.RateLimitProvider.rateLimit"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Bearer Authenticator", "be.nabu.eai.module.web.application.api.BearerAuthenticator.authenticate"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Arbitrary Authenticator", "be.nabu.eai.module.web.application.api.ArbitraryAuthenticator.authenticate"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Temporary Authenticator", "be.nabu.eai.module.web.application.api.TemporaryAuthenticator.authenticate"));

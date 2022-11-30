@@ -24,7 +24,7 @@ import be.nabu.libs.types.api.annotation.Field;
 		"failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "secretGeneratorService", "bearerAuthenticator", "arbitraryAuthenticator", "temporaryAuthenticator",  
 		"temporaryAuthenticationGenerator", "typedAuthenticationService", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", 
 		"deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", 
-		"defaultLanguage", "rateLimitSettings", "rateLimitChecker", "rateLimitLogger", "corsChecker", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", 
+		"defaultLanguage", "rateLimitSettings", "rateLimitChecker", "rateLimitLogger", "rateLimiter", "corsChecker", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", 
 		"maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", 
 		"maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "services", 
 		"webFragments", "html5Mode", "optimizedLoad", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie", "testRole", "contextSwitchingRole", "virusScanner", "stateless" })
@@ -89,7 +89,7 @@ public class WebApplicationConfiguration {
 	// in a stateless application, we don't have sessions at all
 	private boolean stateless;
 	
-	private DefinedService rateLimitSettings, rateLimitChecker, rateLimitLogger;
+	private DefinedService rateLimitSettings, rateLimitChecker, rateLimitLogger, rateLimiter;
 	
 	private VirusScanner virusScanner;
 	
@@ -264,7 +264,7 @@ public class WebApplicationConfiguration {
 		this.potentialPermissionService = potentialPermissionService;
 	}
 	
-	@Field(group = "security", comment = "This service is responsible for checking if a previously granted token is still valid.")
+	@Field(group = "security", comment = "This service is responsible for checking if a previously granted token is still valid.", hide = "stateless == true")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.libs.authentication.api.TokenValidator.isValid")
 	public DefinedService getTokenValidatorService() {
@@ -274,7 +274,7 @@ public class WebApplicationConfiguration {
 		this.tokenValidatorService = tokenValidatorService;
 	}
 
-	@Field(group = "security", comment = "This service is responsible for checking if a certain device is allowed for a given user.")
+	@Field(group = "security", comment = "This service is responsible for checking if a certain device is allowed for a given user.", hide = "stateless == true")
 	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
 	@InterfaceFilter(implement = "be.nabu.libs.authentication.api.DeviceValidator.isAllowed")	
 	public DefinedService getDeviceValidatorService() {
@@ -457,6 +457,16 @@ public class WebApplicationConfiguration {
 	}
 	public void setRateLimitSettings(DefinedService rateLimitSettingsProvider) {
 		this.rateLimitSettings = rateLimitSettingsProvider;
+	}
+	
+	@Field(group = "rateLimiting", comment = "Allow rate limiting of a request")
+	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.RateLimitProvider.rateLimit")
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	public DefinedService getRateLimiter() {
+		return rateLimiter;
+	}
+	public void setRateLimiter(DefinedService rateLimiter) {
+		this.rateLimiter = rateLimiter;
 	}
 	
 	@Field(group = "crossOrigin", comment = "Set a service that checks the CORS policies")

@@ -18,10 +18,8 @@ import be.nabu.eai.module.http.server.HTTPServerArtifact;
 import be.nabu.eai.module.http.virtual.VirtualHostArtifact;
 import be.nabu.eai.module.http.virtual.api.Source;
 import be.nabu.eai.module.http.virtual.api.SourceImpl;
-import be.nabu.eai.module.web.application.api.RateLimitCheck;
 import be.nabu.eai.module.web.application.api.RateLimitProvider;
-import be.nabu.eai.module.web.application.api.RateLimitSettings;
-import be.nabu.eai.repository.EAIResourceRepository;
+import be.nabu.eai.module.web.application.api.RateLimitResult;
 import be.nabu.eai.repository.api.LanguageProvider;
 import be.nabu.eai.repository.api.VirusInfection;
 import be.nabu.eai.repository.api.VirusScanner;
@@ -57,6 +55,7 @@ import be.nabu.libs.services.ServiceRuntime;
 import be.nabu.libs.services.api.ExecutionContext;
 import be.nabu.libs.services.api.FeaturedExecutionContext;
 import be.nabu.libs.services.api.ServiceException;
+import be.nabu.libs.services.api.ServiceLevelAgreement;
 import be.nabu.libs.services.api.ServiceRuntimeTracker;
 import be.nabu.libs.types.CollectionHandlerFactory;
 import be.nabu.libs.types.ComplexContentWrapperFactory;
@@ -289,6 +288,8 @@ public class WebApplicationUtils {
 		information.setStateless(application.getConfig().isStateless());
 		information.setOptimizedLoad(application.getConfig().isOptimizedLoad());
 		information.setLastCacheUpdate(application.getLastCacheUpdate());
+		information.setHasPermissionHandler(application.getConfig().getPermissionService() != null);
+		information.setHasRoleHandler(application.getConfig().getRoleService() != null);
 		Resource child = application.getDirectory().getChild("node.xml");
 		if (child instanceof TimestampedResource) {
 			information.setLastModified(((TimestampedResource) child).getLastModified());
@@ -410,11 +411,13 @@ public class WebApplicationUtils {
 		return request.getContent() == null ? true : GlueListener.getDevice(application.getRealm(), request.getContent().getHeaders()) == null;
 	}
 	
-	public static void checkPermission(WebApplication application, Token token, String permissionAction, String permissionContext) {
+	public static void checkPermission(WebApplication application, HTTPRequest request, Token token, String permissionAction, String permissionContext) {
 		Map<String, Object> originalContext = ServiceRuntime.getGlobalContext();
 		try {
 			ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
 			ServiceRuntime.getGlobalContext().put("service.context", application.getId());
+			String serviceContext = getServiceContext(token, application, request);
+			ServiceRuntime.getGlobalContext().put("service.context", serviceContext);
 			PermissionHandler permissionHandler = application.getPermissionHandler();
 			if (permissionHandler != null && permissionAction != null) {
 				if (!permissionHandler.hasPermission(token, permissionContext, permissionAction)) {
@@ -445,7 +448,8 @@ public class WebApplicationUtils {
 					}
 				}
 				if (!hasRole) {
-					throw new HTTPException(token == null ? 401 : 403, "User '" + (token == null ? Authenticator.ANONYMOUS : token.getName()) + "' does not have one of the allowed roles '" + roles + "'", token);
+					throw new HTTPException(token == null ? 401 : 403, "User does not have one of the allowed roles", "User '" + (token == null ? Authenticator.ANONYMOUS : token.getName()) + "' does not have one of the allowed roles '" + roles + "'", token);
+//					throw new HTTPException(token == null ? 401 : 403, "User '" + (token == null ? Authenticator.ANONYMOUS : token.getName()) + "' does not have one of the allowed roles '" + roles + "'", token);
 				}
 			}
 		}
@@ -463,8 +467,25 @@ public class WebApplicationUtils {
 	}
 	
 	public static String getServiceContext(Token token, WebApplication application, HTTPRequest request) {
+		return getServiceContext(token, application, request, null);
+	}
+	
+	public static String getServiceContext(Token token, WebApplication application, HTTPRequest request, String queryParameter) {
 		Header header = MimeUtils.getHeader("X-Service-Context", request.getContent().getHeaders());
-		if (header != null && !header.getValue().trim().isEmpty()) {
+		String context = header == null || header.getValue().trim().isEmpty() ? null : header.getValue().trim();
+		// in very exceptional cases, you want to allow it as a query parameter
+		if (context == null && queryParameter != null) {
+			try {
+				URI uri = HTTPUtils.getURI(request, application.isSecure());
+				Map<String, List<String>> queryProperties = URIUtils.getQueryProperties(uri);
+				List<String> queryList = queryProperties == null ? null : queryProperties.get(queryParameter);
+				context = queryList == null || queryList.isEmpty() ? null : queryList.get(0).trim();
+			}
+			catch (FormatException e) {
+				throw new RuntimeException(e);
+			}
+		}
+		if (context != null && !context.isEmpty()) {
 			// by default you are NOT allowed to do this
 			boolean allowed = false;
 			try {
@@ -486,11 +507,14 @@ public class WebApplicationUtils {
 				if (!allowed && permissionHandler != null) {
 					// this reuses the webapplication security logic used by page builder
 					// you must either have a generic permission to switch to any context
-					// or a specific permission to switch to the specifically requested context
-					allowed = permissionHandler.hasPermission(token, "context:" + application.getId(), WebApplication.PERMISSION_UPDATE_SERVICE_CONTEXT) || permissionHandler.hasPermission(token, "context:" + application.getId(), WebApplication.PERMISSION_UPDATE_SERVICE_CONTEXT + "." + header.getValue().trim());
+					// or a specific permission to switch to the specifically requested (proxy) context
+					allowed = permissionHandler.hasPermission(token, "context:" + application.getId(), WebApplication.PERMISSION_UPDATE_SERVICE_CONTEXT) || permissionHandler.hasPermission(token, "proxy:" + context, WebApplication.PERMISSION_UPDATE_SERVICE_CONTEXT);
 				}
 				if (allowed) {
-					return header.getValue().trim();
+					return context;
+				}
+				else {
+					throw new HTTPException(403, "Context switch is not allowed", "The user '" + token + "' is not allowed to switch to context: " + context);
 				}
 			}
 			catch (Exception e) {
@@ -525,37 +549,50 @@ public class WebApplicationUtils {
 				ServiceRuntime.setGlobalContext(new HashMap<String, Object>());
 				ServiceRuntime.getGlobalContext().put("service.context", application.getId());
 				Date started = new Date();
-				List<RateLimitSettings> settings = rateLimiter.settings(application.getId(), source, token, device, action, context);
-				if (settings != null && !settings.isEmpty()) {
-						for (RateLimitSettings setting : settings) {
-							// we need, at the very least, a limiting amount to be useful
-							if (setting == null || setting.getAmount() == null) {
-								continue;
-							}
-							long time = started.getTime();
-							// if the interval is null, you just get a fixed amount of calls
-							RateLimitCheck check = rateLimiter.check(application.getId(), setting.getRuleId(), setting.getIdentity(), setting.getContext(), setting.getInterval() == null ? null : new Date(time - setting.getInterval()));
-							// if we get a result, let's validate it
-							if (check != null && check.getAmountOfHits() != null) {
-								// the amount of hits we get here are already done, so the current hit is +1. That's why we check >=.
-								if (check.getAmountOfHits() >= setting.getAmount()) {
-									PlainMimeEmptyPart content = new PlainMimeEmptyPart(null, 
-										new MimeHeader("Content-Length", "0"));
-									Long millisecondsUntilFreeSlot = null;
-									// let's see if we can determine until when
-									if (check.getOldestHit() != null && setting.getInterval() != null) {
-										millisecondsUntilFreeSlot = setting.getInterval() - (time - check.getOldestHit().getTime());
-										content.setHeader(new MimeHeader("Retry-After", "" + (millisecondsUntilFreeSlot / 1000)));
-									}
-									sendRateLimitEvent(application, source, token, device, action, context, request, setting.getRuleId(), setting.getRuleCode(), check.getAmountOfHits(), setting.getAmount(), millisecondsUntilFreeSlot, true, started);
-									return new DefaultHTTPResponse(request, 429, HTTPCodes.getMessage(429), content);
-								}
-							}
-							// if we make it past the above check, log a hit
-							rateLimiter.log(application.getId(), setting.getRuleId(), setting.getIdentity(), setting.getContext(), started);
-							sendRateLimitEvent(application, source, token, device, action, context, request, setting.getRuleId(), setting.getRuleCode(), check.getAmountOfHits() + 1, setting.getAmount(), null, false, started);
-						}
+				
+				RateLimitResult result = rateLimiter.rateLimit(application.getId(), source, token, device, action, context);
+				
+				if (result != null && !result.isAllowed()) {
+					sendRateLimitEvent(application, source, token, device, action, context, request, result.getRuleId(), result.getRuleCode(), result.getAmountOfHits(), result.getMaxHits(), result.getTimeout(), true, started);
+					PlainMimeEmptyPart content = new PlainMimeEmptyPart(null, 
+						new MimeHeader("Content-Length", "0"));
+					if (result.getTimeout() != null) {
+						content.setHeader(new MimeHeader("Retry-After", "" + (result.getTimeout() / 1000)));
+					}
+					return new DefaultHTTPResponse(request, 429, HTTPCodes.getMessage(429), content);
 				}
+				
+//				List<RateLimitSettings> settings = rateLimiter.settings(application.getId(), source, token, device, action, context);
+//				if (settings != null && !settings.isEmpty()) {
+//					for (RateLimitSettings setting : settings) {
+//						// we need, at the very least, a limiting amount to be useful
+//						if (setting == null || setting.getAmount() == null) {
+//							continue;
+//						}
+//						long time = started.getTime();
+//						// if the interval is null, you just get a fixed amount of calls
+//						RateLimitCheck check = rateLimiter.check(application.getId(), setting.getRuleId(), setting.getIdentity(), setting.getContext(), setting.getInterval() == null ? null : new Date(time - setting.getInterval()));
+//						// if we get a result, let's validate it
+//						if (check != null && check.getAmountOfHits() != null) {
+//							// the amount of hits we get here are already done, so the current hit is +1. That's why we check >=.
+//							if (check.getAmountOfHits() >= setting.getAmount()) {
+//								PlainMimeEmptyPart content = new PlainMimeEmptyPart(null, 
+//									new MimeHeader("Content-Length", "0"));
+//								Long millisecondsUntilFreeSlot = null;
+//								// let's see if we can determine until when
+//								if (check.getOldestHit() != null && setting.getInterval() != null) {
+//									millisecondsUntilFreeSlot = setting.getInterval() - (time - check.getOldestHit().getTime());
+//									content.setHeader(new MimeHeader("Retry-After", "" + (millisecondsUntilFreeSlot / 1000)));
+//								}
+//								sendRateLimitEvent(application, source, token, device, action, context, request, setting.getRuleId(), setting.getRuleCode(), check.getAmountOfHits(), setting.getAmount(), millisecondsUntilFreeSlot, true, started);
+//								return new DefaultHTTPResponse(request, 429, HTTPCodes.getMessage(429), content);
+//							}
+//						}
+//						// if we make it past the above check, log a hit
+//						rateLimiter.log(application.getId(), setting.getRuleId(), setting.getIdentity(), setting.getContext(), started);
+//						sendRateLimitEvent(application, source, token, device, action, context, request, setting.getRuleId(), setting.getRuleCode(), check.getAmountOfHits() + 1, setting.getAmount(), null, false, started);
+//					}
+//				}
 			}
 			finally {
 				ServiceRuntime.setGlobalContext(originalContext);
@@ -777,4 +814,5 @@ public class WebApplicationUtils {
 		}
 		return null;
 	}
+	
 }
