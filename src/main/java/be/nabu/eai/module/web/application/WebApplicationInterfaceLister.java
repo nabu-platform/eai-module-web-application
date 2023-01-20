@@ -38,6 +38,7 @@ public class WebApplicationInterfaceLister implements InterfaceLister {
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Arbitrary Authenticator", "be.nabu.eai.module.web.application.api.ArbitraryAuthenticator.authenticate"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Temporary Authenticator", "be.nabu.eai.module.web.application.api.TemporaryAuthenticator.authenticate"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Temporary Authentication Generator", "be.nabu.eai.module.web.application.api.TemporaryAuthenticationGenerator.generate"));
+					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Temporary Authentication Revoker", "be.nabu.eai.module.web.application.api.TemporaryAuthenticationRevoker.revoke"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "Typed Authenticator", "be.nabu.eai.authentication.api.TypedAuthenticator.authenticate"));
 					descriptions.add(new InterfaceDescriptionImpl("Web Application", "CORS Checker", "be.nabu.eai.module.web.application.api.CORSHandler.check"));
 					WebApplicationInterfaceLister.descriptions = descriptions;

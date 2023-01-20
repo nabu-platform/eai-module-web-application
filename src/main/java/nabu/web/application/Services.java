@@ -22,6 +22,7 @@ import be.nabu.eai.module.web.application.api.RESTFragment;
 import be.nabu.eai.module.web.application.api.RateLimit;
 import be.nabu.eai.module.web.application.api.TemporaryAuthentication;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticationGenerator;
+import be.nabu.eai.module.web.application.api.TemporaryAuthenticationRevoker;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticator;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
@@ -634,6 +635,16 @@ public class Services {
 			}
 		}
 		return null;
+	}
+	
+	public void revokeTemporaryAuthentication(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, @NotNull @WebParam(name = "tokenId") String tokenId) throws IOException {
+		WebApplication resolved = webApplicationId == null ? null : executionContext.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);
+		if (resolved != null) {
+			TemporaryAuthenticationRevoker temporaryAuthenticationRevoker = resolved.getTemporaryAuthenticationRevoker();
+			if (temporaryAuthenticationRevoker != null) {
+				temporaryAuthenticationRevoker.revoke(resolved.getId(), tokenId);
+			}
+		}
 	}
 	
 	// the authentication id is meant as a generalization of "userid" which is somewhat human-specific

@@ -65,6 +65,7 @@ import be.nabu.eai.module.web.application.api.RequestLanguageProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
 import be.nabu.eai.module.web.application.api.RobotEntry;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticationGenerator;
+import be.nabu.eai.module.web.application.api.TemporaryAuthenticationRevoker;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticator;
 import be.nabu.eai.module.web.application.cors.CORSListener;
 import be.nabu.eai.module.web.application.cors.CORSPostProcessor;
@@ -285,6 +286,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	private TemporaryAuthenticator temporaryAuthenticator;
 	private boolean temporaryAuthenticationGeneratorResolved;
 	private TemporaryAuthenticationGenerator temporaryAuthenticationGenerator;
+	private boolean temporaryAuthenticationRevokerResolved;
+	private TemporaryAuthenticationRevoker temporaryAuthenticationRevoker;
 	private boolean corsHandlerResolved;
 	private CORSHandler corsHandler;
 	// in prd mode the cache is not updated (normally), so once we calculate the last update, we can keep track of that date to prevent further I/O
@@ -1146,7 +1149,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			// this needs to be part of a bigger push to recalculate everything though, otherwise we just keep picking up from the hard cache
 			// if we are in production mode and we have optimize load turned on, check if we have a cache folder
 			ResourceContainer<?> cacheFolder = privateDirectory == null ? null :(ResourceContainer<?>) privateDirectory.getChild("cache");
-			if (!EAIResourceRepository.isDevelopment() && getConfig().isOptimizedLoad()) {
+			if (getConfig().isOptimizedLoad()) {
 				// if we do have a cache folder, we turned on optimize in development
 				if (cacheFolder != null) {
 					EventSubscription<HTTPRequest, HTTPResponse> optimizationSubscription = dispatcher.subscribe(HTTPRequest.class, new EventHandler<HTTPRequest, HTTPResponse>() {
@@ -1288,7 +1291,18 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		DefaultHTTPResponse response = null;
 		try {
 			// only gets can be optimized!!
-			if (!EAIResourceRepository.isDevelopment() && getConfig().isOptimizedLoad() && cacheFolder != null && event.getMethod().equalsIgnoreCase("get")) {
+			boolean optimized = getConfig().isOptimizedLoad() && cacheFolder != null && event.getMethod().equalsIgnoreCase("get");
+			
+			// if we want to optimize and we are in development, we need to check caching headers
+			if (optimized && EAIResourceRepository.isDevelopment()) {
+				// if we have a cache header, we just want the latest version, we don't (currently) check the date at all
+				Header cacheHeader = MimeUtils.getHeader("If-Modified-Since", event.getContent().getHeaders());
+				if (cacheHeader == null) {
+					optimized = false;
+				}
+			}
+			System.out.println("Get optimized for " + event.getTarget() + " => " + optimized);
+			if (optimized) {
 				URI uri = HTTPUtils.getURI(event, isSecure());
 				String path = uri.getPath();
 				if (path != null && path.startsWith(getServerPath())) {
@@ -1304,11 +1318,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						path = URIUtils.encodeURIComponent(path);
 					}
 		
+					System.out.println("test1");
 					byte[] bytes = checkedOptimizations.get(path);
 					// if we have no content but did check before, just skip, we don't want to waste i/o cycles on this
 					if (bytes == null && checkedOptimizations.containsKey(path)) {
 						return null;
 					}
+					System.out.println("test2");
 					
 					Resource finalChild = null;
 					String contentType = null;
@@ -1340,6 +1356,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						}
 						else {
 							Resource cssChild = cacheFolder.getChild(path + ".css");
+							System.out.println("test3: " + cssChild + " for path " + path);
 							if (cssChild != null) {
 								contentType = "text/css";
 								// we check if there is a compiled version
@@ -1434,6 +1451,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 								response.getContent().setHeader(cookieHeader);
 							}
 						}
+						if ("text/html".equals(contentType) && response != null) {
+							response.getContent().setHeader(new MimeHeader("X-Frame-Options", "DENY"));
+						}
 					}
 					else {
 						// let's mark this for the future
@@ -1465,6 +1485,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						URI uri = HTTPUtils.getURI(event, isSecure());
 						String path = uri.getPath();
 						if (path != null && path.startsWith(getServerPath())) {
+							Date date = new Date();
 							path = path.substring(getServerPath().length());
 							if (forcedName != null) {
 								path = forcedName;
@@ -1507,6 +1528,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 												buffer.close();
 												// set a new response that can be streamed...
 												response = new DefaultHTTPResponse(response.getCode(), response.getMessage(), new PlainMimeContentPart(null, buffer, response.getContent().getHeaders()));
+												
+												// we want (even in dev) to use caching
+												response.getContent().setHeader(new MimeHeader("Last-Modified", HTTPUtils.formatDate(date)));
 											}
 										}
 										finally {
@@ -2127,6 +2151,20 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			}
 		}
 		return temporaryAuthenticationGenerator;
+	}
+	
+	public TemporaryAuthenticationRevoker getTemporaryAuthenticationRevoker() throws IOException {
+		if (!temporaryAuthenticationRevokerResolved) {
+			synchronized(this) {
+				if (!temporaryAuthenticationRevokerResolved) {
+					if (getConfiguration().getTemporaryAuthenticationRevoker() != null) {
+						temporaryAuthenticationRevoker = POJOUtils.newProxy(TemporaryAuthenticationRevoker.class, wrap(getConfiguration().getTemporaryAuthenticationRevoker(), getMethod(TemporaryAuthenticationRevoker.class, "revoke")), getRepository(), SystemPrincipal.ROOT);
+					}
+					temporaryAuthenticationRevokerResolved = true;
+				}
+			}
+		}
+		return temporaryAuthenticationRevoker;
 	}
 	
 	public CORSHandler getCORSHandler() throws IOException {

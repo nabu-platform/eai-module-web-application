@@ -22,7 +22,7 @@ import be.nabu.libs.types.api.annotation.Field;
 @XmlRootElement(name = "webApplication")
 @XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow",
 		"failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "secretGeneratorService", "bearerAuthenticator", "arbitraryAuthenticator", "temporaryAuthenticator",  
-		"temporaryAuthenticationGenerator", "typedAuthenticationService", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", 
+		"temporaryAuthenticationGenerator", "temporaryAuthenticationRevoker", "typedAuthenticationService", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", 
 		"deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", 
 		"defaultLanguage", "rateLimitSettings", "rateLimitChecker", "rateLimitLogger", "rateLimiter", "corsChecker", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", 
 		"maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", 
@@ -62,7 +62,7 @@ public class WebApplicationConfiguration {
 	private DefinedService deviceValidatorService;
 	private DefinedService requestSubscriber;
 	private DefinedService bearerAuthenticator, arbitraryAuthenticator;
-	private DefinedService temporaryAuthenticator, temporaryAuthenticationGenerator;
+	private DefinedService temporaryAuthenticator, temporaryAuthenticationGenerator, temporaryAuthenticationRevoker;
 	private DefinedService typedAuthenticationService;
 	private DefinedService corsChecker;
 	private Boolean allowBasicAuthentication;
@@ -232,6 +232,16 @@ public class WebApplicationConfiguration {
 	}
 	public void setTemporaryAuthenticationGenerator(DefinedService temporaryAuthenticationGenerator) {
 		this.temporaryAuthenticationGenerator = temporaryAuthenticationGenerator;
+	}
+	
+	@Field(group = "security", comment = "This service is responsible for revoking temporary authentication tokens")
+	@XmlJavaTypeAdapter(value = ArtifactXMLAdapter.class)
+	@InterfaceFilter(implement = "be.nabu.eai.module.web.application.api.TemporaryAuthenticationRevoker.revoke")	
+	public DefinedService getTemporaryAuthenticationRevoker() {
+		return temporaryAuthenticationRevoker;
+	}
+	public void setTemporaryAuthenticationRevoker(DefinedService temporaryAuthenticationRevoker) {
+		this.temporaryAuthenticationRevoker = temporaryAuthenticationRevoker;
 	}
 	
 	@Field(group = "security", comment = "This service is responsible for checking if a user has a specific permission. A permission is the combination of an action (what are you trying to do) in an optional context (e.g. a CMS node).")

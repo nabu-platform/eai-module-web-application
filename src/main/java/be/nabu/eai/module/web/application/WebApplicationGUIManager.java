@@ -94,6 +94,8 @@ import be.nabu.eai.module.web.application.api.CORSHandler;
 import be.nabu.eai.module.web.application.api.RateLimitProvider;
 import be.nabu.eai.module.web.application.api.RequestLanguageProvider;
 import be.nabu.eai.module.web.application.api.RequestSubscriber;
+import be.nabu.eai.module.web.application.api.TemporaryAuthenticationGenerator;
+import be.nabu.eai.module.web.application.api.TemporaryAuthenticationRevoker;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticator;
 import be.nabu.eai.module.web.application.resource.WebBrowser;
 import be.nabu.eai.repository.EAIRepositoryUtils;
@@ -535,9 +537,14 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		}
 		
 		// temporary authentication generator
-		if (artifact.getConfig().getTemporaryAuthenticator() != null) {
-			Method method = WebApplication.getMethod(TemporaryAuthenticator.class, "authenticate");
-			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getTemporaryAuthenticator(), method));
+		if (artifact.getConfig().getTemporaryAuthenticationGenerator() != null) {
+			Method method = WebApplication.getMethod(TemporaryAuthenticationGenerator.class, "generate");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getTemporaryAuthenticationGenerator(), method));
+		}
+		
+		if (artifact.getConfig().getTemporaryAuthenticationRevoker() != null) {
+			Method method = WebApplication.getMethod(TemporaryAuthenticationRevoker.class, "revoke");
+			extensions.put(method, EAIRepositoryUtils.getInputExtensions(artifact.getConfig().getTemporaryAuthenticationRevoker(), method));
 		}
 		
 		return extensions;
@@ -929,7 +936,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 									SimpleProperty<File> fileProperty = new SimpleProperty<File>("File", File.class, true);
 									Set properties = new LinkedHashSet(Arrays.asList(new Property [] { fileProperty }));
 									final SimplePropertyUpdater updater = new SimplePropertyUpdater(true, properties, 
-										new ValueImpl<File>(fileProperty, new File(resource.getName())));
+										new ValueImpl<File>(fileProperty, new File(MainController.getDownloadDirectory(), resource.getName())));
 									EAIDeveloperUtils.buildPopup(MainController.getInstance(), updater, "Download " + resource.getName(), new EventHandler<ActionEvent>() {
 										@Override
 										public void handle(ActionEvent arg0) {
@@ -940,6 +947,7 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 													OutputStream output = new BufferedOutputStream(new FileOutputStream(file));
 													try {
 														IOUtils.copyBytes(readable, IOUtils.wrap(output));
+														MainController.getInstance().setDownloadDirectory(file);
 													}
 													finally {
 														output.close();
@@ -1523,7 +1531,8 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 				aceEditor.subscribe(AceEditor.FULL_SCREEN, new EventHandler<Event>() {
 					@Override
 					public void handle(Event arg0) {
-						toggleFullScreen(editors);
+						// needs to be refactored or removed completely
+//						toggleFullScreen(editors);
 					}
 				});
 			}
