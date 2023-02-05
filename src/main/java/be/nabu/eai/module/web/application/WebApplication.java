@@ -135,7 +135,6 @@ import be.nabu.libs.cache.impl.StringSerializer;
 import be.nabu.libs.events.api.EventDispatcher;
 import be.nabu.libs.events.api.EventHandler;
 import be.nabu.libs.events.api.EventSubscription;
-import be.nabu.libs.events.api.ResponseHandler;
 import be.nabu.libs.events.filters.AndEventFilter;
 import be.nabu.libs.http.HTTPCodes;
 import be.nabu.libs.http.HTTPException;
@@ -1301,7 +1300,6 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 					optimized = false;
 				}
 			}
-			System.out.println("Get optimized for " + event.getTarget() + " => " + optimized);
 			if (optimized) {
 				URI uri = HTTPUtils.getURI(event, isSecure());
 				String path = uri.getPath();
@@ -1318,13 +1316,11 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						path = URIUtils.encodeURIComponent(path);
 					}
 		
-					System.out.println("test1");
 					byte[] bytes = checkedOptimizations.get(path);
 					// if we have no content but did check before, just skip, we don't want to waste i/o cycles on this
 					if (bytes == null && checkedOptimizations.containsKey(path)) {
 						return null;
 					}
-					System.out.println("test2");
 					
 					Resource finalChild = null;
 					String contentType = null;
@@ -1356,7 +1352,6 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						}
 						else {
 							Resource cssChild = cacheFolder.getChild(path + ".css");
-							System.out.println("test3: " + cssChild + " for path " + path);
 							if (cssChild != null) {
 								contentType = "text/css";
 								// we check if there is a compiled version

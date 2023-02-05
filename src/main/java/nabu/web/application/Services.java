@@ -1,6 +1,7 @@
 package nabu.web.application;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
@@ -39,8 +40,13 @@ import be.nabu.libs.authentication.api.Permission;
 import be.nabu.libs.authentication.api.Token;
 import be.nabu.libs.authentication.impl.BasicPrincipalWithDeviceImpl;
 import be.nabu.libs.authentication.impl.PermissionImpl;
+import be.nabu.libs.http.api.HTTPRequest;
 import be.nabu.libs.http.api.server.Session;
 import be.nabu.libs.http.core.HTTPUtils;
+import be.nabu.libs.nio.PipelineUtils;
+import be.nabu.libs.nio.api.Pipeline;
+import be.nabu.libs.nio.api.SourceContext;
+import be.nabu.libs.nio.impl.RequestProcessor;
 import be.nabu.libs.resources.api.ReadableResource;
 import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
@@ -48,6 +54,8 @@ import be.nabu.libs.resources.api.ResourceFilter;
 import be.nabu.libs.services.ServiceRuntime;
 import be.nabu.libs.services.api.ExecutionContext;
 import be.nabu.libs.services.api.ServiceDescription;
+import be.nabu.libs.types.ComplexContentWrapperFactory;
+import be.nabu.libs.types.api.ComplexContent;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.KeyValuePair;
@@ -57,6 +65,7 @@ import be.nabu.utils.io.api.ByteBuffer;
 import be.nabu.utils.io.api.ReadableContainer;
 import be.nabu.utils.mime.api.Header;
 import be.nabu.utils.mime.api.ModifiableHeader;
+import be.nabu.utils.mime.api.ModifiablePart;
 import be.nabu.utils.mime.impl.MimeUtils;
 import nabu.web.application.types.Cookie;
 import nabu.web.application.types.PropertyImpl;
@@ -85,6 +94,21 @@ public class Services {
 			list.add(cookie);
 		}
 		return list;
+	}
+
+	@WebResult(name = "sessionId")
+	public String getSessionId() {
+		Object currentRequest = RequestProcessor.getCurrentRequest();
+		if (currentRequest instanceof HTTPRequest) {
+			ModifiablePart content = ((HTTPRequest) currentRequest).getContent();
+			if (content != null) {
+				Header header = MimeUtils.getHeader("Session-Id", content.getHeaders());
+				if (header != null) {
+					return header.getValue();
+				}
+			}
+		}
+		return null;
 	}
 	
 	@WebResult(name = "permissions")
