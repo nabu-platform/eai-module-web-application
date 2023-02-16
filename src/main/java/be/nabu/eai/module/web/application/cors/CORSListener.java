@@ -135,11 +135,18 @@ public class CORSListener implements EventHandler<HTTPRequest, HTTPResponse> {
 				if (isAllowed) {
 					// if it was an options request, we need to send back a response immediately
 					if (event.getMethod().equalsIgnoreCase("OPTIONS")) {
-						response = new DefaultHTTPResponse(event, 204, HTTPCodes.getMessage(204), new PlainMimeEmptyPart(null, 
+						PlainMimeEmptyPart content = new PlainMimeEmptyPart(null, 
 							new MimeHeader("Content-Length", "0"),
 							new MimeHeader("Access-Control-Allow-Origin", isAllowedAll ? "*" : origin),
 							new MimeHeader("Access-Control-Allow-Methods", methods.toString().replace("[", "").replace("]", "")
-						)));
+						));
+						// if we request to send certain headers, we just allow it
+						// the backend will filter out unnecessary headers etc
+						Header requestHeader = MimeUtils.getHeader("Access-Control-Request-Headers", event.getContent().getHeaders());
+						if (requestHeader != null) {
+							content.setHeader(new MimeHeader("Access-Control-Allow-Headers", MimeUtils.getFullHeaderValue(requestHeader)));
+						}
+						response = new DefaultHTTPResponse(event, 204, HTTPCodes.getMessage(204), content);
 						if (!isAllowedAll) {
 							response.getContent().setHeader(new MimeHeader("Vary", "Origin"));
 						}
