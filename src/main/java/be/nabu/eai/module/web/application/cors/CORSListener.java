@@ -31,6 +31,7 @@ public class CORSListener implements EventHandler<HTTPRequest, HTTPResponse> {
 
 	public static final String METHODS = "X-Internal-Access-Control-Allow-Methods";
 	public static final String ORIGIN = "X-Internal-Access-Control-Allow-Origin";
+	public static final String CREDENTIALS = "X-Internal-Access-Control-Allow-Credentials";
 	
 	private WebApplication application;
 	private CORSHandler handler;
@@ -97,6 +98,10 @@ public class CORSListener implements EventHandler<HTTPRequest, HTTPResponse> {
 							public Boolean getAllowedAll() {
 								return false;
 							}
+							@Override
+							public Boolean getAllowedCredentials() {
+								return true;
+							}
 						};
 					}
 				}
@@ -112,6 +117,10 @@ public class CORSListener implements EventHandler<HTTPRequest, HTTPResponse> {
 						}
 						@Override
 						public Boolean getAllowedAll() {
+							return false;
+						}
+						@Override
+						public Boolean getAllowedCredentials() {
 							return false;
 						}
 					};
@@ -140,6 +149,10 @@ public class CORSListener implements EventHandler<HTTPRequest, HTTPResponse> {
 							new MimeHeader("Access-Control-Allow-Origin", isAllowedAll ? "*" : origin),
 							new MimeHeader("Access-Control-Allow-Methods", methods.toString().replace("[", "").replace("]", "")
 						));
+						// add credential support if necessary
+						if (check.getAllowedCredentials() != null && check.getAllowedCredentials()) {
+							content.setHeader(new MimeHeader("Access-Control-Allow-Credentials", Boolean.toString(check.getAllowedCredentials() != null && check.getAllowedCredentials())));
+						}
 						// if we request to send certain headers, we just allow it
 						// the backend will filter out unnecessary headers etc
 						Header requestHeader = MimeUtils.getHeader("Access-Control-Request-Headers", event.getContent().getHeaders());
@@ -155,6 +168,7 @@ public class CORSListener implements EventHandler<HTTPRequest, HTTPResponse> {
 					else {
 						event.getContent().setHeader(new MimeHeader(ORIGIN, isAllowedAll ? "*" : origin));
 						event.getContent().setHeader(new MimeHeader(METHODS, methods.toString().replace("[", "").replace("]", "")));
+						event.getContent().setHeader(new MimeHeader(CREDENTIALS, Boolean.toString(check.getAllowedCredentials() != null && check.getAllowedCredentials())));
 					}
 				}
 				// if you are not allowed, we send this back immediately

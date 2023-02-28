@@ -7,6 +7,8 @@ public interface CORSResult {
 	public List<String> getMethods();
 	// whether this origin is allowed
 	public Boolean getAllowed();
+	// credentials are cookies, authorization headers, or TLS client certificates
+	public Boolean getAllowedCredentials();
 	// if the above is true, are all origins allowed or just this one?
 	public Boolean getAllowedAll();
 }

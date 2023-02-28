@@ -17,6 +17,7 @@ public class CORSPostProcessor implements EventHandler<HTTPResponse, HTTPRespons
 			if (request != null) {
 				Header originHeader = MimeUtils.getHeader(CORSListener.ORIGIN, request.getContent().getHeaders());
 				Header methodsHeader = MimeUtils.getHeader(CORSListener.METHODS, request.getContent().getHeaders());
+				Header credentialsHeader = MimeUtils.getHeader(CORSListener.CREDENTIALS, request.getContent().getHeaders());
 				if (originHeader != null) {
 					event.getContent().setHeader(new MimeHeader("Access-Control-Allow-Origin", originHeader.getValue()));
 					// if it is not allowed to all, make sure we signify the vary of the origin
@@ -26,6 +27,9 @@ public class CORSPostProcessor implements EventHandler<HTTPResponse, HTTPRespons
 				}
 				if (methodsHeader != null) {
 					event.getContent().setHeader(new MimeHeader("Access-Control-Allow-Methods", methodsHeader.getValue()));
+				}
+				if (credentialsHeader != null && credentialsHeader.getValue().equals("true")) {
+					event.getContent().setHeader(new MimeHeader("Access-Control-Allow-Credentials", credentialsHeader.getValue()));
 				}
 			}
 		}

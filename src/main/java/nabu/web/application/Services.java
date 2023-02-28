@@ -1,7 +1,6 @@
 package nabu.web.application;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
@@ -43,6 +42,7 @@ import be.nabu.libs.authentication.impl.PermissionImpl;
 import be.nabu.libs.http.api.HTTPRequest;
 import be.nabu.libs.http.api.server.Session;
 import be.nabu.libs.http.core.HTTPUtils;
+import be.nabu.libs.http.core.SameSite;
 import be.nabu.libs.nio.PipelineUtils;
 import be.nabu.libs.nio.api.Pipeline;
 import be.nabu.libs.nio.api.SourceContext;
@@ -77,9 +77,12 @@ public class Services {
 	private ExecutionContext executionContext;
 
 	@WebResult(name = "cookie")
-	public String formatCookie(@WebParam(name = "webApplicationId") @NotNull String id, @WebParam(name = "key") String key, @WebParam(name = "value") String value, @WebParam(name = "expires") Date expires) {
+	public String formatCookie(@WebParam(name = "webApplicationId") @NotNull String id, @WebParam(name = "key") String key, @WebParam(name = "value") String value, @WebParam(name = "expires") Date expires, @WebParam(name = "sameSite") SameSite sameSite) {
 		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
-		ModifiableHeader newSetCookieHeader = HTTPUtils.newSetCookieHeader(key, value, expires, resolved.getCookiePath(), null, resolved.isSecure(), true);
+		if (sameSite == null) {
+			sameSite = resolved.getConfig().getDefaultCookieSitePolicy();
+		}
+		ModifiableHeader newSetCookieHeader = HTTPUtils.newSetCookieHeader(key, value, expires, resolved.getCookiePath(), null, resolved.isSecure(), true, sameSite);
 		return MimeUtils.getFullHeaderValue(newSetCookieHeader);
 	}
 	

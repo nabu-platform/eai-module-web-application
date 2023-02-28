@@ -16,11 +16,12 @@ import be.nabu.eai.module.keystore.KeyStoreArtifact;
 import be.nabu.eai.repository.api.CacheProviderArtifact;
 import be.nabu.eai.repository.api.VirusScanner;
 import be.nabu.eai.repository.jaxb.ArtifactXMLAdapter;
+import be.nabu.libs.http.core.SameSite;
 import be.nabu.libs.services.api.DefinedService;
 import be.nabu.libs.types.api.annotation.Field;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow",
+@XmlType(propOrder = { "virtualHost", "realm", "path", "cookiePath", "defaultCookieSitePolicy", "charset", "allowBasicAuthentication", "failedLoginThreshold", "failedLoginWindow",
 		"failedLoginBlacklistDuration", "passwordAuthenticationService", "secretAuthenticationService", "secretGeneratorService", "bearerAuthenticator", "arbitraryAuthenticator", "temporaryAuthenticator",  
 		"temporaryAuthenticationGenerator", "temporaryAuthenticationRevoker", "typedAuthenticationService", "permissionService", "potentialPermissionService", "roleService", "tokenValidatorService", 
 		"deviceValidatorService", "translationService", "supportedLanguagesService", "languageProviderService", "requestLanguageProviderService", 
@@ -71,6 +72,8 @@ public class WebApplicationConfiguration {
 	private List<DefinedService> services;
 	// you can reuse the sessions from another application
 	private WebApplication sessionProviderApplication;
+	
+	private SameSite defaultCookieSitePolicy;
 	
 	/**
 	 * You can define jwt keystore and alias in the web application itself
@@ -654,6 +657,15 @@ public class WebApplicationConfiguration {
 	}
 	public void setStateless(boolean stateless) {
 		this.stateless = stateless;
+	}
+	
+	@Advanced
+	@Comment(title = "The default same site policy for cookies set in this application")
+	public SameSite getDefaultCookieSitePolicy() {
+		return defaultCookieSitePolicy;
+	}
+	public void setDefaultCookieSitePolicy(SameSite defaultCookieSitePolicy) {
+		this.defaultCookieSitePolicy = defaultCookieSitePolicy;
 	}
 
 }
