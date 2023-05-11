@@ -218,6 +218,13 @@ public class WebApplicationUtils {
 		if (request == null) {
 			return null;
 		}
+		// for "new" applications, REST calls should always fall back to the accepted language header if set
+		if (application.getConfig().isOptimizedLoad()) {
+			List<String> acceptedLanguages = MimeUtils.getAcceptedLanguages(request.getContent().getHeaders());
+			if (acceptedLanguages.size() == 1) {
+				return acceptedLanguages.get(0);		
+			}
+		}
 		String language = null;
 		// first get it from the language provider (if any)
 		if (application.getUserLanguageProvider() != null) {

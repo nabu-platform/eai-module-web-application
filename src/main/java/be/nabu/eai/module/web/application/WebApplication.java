@@ -776,6 +776,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			listener.setAllowEncoding(false);
 			
 			listener.setSecureCookiesOnly(isSecure());
+			listener.setDefaultCookieSitePolicy(getConfig().getDefaultCookieSitePolicy());
 			
 			if (getConfig().getCookiePath() != null) {
 				listener.setCookiePath(getConfig().getCookiePath());

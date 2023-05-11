@@ -161,24 +161,7 @@
 		<dependency>
 			<groupId>be.nabu.libs.http</groupId>
 			<artifactId>http-jwt</artifactId>
-			<exclusions>
-				<exclusion>
-					<groupId>be.nabu.libs.http</groupId>
-					<artifactId>http-api</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>be.nabu.libs.resources</groupId>
-					<artifactId>resources-api</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>be.nabu.libs.events</groupId>
-					<artifactId>events-api</artifactId>
-				</exclusion>
-				<exclusion>
-					<groupId>be.nabu.libs.types</groupId>
-					<artifactId>types-binding-json</artifactId>
-				</exclusion>
-			</exclusions>
+			<scope>provided</scope>
 		</dependency>
 		
 		

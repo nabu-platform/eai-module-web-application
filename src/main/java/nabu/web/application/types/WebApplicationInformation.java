@@ -5,10 +5,12 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import javax.validation.constraints.NotNull;
 import javax.xml.bind.annotation.XmlRootElement;
 import javax.xml.bind.annotation.XmlType;
 
 import be.nabu.libs.types.api.KeyValuePair;
+import be.nabu.libs.types.api.annotation.Field;
 
 @XmlRootElement(name = "webApplication")
 @XmlType(propOrder = { "id", "realm", "path", "root", "cookiePath", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties", "html5Mode", "errorCodes", "defaultLanguage", "lastModified", "lastCacheUpdate", "stateless", "optimizedLoad", "hasRoleHandler", "hasPermissionHandler" })
@@ -41,6 +43,7 @@ public class WebApplicationInformation {
 	public void setRealm(String realm) {
 		this.realm = realm;
 	}
+	@Field(comment = "Returns the actual path as configured in the application. Can be empty.")
 	public String getPath() {
 		return path;
 	}
@@ -104,6 +107,8 @@ public class WebApplicationInformation {
 	public void setScheme(String scheme) {
 		this.scheme = scheme;
 	}
+	@Field(comment = "Always guaranteed to contain a path even if it is not explicitly filled in. It is also guaranteed to end in a /")
+	@NotNull
 	public String getRoot() {
 		if (root == null) {
 			String path = getPath();
