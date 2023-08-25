@@ -1333,7 +1333,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 						Resource compiledChild = cacheFolder.getChild(path + ".compiled.html");
 						if (compiledChild instanceof TimestampedResource && htmlChild instanceof TimestampedResource) {
 							if (((TimestampedResource) compiledChild).getLastModified().before(((TimestampedResource) htmlChild).getLastModified())) {
-								compiledChild = null;
+								// we want to check how big the difference is, if there is a limited time difference, it may be down to writing the actual files
+								Date lastModifiedRaw = ((TimestampedResource) htmlChild).getLastModified();
+								Date lastModifiedCompiled = ((TimestampedResource) compiledChild).getLastModified();
+								long timeDiff = Math.abs(lastModifiedRaw.getTime() - lastModifiedCompiled.getTime());
+								if (timeDiff > 1000l * 60) {
+									compiledChild = null;
+								}
 							}
 						}
 						finalChild = compiledChild != null ? compiledChild : htmlChild;
@@ -1346,7 +1352,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							Resource compiledChild = cacheFolder.getChild(path + ".compiled.js");
 							if (compiledChild instanceof TimestampedResource && javascriptChild instanceof TimestampedResource) {
 								if (((TimestampedResource) compiledChild).getLastModified().before(((TimestampedResource) javascriptChild).getLastModified())) {
-									compiledChild = null;
+									// we want to check how big the difference is, if there is a limited time difference, it may be down to writing the actual files
+									Date lastModifiedRaw = ((TimestampedResource) javascriptChild).getLastModified();
+									Date lastModifiedCompiled = ((TimestampedResource) compiledChild).getLastModified();
+									long timeDiff = Math.abs(lastModifiedRaw.getTime() - lastModifiedCompiled.getTime());
+									if (timeDiff > 1000l * 60) {
+										compiledChild = null;
+									}
 								}
 							}
 							finalChild = compiledChild != null ? compiledChild : javascriptChild; 
@@ -1359,7 +1371,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 								Resource compiledChild = cacheFolder.getChild(path + ".compiled.css");
 								if (compiledChild instanceof TimestampedResource && cssChild instanceof TimestampedResource) {
 									if (((TimestampedResource) compiledChild).getLastModified().before(((TimestampedResource) cssChild).getLastModified())) {
-										compiledChild = null;
+										// we want to check how big the difference is, if there is a limited time difference, it may be down to writing the actual files
+										Date lastModifiedRaw = ((TimestampedResource) cssChild).getLastModified();
+										Date lastModifiedCompiled = ((TimestampedResource) compiledChild).getLastModified();
+										long timeDiff = Math.abs(lastModifiedRaw.getTime() - lastModifiedCompiled.getTime());
+										if (timeDiff > 1000l * 60) {
+											compiledChild = null;
+										}
 									}
 								}
 								finalChild = compiledChild != null ? compiledChild : cssChild; 
@@ -3023,7 +3041,7 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	//						CompilationLevel.ADVANCED_OPTIMIZATIONS.setOptionsForCompilationLevel(options);
 						boolean allowEs6 = true;
 						if (allowEs6) {
-							options.setLanguageIn(LanguageMode.ECMASCRIPT6_TYPED);
+							options.setLanguageIn(LanguageMode.ECMASCRIPT_2021);	// ECMASCRIPT6_TYPED
 						}
 						else {
 							options.setLanguageIn(LanguageMode.ECMASCRIPT5);

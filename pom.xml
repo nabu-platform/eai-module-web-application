@@ -169,7 +169,7 @@
 		    <groupId>com.google.javascript</groupId>
 		    <artifactId>closure-compiler</artifactId>
 		    <!-- <version>v20170626</version> -->
-		    <version>v20200406</version>
+		    <version>v20220405</version>
 		</dependency>
 	</dependencies>
 </project>

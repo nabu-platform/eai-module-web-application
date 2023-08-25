@@ -3,6 +3,7 @@ package nabu.web.application;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,7 @@ import be.nabu.eai.module.web.application.api.TemporaryAuthentication;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticationGenerator;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticationRevoker;
 import be.nabu.eai.module.web.application.api.TemporaryAuthenticator;
+import be.nabu.eai.module.web.application.api.TranslationKey;
 import be.nabu.eai.repository.EAIResourceRepository;
 import be.nabu.eai.repository.api.Entry;
 import be.nabu.eai.repository.api.LanguageProvider;
@@ -43,9 +45,6 @@ import be.nabu.libs.http.api.HTTPRequest;
 import be.nabu.libs.http.api.server.Session;
 import be.nabu.libs.http.core.HTTPUtils;
 import be.nabu.libs.http.core.SameSite;
-import be.nabu.libs.nio.PipelineUtils;
-import be.nabu.libs.nio.api.Pipeline;
-import be.nabu.libs.nio.api.SourceContext;
 import be.nabu.libs.nio.impl.RequestProcessor;
 import be.nabu.libs.resources.api.ReadableResource;
 import be.nabu.libs.resources.api.Resource;
@@ -54,8 +53,6 @@ import be.nabu.libs.resources.api.ResourceFilter;
 import be.nabu.libs.services.ServiceRuntime;
 import be.nabu.libs.services.api.ExecutionContext;
 import be.nabu.libs.services.api.ServiceDescription;
-import be.nabu.libs.types.ComplexContentWrapperFactory;
-import be.nabu.libs.types.api.ComplexContent;
 import be.nabu.libs.types.api.ComplexType;
 import be.nabu.libs.types.api.DefinedType;
 import be.nabu.libs.types.api.KeyValuePair;
@@ -68,7 +65,7 @@ import be.nabu.utils.mime.api.ModifiableHeader;
 import be.nabu.utils.mime.api.ModifiablePart;
 import be.nabu.utils.mime.impl.MimeUtils;
 import nabu.web.application.types.Cookie;
-import nabu.web.application.types.PropertyImpl;
+import nabu.web.application.types.TranslationKeyImpl;
 import nabu.web.application.types.WebApplicationInformation;
 import nabu.web.application.types.WebFragmentInformation;
 
@@ -281,13 +278,14 @@ public class Services {
 	}
 	
 	@WebResult(name = "translationKeys")
-	public List<KeyValuePair> translationKeys(@NotNull @WebParam(name = "webApplicationId") String id) throws IOException {
-		List<KeyValuePair> properties = new ArrayList<KeyValuePair>();
+	public List<TranslationKey> translationKeys(@NotNull @WebParam(name = "webApplicationId") String id) throws IOException {
+		List<TranslationKey> properties = new ArrayList<TranslationKey>();
 		if (id != null) {
 			WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
 			if (resolved != null) {
-				List<String> uniques = new ArrayList<String>();
-				translationKeys(resolved, properties, uniques);
+				Map<String, TranslationKey> keys = new HashMap<String, TranslationKey>();
+				translationKeys(resolved, keys);
+				properties.addAll(keys.values());
 //				for (Script script : resolved.getListener().getRepository()) {
 //					String fullName = ScriptUtils.getFullName(script);
 //					try {
@@ -315,21 +313,21 @@ public class Services {
 		return properties;
 	}
 	
-	private void translationKeys(Artifact provider, List<KeyValuePair> keys, List<String> uniques) throws IOException {
+	private void translationKeys(Artifact provider, Map<String, TranslationKey> keys) throws IOException {
 		Entry entry = EAIResourceRepository.getInstance().getEntry(provider.getId());
 		if (entry instanceof ResourceEntry) {
 			ResourceContainer<?> container = ((ResourceEntry) entry).getContainer();
-			translationKeys(container, keys, false, uniques);
-			translationKeys((ResourceContainer<?>) container.getChild(EAIResourceRepository.PUBLIC), keys, true, uniques);
-			translationKeys((ResourceContainer<?>) container.getChild(EAIResourceRepository.PRIVATE), keys, true, uniques);
-			translationKeys((ResourceContainer<?>) container.getChild(EAIResourceRepository.PROTECTED), keys, true, uniques);
+			translationKeys(container, keys, false, null);
+			translationKeys((ResourceContainer<?>) container.getChild(EAIResourceRepository.PUBLIC), keys, true, "public");
+			translationKeys((ResourceContainer<?>) container.getChild(EAIResourceRepository.PRIVATE), keys, true, "private");
+			translationKeys((ResourceContainer<?>) container.getChild(EAIResourceRepository.PROTECTED), keys, true, "protected");
 		}
 		if (provider instanceof WebFragmentProvider) {
 			List<WebFragment> webFragments = ((WebFragmentProvider) provider).getWebFragments();
 			if (webFragments != null) {
 				for (WebFragment fragment : webFragments) {
 					if (fragment instanceof Artifact) {
-						translationKeys(fragment, keys, uniques);
+						translationKeys(fragment, keys);
 					}
 				}
 			}
@@ -341,9 +339,14 @@ public class Services {
 		return ImperativeSubstitutor.getValues(separator, content);
 	}
 	
-	private void translationKeys(ResourceContainer<?> container, List<KeyValuePair> keys, boolean recursive, List<String> uniques) throws IOException {
+	private void translationKeys(ResourceContainer<?> container, Map<String, TranslationKey> keys, boolean recursive, String path) throws IOException {
 		if (container != null) {
 			for (Resource resource : container) {
+				String childPath = path == null ? resource.getName() : path + "/" + resource.getName();
+				// we don't want to scrape the cache!
+				if (childPath.equals("private/cache")) {
+					continue;
+				}
 				// @2021-04-16: added "eglue" which was curiously missing from the list of extensions
 				// it is no longer clear whether this was an active design decision or an oversight
 				// added for OV where eglue is still used a lot, if this breaks somehow, might need to revert and find another solution for OV
@@ -359,9 +362,14 @@ public class Services {
 								key = key.replaceAll("(?s)^(?:.*?::|[a-zA-Z0-9.]+:)(.*)", "$1");
 							}
 							String unique = category + "::" + key;
-							if (!uniques.contains(unique)) {
-								uniques.add(unique);
-								keys.add(new PropertyImpl(category, key));
+							if (!keys.containsKey(unique)) {
+								TranslationKeyImpl translationKey = new TranslationKeyImpl(category, key);
+								translationKey.setFiles(new ArrayList<String>());
+								keys.put(unique, translationKey);
+							}
+							// if the page is not already in the list, add it
+							if (!keys.get(unique).getFiles().contains(childPath)) {
+								keys.get(unique).getFiles().add(childPath);
 							}
 						}
 					}
@@ -370,7 +378,7 @@ public class Services {
 					}
 				}
 				if (recursive && resource instanceof ResourceContainer) {
-					translationKeys((ResourceContainer<?>) resource, keys, recursive, uniques);
+					translationKeys((ResourceContainer<?>) resource, keys, recursive, childPath);
 				}
 			}
 		}
