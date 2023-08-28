@@ -379,12 +379,12 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			ResourceContainer<?> localPublicDirectory = (ResourceContainer<?>) getDirectory().getChild(EAIResourceRepository.PUBLIC);
 			ResourceContainer<?> localPrivateDirectory = (ResourceContainer<?>) getDirectory().getChild(EAIResourceRepository.PRIVATE);
 			
-			if (EAIResourceRepository.isDevelopment()) {
+			if (EAIResourceRepository.isDevelopment() && getDirectory() instanceof ManageableContainer) {
 				if (localPublicDirectory == null) {
-					localPublicDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) getDirectory()).create(EAIResourceRepository.PRIVATE, Resource.CONTENT_TYPE_DIRECTORY);
+					localPublicDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) getDirectory()).create(EAIResourceRepository.PUBLIC, Resource.CONTENT_TYPE_DIRECTORY);
 				}
 				if (localPrivateDirectory == null) {
-					localPrivateDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) getDirectory()).create(EAIResourceRepository.PUBLIC, Resource.CONTENT_TYPE_DIRECTORY);
+					localPrivateDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) getDirectory()).create(EAIResourceRepository.PRIVATE, Resource.CONTENT_TYPE_DIRECTORY);
 				}
 			}
 			
