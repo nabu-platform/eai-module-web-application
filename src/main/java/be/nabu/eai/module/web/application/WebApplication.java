@@ -1281,7 +1281,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				});
 				subscriptions.add(html5Subscription);
 			}
-						
+			// if you have custom robot handling, it should win
+			robotSubscription.demote();
 			started = true;
 			logger.info("Started " + subscriptions.size() + " subscriptions");
 		}

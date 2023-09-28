@@ -556,19 +556,23 @@ public class WebApplicationGUIManager extends BaseJAXBGUIManager<WebApplicationC
 		if (publicDirectory == null && artifact.getDirectory() instanceof ManageableContainer) {
 			publicDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) artifact.getDirectory()).create(EAIResourceRepository.PUBLIC, Resource.CONTENT_TYPE_DIRECTORY);
 		}
-		ResourceUtils.mkdirs(publicDirectory, "pages");
-		ResourceUtils.mkdirs(publicDirectory, "resources");
-		ResourceUtils.mkdirs(publicDirectory, "artifacts");
-//		ResourceUtils.mkdirs(publicDirectory, "provided/artifacts");
-//		ResourceUtils.mkdirs(publicDirectory, "provided/resources");
+		if (publicDirectory instanceof ManageableContainer) {
+			ResourceUtils.mkdirs(publicDirectory, "pages");
+			ResourceUtils.mkdirs(publicDirectory, "resources");
+			ResourceUtils.mkdirs(publicDirectory, "artifacts");
+	//		ResourceUtils.mkdirs(publicDirectory, "provided/artifacts");
+	//		ResourceUtils.mkdirs(publicDirectory, "provided/resources");
+		}
 		ResourceContainer<?> privateDirectory = (ResourceContainer<?>) artifact.getDirectory().getChild(EAIResourceRepository.PRIVATE);
 		if (privateDirectory == null && artifact.getDirectory() instanceof ManageableContainer) {
 			privateDirectory = (ResourceContainer<?>) ((ManageableContainer<?>) artifact.getDirectory()).create(EAIResourceRepository.PRIVATE, Resource.CONTENT_TYPE_DIRECTORY);
 		}
-		ResourceUtils.mkdirs(privateDirectory, "scripts");
-		ResourceUtils.mkdirs(privateDirectory, "meta");
-		ResourceUtils.mkdirs(privateDirectory, "provided/artifacts");
-		ResourceUtils.mkdirs(privateDirectory, "provided/resources");
+		if (privateDirectory instanceof ManageableContainer) {
+			ResourceUtils.mkdirs(privateDirectory, "scripts");
+			ResourceUtils.mkdirs(privateDirectory, "meta");
+			ResourceUtils.mkdirs(privateDirectory, "provided/artifacts");
+			ResourceUtils.mkdirs(privateDirectory, "provided/resources");
+		}
 		VirtualContainer container = new VirtualContainer(null, "web");
 		if (publicDirectory != null) {
 			container.addChild(publicDirectory.getName(), publicDirectory);

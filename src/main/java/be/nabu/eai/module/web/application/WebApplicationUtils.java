@@ -474,10 +474,10 @@ public class WebApplicationUtils {
 	}
 	
 	public static String getServiceContext(Token token, WebApplication application, HTTPRequest request) {
-		return getServiceContext(token, application, request, null);
+		return getServiceContext(token, application, request, null, null);
 	}
 	
-	public static String getServiceContext(Token token, WebApplication application, HTTPRequest request, String queryParameter) {
+	public static String getServiceContext(Token token, WebApplication application, HTTPRequest request, String queryParameter, String defaultValue) {
 		Header header = MimeUtils.getHeader("X-Service-Context", request.getContent().getHeaders());
 		String context = header == null || header.getValue().trim().isEmpty() ? null : header.getValue().trim();
 		// in very exceptional cases, you want to allow it as a query parameter
@@ -529,7 +529,7 @@ public class WebApplicationUtils {
 			}
 		}
 		// the default is the application id
-		return application.getId();
+		return defaultValue == null ? application.getId() : defaultValue;
 	}
 	
 	public static HTTPResponse checkRateLimits(WebApplication application, Source source, Token token, Device device, String action, String context, HTTPRequest request) throws IOException {
