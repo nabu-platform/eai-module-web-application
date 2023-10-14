@@ -312,8 +312,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		}
 		subscriptions.clear();
 		// unregister codes
-		if (getConfig().getVirtualHost() != null && getConfig().getVirtualHost().getConfig().getServer() != null) {
-			HTTPServer server = getConfiguration().getVirtualHost().getConfiguration().getServer().getServer();
+		if (getConfig().getVirtualHost() != null && getConfig().getVirtualHost().getServer() != null) {
+			HTTPServer server = getConfiguration().getVirtualHost().getServer().getServer();
 			if (server != null && server.getExceptionFormatter() instanceof RepositoryExceptionFormatter) {
 				((RepositoryExceptionFormatter) server.getExceptionFormatter()).unregister(getId());
 			}
@@ -401,8 +401,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			List<ContentRewriter> rewriters = new ArrayList<ContentRewriter>();
 			
 			// add whitelisted codes to the server exception formatter
-			if (getConfiguration().getVirtualHost().getConfiguration().getServer() != null) {
-				HTTPServer server = getConfiguration().getVirtualHost().getConfiguration().getServer().getServer();
+			if (getConfiguration().getVirtualHost().getServer() != null) {
+				HTTPServer server = getConfiguration().getVirtualHost().getServer().getServer();
 				if (server.getExceptionFormatter() instanceof RepositoryExceptionFormatter && getConfiguration().getWhitelistedCodes() != null) {
 					((RepositoryExceptionFormatter) server.getExceptionFormatter()).register(getId(), Arrays.asList(getConfiguration().getWhitelistedCodes().split("[\\s]*,[\\s]*")));
 				}
@@ -1667,8 +1667,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 
 	public boolean isSecure() {
 		boolean secure = false;
-		if (getConfig().getVirtualHost() != null && getConfig().getVirtualHost().getConfig().getServer() != null) {
-			secure = getConfig().getVirtualHost().getConfig().getServer().isSecure();
+		if (getConfig().getVirtualHost() != null && getConfig().getVirtualHost().getServer() != null) {
+			secure = getConfig().getVirtualHost().getServer().isSecure();
 		}
 		return secure;
 	}
@@ -1688,8 +1688,8 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		Integer port = null;
 		boolean secure = isSecure();
 		
-		if (getConfiguration().getVirtualHost() != null && getConfiguration().getVirtualHost().getConfiguration().getServer() != null) {
-			HTTPServerArtifact server = getConfiguration().getVirtualHost().getConfiguration().getServer();
+		if (getConfiguration().getVirtualHost() != null && getConfiguration().getVirtualHost().getServer() != null) {
+			HTTPServerArtifact server = getConfiguration().getVirtualHost().getServer();
 			port = server.getConfig().isProxied() ? server.getConfig().getProxyPort() : server.getConfiguration().getPort();
 		}
 

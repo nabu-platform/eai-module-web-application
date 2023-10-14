@@ -83,7 +83,7 @@ public class WebApplicationResource implements ReadableResource {
 		
 		HTTPRequest request = new DefaultHTTPRequest("GET", URIUtils.encodeURI(target), (ModifiablePart) part);
 		
-		ExceptionFormatter<HTTPRequest, HTTPResponse> formatter = new RepositoryExceptionFormatter(application.getConfig().getVirtualHost().getConfig().getServer());
+		ExceptionFormatter<HTTPRequest, HTTPResponse> formatter = new RepositoryExceptionFormatter(application.getConfig().getVirtualHost().getServer());
 		HTTPResponse response = application.getDispatcher().fire(request, this, new ResponseHandler<HTTPRequest, HTTPResponse>() {
 			@Override
 			public HTTPResponse handle(HTTPRequest arg0, Object arg1, boolean arg2) {

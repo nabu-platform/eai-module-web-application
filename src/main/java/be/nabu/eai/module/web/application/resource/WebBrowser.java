@@ -278,7 +278,7 @@ public class WebBrowser {
 			System.out.println("the endpoint is: " + endpoint.toASCIIString());
 			return endpoint.toASCIIString();
 		}
-		HTTPServerArtifact server = host.getConfig().getServer();
+		HTTPServerArtifact server = host.getServer();
 		
 		String url;
 		Integer port = null;
@@ -337,7 +337,7 @@ public class WebBrowser {
 	}
 	
 	public boolean canShow() {
-		return application.getConfig().getVirtualHost() != null && application.getConfig().getVirtualHost().getConfig().getServer() != null;
+		return application.getConfig().getVirtualHost() != null && application.getConfig().getVirtualHost().getServer() != null;
 	}
 	
 	

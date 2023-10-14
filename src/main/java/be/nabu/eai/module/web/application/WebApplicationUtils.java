@@ -202,7 +202,7 @@ public class WebApplicationUtils {
 			if (((Server) application.getRepository().getServiceRunner()).isOffline()) {
 				VirtualHostArtifact host = application.getConfig().getVirtualHost();
 				if (host != null) {
-					HTTPServerArtifact server = host.getConfig().getServer();
+					HTTPServerArtifact server = host.getServer();
 					if (server != null) {
 						if (server.getConfig().getOfflinePort() == null) {
 							throw new HTTPException(503, "Server is running in offline modus");
@@ -318,8 +318,8 @@ public class WebApplicationUtils {
 		if (application.getConfig().getVirtualHost() != null) {
 			information.setHost(application.getConfig().getVirtualHost().getConfig().getHost());
 			information.setAliases(application.getConfig().getVirtualHost().getConfig().getAliases());
-			if (application.getConfig().getVirtualHost().getConfig().getServer() != null) {
-				HTTPServerArtifact server = application.getConfig().getVirtualHost().getConfig().getServer();
+			if (application.getConfig().getVirtualHost().getServer() != null) {
+				HTTPServerArtifact server = application.getConfig().getVirtualHost().getServer();
 				information.setPort(server.getConfig().isProxied() ? server.getConfig().getProxyPort() : server.getConfig().getPort());
 				information.setSecure(server.isSecure());
 				if (information.getPort() == null) {
@@ -534,10 +534,10 @@ public class WebApplicationUtils {
 	
 	public static HTTPResponse checkRateLimits(WebApplication application, Source source, Token token, Device device, String action, String context, HTTPRequest request) throws IOException {
 		// if we are being proxied, get the "actual" source
-		if (request.getContent() != null && application.getConfig().getVirtualHost().getConfig().getServer().getConfig().isProxied()) {
+		if (request.getContent() != null && application.getConfig().getVirtualHost().getServer().getConfig().isProxied()) {
 			SourceImpl actualSource = new SourceImpl();
-			actualSource.setRemoteHost(HTTPUtils.getRemoteHost(application.getConfig().getVirtualHost().getConfig().getServer().getConfig().isProxied(), request.getContent().getHeaders()));
-			actualSource.setRemoteIp(HTTPUtils.getRemoteAddress(application.getConfig().getVirtualHost().getConfig().getServer().getConfig().isProxied(), request.getContent().getHeaders()));
+			actualSource.setRemoteHost(HTTPUtils.getRemoteHost(application.getConfig().getVirtualHost().getServer().getConfig().isProxied(), request.getContent().getHeaders()));
+			actualSource.setRemoteIp(HTTPUtils.getRemoteAddress(application.getConfig().getVirtualHost().getServer().getConfig().isProxied(), request.getContent().getHeaders()));
 			Header header = MimeUtils.getHeader(ServerHeader.REMOTE_PORT.getName(), request.getContent().getHeaders());
 			if (header != null && header.getValue() != null) {
 				actualSource.setRemotePort(Integer.parseInt(header.getValue()));
@@ -772,7 +772,7 @@ public class WebApplicationUtils {
 			}
 			Pipeline pipeline = PipelineUtils.getPipeline();
 			event.setMethod(request.getMethod());
-			HTTPServerArtifact server = application.getConfig().getVirtualHost().getConfig().getServer();
+			HTTPServerArtifact server = application.getConfig().getVirtualHost().getServer();
 			try {
 				event.setRequestUri(HTTPUtils.getURI(request, server.isSecure()));
 			}
