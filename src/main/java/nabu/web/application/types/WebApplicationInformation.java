@@ -13,14 +13,14 @@ import be.nabu.libs.types.api.KeyValuePair;
 import be.nabu.libs.types.api.annotation.Field;
 
 @XmlRootElement(name = "webApplication")
-@XmlType(propOrder = { "id", "realm", "path", "root", "cookiePath", "scheme", "charset", "host", "aliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties", "html5Mode", "errorCodes", "defaultLanguage", "lastModified", "lastCacheUpdate", "stateless", "optimizedLoad", "hasRoleHandler", "hasPermissionHandler" })
+@XmlType(propOrder = { "id", "realm", "path", "root", "cookiePath", "scheme", "charset", "host", "aliases", "redirectAliases", "port", "secure", "translationService", "scriptCacheProviderId", "properties", "html5Mode", "errorCodes", "defaultLanguage", "lastModified", "lastCacheUpdate", "stateless", "optimizedLoad", "hasRoleHandler", "hasPermissionHandler" })
 public class WebApplicationInformation {
 	// root is slightly different from path: path is the actual configured path
 	// root is the interpreted path guaranteed to end in a "/" for concatenation
 	private String id, realm, path, scheme, root, cookiePath;
 	private Charset charset;
 	private String host;
-	private List<String> aliases;
+	private List<String> aliases, redirectAliases;
 	private Integer port;
 	private Boolean secure;
 	private String translationService;
@@ -88,6 +88,12 @@ public class WebApplicationInformation {
 	}
 	public void setAliases(List<String> aliases) {
 		this.aliases = aliases;
+	}
+	public List<String> getRedirectAliases() {
+		return redirectAliases;
+	}
+	public void setRedirectAliases(List<String> redirectAliases) {
+		this.redirectAliases = redirectAliases;
 	}
 	public String getTranslationService() {
 		return translationService;

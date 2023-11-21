@@ -318,6 +318,7 @@ public class WebApplicationUtils {
 		if (application.getConfig().getVirtualHost() != null) {
 			information.setHost(application.getConfig().getVirtualHost().getConfig().getHost());
 			information.setAliases(application.getConfig().getVirtualHost().getConfig().getAliases());
+			information.setRedirectAliases(application.getConfig().getVirtualHost().getConfig().getRedirectAliases());
 			if (application.getConfig().getVirtualHost().getServer() != null) {
 				HTTPServerArtifact server = application.getConfig().getVirtualHost().getServer();
 				information.setPort(server.getConfig().isProxied() ? server.getConfig().getProxyPort() : server.getConfig().getPort());
