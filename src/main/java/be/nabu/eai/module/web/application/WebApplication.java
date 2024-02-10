@@ -1148,13 +1148,23 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			// TODO: IF you have a script cache configured, we should save the loaded data there, this can allow for resets (?)
 			// this needs to be part of a bigger push to recalculate everything though, otherwise we just keep picking up from the hard cache
 			// if we are in production mode and we have optimize load turned on, check if we have a cache folder
-			ResourceContainer<?> cacheFolder = privateDirectory == null ? null :(ResourceContainer<?>) privateDirectory.getChild("cache");
+			ResourceContainer<?> cacheFolder = privateDirectory == null ? null : (ResourceContainer<?>) privateDirectory.getChild("cache");
 			if (getConfig().isOptimizedLoad()) {
 				// if we do have a cache folder, we turned on optimize in development
-				if (cacheFolder != null) {
+				if (cacheFolder != null || EAIResourceRepository.isDevelopment()) {
 					EventSubscription<HTTPRequest, HTTPResponse> optimizationSubscription = dispatcher.subscribe(HTTPRequest.class, new EventHandler<HTTPRequest, HTTPResponse>() {
 						@Override
 						public HTTPResponse handle(HTTPRequest event) {
+							// the cachefolder should only be null in dev at this point, we want to give it a chance to be created though
+							if (cacheFolder == null) {
+								ResourceContainer<?> localCacheFolder = privateDirectory == null ? null : (ResourceContainer<?>) privateDirectory.getChild("cache");
+								if (localCacheFolder != null) {
+									return getOptimizedResponse(localCacheFolder, event, null);		
+								}
+								else {
+									return null;
+								}
+							}
 							return getOptimizedResponse(cacheFolder, event, null);
 						}
 					});
@@ -1288,6 +1298,23 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 		}
 	}
 	
+	public void clearOptimizedCache() throws IOException {
+		ResourceContainer<?> privateDirectory = (ResourceContainer<?>) getDirectory().getChild(EAIResourceRepository.PRIVATE);
+		if (privateDirectory != null) {
+			ResourceContainer<?> cacheFolder = privateDirectory == null ? null : (ResourceContainer<?>) privateDirectory.getChild("cache");
+			if (cacheFolder != null) {
+				List<Resource> resourcesToDelete = new ArrayList<Resource>();
+				for (Resource resource : cacheFolder) {
+					resourcesToDelete.add(resource);
+				}
+				for (Resource resource : resourcesToDelete) {
+					((ManageableContainer<?>) cacheFolder).delete(resource.getName());
+				}
+			}
+		}
+		checkedOptimizations.clear();
+	}
+	
 	private HTTPResponse getOptimizedResponse(ResourceContainer<?> cacheFolder, HTTPRequest event, String forcedName) {
 		DefaultHTTPResponse response = null;
 		try {
@@ -1296,10 +1323,16 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			
 			// if we want to optimize and we are in development, we need to check caching headers
 			if (optimized && EAIResourceRepository.isDevelopment()) {
-				// if we have a cache header, we just want the latest version, we don't (currently) check the date at all
-				Header cacheHeader = MimeUtils.getHeader("If-Modified-Since", event.getContent().getHeaders());
-				if (cacheHeader == null) {
-					optimized = false;
+				// in most cases the static files do not change much (even in dev)
+				// so by default we will send (even in dev) the cached version
+				// an explicit cache reset can be triggered as needed
+				boolean optimizeDev = Boolean.parseBoolean(System.getProperty("optimize.dev", "true"));
+				if (!optimizeDev) {
+					// if we have a cache header, we just want the latest version, we don't (currently) check the date at all
+					Header cacheHeader = MimeUtils.getHeader("If-Modified-Since", event.getContent().getHeaders());
+					if (cacheHeader == null) {
+						optimized = false;
+					}
 				}
 			}
 			if (optimized) {
@@ -1512,6 +1545,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 								// encode so we don't have issues
 								path = URIUtils.encodeURIComponent(path);
 							}
+							// reset the checked stuff, we want to reload
+							checkedOptimizations.remove(path);
+							
 							// give it a correct extension, this can be useful for compiling
 							if (contentType.trim().equals("application/javascript")) {
 								path += ".js";

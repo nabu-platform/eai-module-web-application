@@ -700,15 +700,24 @@ public class Services {
 			@WebParam(name = "impersonatorRealm") String impersonatorRealm,
 			@WebParam(name = "impersonatorId") String impersonatorId,
 			@WebParam(name = "tokenId") String tokenId,
+			@WebParam(name = "realm") String realm,
 			@WebParam(name = "authenticator") String authenticator) throws IOException {
 		WebApplication resolved = webApplicationId == null ? null : executionContext.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);
 		if (resolved != null) {
 			TemporaryAuthenticationGenerator temporaryAuthenticationGenerator = resolved.getTemporaryAuthenticationGenerator();
 			if (temporaryAuthenticationGenerator != null) {
-				return temporaryAuthenticationGenerator.generate(resolved.getId(), resolved.getRealm(), alias, authenticationId, maxUses, until, timeout, type, secret, correlationId, device, impersonator, impersonatorRealm, impersonatorId, tokenId, authenticator);
+				return temporaryAuthenticationGenerator.generate(resolved.getId(), realm == null ? resolved.getRealm() : realm, alias, authenticationId, maxUses, until, timeout, type, secret, correlationId, device, impersonator, impersonatorRealm, impersonatorId, tokenId, authenticator);
 			}
 		}
 		return null;
+	}
+	
+	public void clearOptimizedCache(@NotNull @WebParam(name = "webApplicationId") String webApplicationId) throws IOException {
+		WebApplication resolved = webApplicationId == null ? null : executionContext.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);
+		if (resolved == null) {
+			throw new IllegalArgumentException("Could not find application: " + webApplicationId);
+		}
+		resolved.clearOptimizedCache();
 	}
 	
 	public Token temporarilyAuthenticate(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, @NotNull @WebParam(name = "authentication") TemporaryAuthentication authentication, 
