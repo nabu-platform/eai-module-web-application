@@ -516,7 +516,8 @@ public class WebApplicationUtils {
 					// this reuses the webapplication security logic used by page builder
 					// you must either have a generic permission to switch to any context
 					// or a specific permission to switch to the specifically requested (proxy) context
-					allowed = permissionHandler.hasPermission(token, "context:" + application.getId(), WebApplication.PERMISSION_UPDATE_SERVICE_CONTEXT) || permissionHandler.hasPermission(token, "proxy:" + context, WebApplication.PERMISSION_UPDATE_SERVICE_CONTEXT);
+					// TODO: we might want to get rid of the "generic" permission because we want to whitelist-optin specific roles
+					allowed = permissionHandler.hasPermission(token, "proxy:" + context, WebApplication.PERMISSION_UPDATE_SERVICE_CONTEXT) || permissionHandler.hasPermission(token, "context:" + application.getId(), WebApplication.PERMISSION_UPDATE_SERVICE_CONTEXT);
 				}
 				if (allowed) {
 					return context;
