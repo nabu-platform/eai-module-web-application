@@ -1,18 +1,15 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>nabu</groupId>
 	<artifactId>eai-module-web-application</artifactId>
-	<version>${nabu-eai-module-web-application-version}</version>
+	<version>1.23-SNAPSHOT</version>
 	<name>eai-module-web-application</name>
 	<url>http://nabu.be</url>
-
 	<parent>
 		<groupId>be.nabu</groupId>
 		<artifactId>core</artifactId>
 		<version>1.0-SNAPSHOT</version>
 	</parent>
-
 	<build>
 		<plugins>
 			<plugin>
@@ -25,7 +22,6 @@
 			</plugin>
 		</plugins>
 	</build>
-
 	<dependencies>
 		<dependency>
 			<groupId>be.nabu.eai</groupId>
@@ -62,7 +58,6 @@
 			<artifactId>eai-module-types-structure</artifactId>
 			<scope>provided</scope>
 		</dependency>
-		
 		<dependency>
 			<groupId>be.nabu.libs.cache</groupId>
 			<artifactId>cache-api</artifactId>
@@ -103,7 +98,6 @@
 			<artifactId>types-definition-xml</artifactId>
 			<scope>provided</scope>
 		</dependency>
-		
 		<dependency>
 			<groupId>javax.ws.rs</groupId>
 			<artifactId>javax.ws.rs-api</artifactId>
@@ -163,13 +157,10 @@
 			<artifactId>http-jwt</artifactId>
 			<scope>provided</scope>
 		</dependency>
-		
-		
 		<dependency>
-		    <groupId>com.google.javascript</groupId>
-		    <artifactId>closure-compiler</artifactId>
-		    <!-- <version>v20170626</version> -->
-		    <version>v20220405</version>
+			<groupId>com.google.javascript</groupId>
+			<artifactId>closure-compiler</artifactId>
+			<version>v20220405</version>
 		</dependency>
 	</dependencies>
 </project>
