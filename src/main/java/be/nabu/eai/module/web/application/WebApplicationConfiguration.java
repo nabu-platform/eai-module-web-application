@@ -45,7 +45,7 @@ import be.nabu.libs.types.api.annotation.Field;
 		"defaultLanguage", "rateLimitSettings", "rateLimitChecker", "rateLimitLogger", "rateLimiter", "corsChecker", "requestSubscriber", "whitelistedCodes", "sessionCacheProvider", "sessionCacheId", 
 		"maxTotalSessionSize", "maxSessionSize", "sessionTimeout", "sessionProviderApplication", "scriptCacheProvider", "maxTotalScriptCacheSize", 
 		"maxScriptCacheSize", "scriptCacheTimeout", "addCacheHeaders", "jwtKeyStore", "jwtKeyAlias", "allowJwtBearer", "allowContentEncoding", "services", 
-		"webFragments", "html5Mode", "optimizedLoad", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie", "testRole", "contextSwitchingRole", "virusScanner", "stateless" })
+		"webFragments", "html5Mode", "optimizedLoad", "forceRequestLanguage", "proxyPath", "ignoreLanguageCookie", "testRole", "contextSwitchingRole", "virusScanner", "stateless", "frameOption" })
 public class WebApplicationConfiguration {
 
 	// the id of the cache used by this webapplication, this allows for example sessions to be shared cross web application
@@ -63,6 +63,7 @@ public class WebApplicationConfiguration {
 	private boolean ignoreLanguageCookie;
 	// which roles can test toggling features
 	private List<String> testRole;
+	private FrameOption frameOption;
 	
 	// which roles can switch between contexts
 	// if nothing is defined, we don't do a role check and only a permission check
@@ -497,6 +498,14 @@ public class WebApplicationConfiguration {
 	}
 	public void setRateLimiter(DefinedService rateLimiter) {
 		this.rateLimiter = rateLimiter;
+	}
+	
+	@Field(group = "crossOrigin", comment = "Choose the frame policy for this application, default is DENY")
+	public FrameOption getFrameOption() {
+		return frameOption;
+	}
+	public void setFrameOption(FrameOption frameOption) {
+		this.frameOption = frameOption;
 	}
 	
 	@Field(group = "crossOrigin", comment = "Set a service that checks the CORS policies")

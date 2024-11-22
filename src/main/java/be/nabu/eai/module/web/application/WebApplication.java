@@ -1517,7 +1517,13 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							}
 						}
 						if ("text/html".equals(contentType) && response != null) {
-							response.getContent().setHeader(new MimeHeader("X-Frame-Options", "DENY"));
+							FrameOption frameOption = getConfig().getFrameOption();
+							if (frameOption == null) {
+								frameOption = FrameOption.DENY;
+							}
+							if (frameOption.getOption() != null) {
+								response.getContent().setHeader(new MimeHeader("X-Frame-Options", frameOption.getOption()));
+							}
 						}
 					}
 					else {
