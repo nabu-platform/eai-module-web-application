@@ -1521,7 +1521,14 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 							if (frameOption == null) {
 								frameOption = FrameOption.DENY;
 							}
-							if (frameOption.getOption() != null) {
+							if (frameOption.getOption() != null && frameOption != FrameOption.NONE) {
+								// for oauth2 we make an exception so we can embed it in an iframe
+								if (frameOption == FrameOption.DENY && event.getTarget().contains("state=") && (event.getTarget().contains("code=") || event.getTarget().contains("error="))) {
+									// check further that they are indeed query parameters
+									if (event.getTarget().matches("^.*\\?[^#]+\\bstate=[^#]+\\b(error|code)=.*$")) {
+										frameOption = FrameOption.SAME_ORIGIN;
+									}
+								}
 								response.getContent().setHeader(new MimeHeader("X-Frame-Options", frameOption.getOption()));
 							}
 						}
