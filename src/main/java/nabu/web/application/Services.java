@@ -564,6 +564,7 @@ public class Services {
 		EAIResourceRepository.getInstance().getEventDispatcher().fire(event, this);
 	}
 
+	// @2025-02-11: note that the path returned is that of the parent fragment it resides in (e.g. the web component), it does not include the path of the fragment itself!
 	@WebResult(name = "fragment")
 	public WebFragmentInformation fragment(@NotNull @WebParam(name = "webApplicationId") String id, @NotNull @WebParam(name = "fragmentId") String fragmentId) {
 		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
@@ -572,6 +573,10 @@ public class Services {
 		}
 		return fragment(resolved, resolved, fragmentId, null);
 	}
+	// @2025-02-11: the fragment was almost wrongly returning "false" as the active state because it was directly checking for "path" instead of "fragmentProviderPath" 
+	// however, there is a discrepancy in how a web application starts a rest service at root (path == null) and a web component (always something, e.g. "/")
+	// we have not historically used the active boolean much which is why it has not been evident
+	// need to fix this at some point
 	private WebFragmentInformation fragment(WebApplication application, WebFragmentProvider provider, String fragmentId, String path) {
 		if (provider.getWebFragments() != null) {
 			String relativePath = provider.getRelativePath();
@@ -581,11 +586,12 @@ public class Services {
 			else {
 				relativePath = relativePath.replaceAll("^[/]+", "");
 			}
-			String fragmentProviderPath = (path == null ? "/" : path + "/") + relativePath;
+			String fragmentProviderPath = ((path == null ? "/" : path + "/") + relativePath).replaceAll("[/]{2,}", "/");
 			for (WebFragment fragment : provider.getWebFragments()) {
 				if (fragment != null && fragmentId.equals(fragment.getId())) {
 					WebFragmentInformation information = new WebFragmentInformation();
-					information.setActive(fragment.isStarted(application, path));
+					// when checking whether the path is active, we don't want the trailing /
+					information.setActive(fragment.isStarted(application, fragmentProviderPath));
 					// we always want to end in a "/" to be predictable
 					information.setPath((fragmentProviderPath + "/").replaceAll("[/]{2,}", "/"));
 					return information;
