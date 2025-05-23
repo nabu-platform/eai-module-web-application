@@ -238,8 +238,18 @@ public class WebApplicationUtils {
 		// for "new" applications, REST calls should always fall back to the accepted language header if set
 		if (application.getConfig().isOptimizedLoad()) {
 			List<String> acceptedLanguages = MimeUtils.getAcceptedLanguages(request.getContent().getHeaders());
+			// @2025-05-22: in the past we just accepted the accept-language because we _assumed_ the call was coming from a managed frontend (javascript) or an actual API integration
+			// there are however some exceptions (e.g. when providing a download link) where the link is given directly to the browser who will perform a GET call with its own settings
+			// this would allow a non-supported language to be let through
+			// in the case of a managed frontend/backend-to-backend integration we can assume the provided language is picked from the supported list of languages so there is no harm (except overhead) in making sure that it matches _exactly_
+			// if there are no officially supported languages, nothing matters
 			if (acceptedLanguages.size() == 1) {
-				return acceptedLanguages.get(0);		
+				String requestedLanguage = acceptedLanguages.get(0);
+				LanguageProvider provider = application.getLanguageProvider();
+				List<String> supportedLanguages = provider == null ? null : provider.getSupportedLanguages();
+				if (supportedLanguages != null && supportedLanguages.contains(requestedLanguage)) {
+					return requestedLanguage;
+				}
 			}
 		}
 		String language = null;
