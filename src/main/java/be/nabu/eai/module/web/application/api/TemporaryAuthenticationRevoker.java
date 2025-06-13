@@ -17,6 +17,8 @@
 
 package be.nabu.eai.module.web.application.api;
 
+import java.util.List;
+
 import javax.jws.WebParam;
 import javax.validation.constraints.NotNull;
 
@@ -24,5 +26,13 @@ public interface TemporaryAuthenticationRevoker {
 	public void revoke(
 		// the web application this is for
 		@NotNull @WebParam(name = "webApplicationId") String webApplicationId,
-		@NotNull @WebParam(name = "tokenId") String tokenId);
+		// you can revoke a specific token
+		@WebParam(name = "tokenId") List<String> tokenId,
+		@WebParam(name = "notTokenId") List<String> notTokenId,
+		// or for a given authentication id
+		@WebParam(name = "authenticationId") List<String> authenticationId,
+		@WebParam(name = "notAuthenticationId") List<String> notAuthenticationId,
+		// or for a given device id
+		@WebParam(name = "deviceId") List<String> deviceId,
+		@WebParam(name = "notDeviceId") List<String> notDeviceId);
 }

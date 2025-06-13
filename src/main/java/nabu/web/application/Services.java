@@ -695,12 +695,18 @@ public class Services {
 		return null;
 	}
 	
-	public void revokeTemporaryAuthentication(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, @NotNull @WebParam(name = "tokenId") String tokenId) throws IOException {
+	public void revokeTemporaryAuthentication(@NotNull @WebParam(name = "webApplicationId") String webApplicationId, 
+				@WebParam(name = "tokenId") List<String> tokenId, 
+				@WebParam(name = "notTokenId") List<String> notTokenId,
+				@WebParam(name = "authenticationId") List<String> authenticationId,
+				@WebParam(name = "notAuthenticationId") List<String> notAuthenticationId,
+				@WebParam(name = "deviceId") List<String> deviceId,
+				@WebParam(name = "notDeviceId") List<String> notDeviceId) throws IOException {
 		WebApplication resolved = webApplicationId == null ? null : executionContext.getServiceContext().getResolver(WebApplication.class).resolve(webApplicationId);
 		if (resolved != null) {
 			TemporaryAuthenticationRevoker temporaryAuthenticationRevoker = resolved.getTemporaryAuthenticationRevoker();
 			if (temporaryAuthenticationRevoker != null) {
-				temporaryAuthenticationRevoker.revoke(resolved.getId(), tokenId);
+				temporaryAuthenticationRevoker.revoke(resolved.getId(), tokenId, notTokenId, authenticationId, notAuthenticationId, deviceId, notDeviceId);
 			}
 		}
 	}
