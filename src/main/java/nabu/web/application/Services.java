@@ -239,6 +239,8 @@ public class Services {
 		return resolved.getRoleHandler() == null ? true : resolved.getRoleHandler().hasRole(token, role);
 	}
 	
+	
+	@ServiceDescription(comment = "Check whether the token has {action|an action} within {context|a context} in {webApplicationId|a web application}")
 	public boolean hasPermission(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "token") Token token, @WebParam(name = "context") String context, @WebParam(name = "action") String action) throws IOException {
 		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
 		if (resolved == null) {
