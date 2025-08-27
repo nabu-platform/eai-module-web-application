@@ -35,11 +35,6 @@
 		</dependency>
 		<dependency>
 			<groupId>nabu</groupId>
-			<artifactId>eai-module-authorization-vm</artifactId>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>nabu</groupId>
 			<artifactId>eai-module-http-server</artifactId>
 			<scope>provided</scope>
 		</dependency>

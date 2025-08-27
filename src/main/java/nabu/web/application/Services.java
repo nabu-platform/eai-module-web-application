@@ -113,6 +113,8 @@ public class Services {
 		return list;
 	}
 
+	// moved to runtime, there is no specific web application dependency here
+	@Deprecated(since = "2025-08-26T12:17:00")
 	@WebResult(name = "sessionId")
 	public String getSessionId() {
 		Object currentRequest = RequestProcessor.getCurrentRequest();
