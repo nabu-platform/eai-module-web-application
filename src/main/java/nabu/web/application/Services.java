@@ -82,6 +82,7 @@ import be.nabu.utils.mime.api.ModifiableHeader;
 import be.nabu.utils.mime.api.ModifiablePart;
 import be.nabu.utils.mime.impl.MimeUtils;
 import nabu.web.application.types.Cookie;
+import nabu.web.application.types.FileResult;
 import nabu.web.application.types.TranslationKeyImpl;
 import nabu.web.application.types.WebApplicationInformation;
 import nabu.web.application.types.WebFragmentInformation;
@@ -465,7 +466,7 @@ public class Services {
 
 	@ServiceDescription(comment = "List all the static resources in a web application that match the given regex")
 	@WebResult(name = "resources")
-	public List<String> resources(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "regex") final String regex) {
+	public List<String> resources(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "nameRegex") final String regex, @WebParam(name = "pathRegex") final String pathRegex) {
 		List<String> resources = new ArrayList<String>();
 		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
 		if (resolved != null) {
@@ -475,7 +476,7 @@ public class Services {
 					public boolean accept(Resource resource) {
 						return !(resource instanceof ResourceContainer) && (regex == null || resource.getName().matches(regex));
 					}
-				}, true, null);
+				}, true, null, pathRegex);
 				for (String resource : find) {
 					resources.add("resources/" + resource);
 				}
@@ -484,18 +485,19 @@ public class Services {
 		return resources;
 	}
 	
+	@WebResult(name = "files")
 	@ServiceDescription(comment = "List all the files in a web application that match the given regex")
-	public List<String> files(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "regex") final String regex, @WebParam(name = "includeFragments") Boolean includeFragments) throws IOException {
-		List<String> resources = new ArrayList<String>();
+	public List<FileResult> files(@NotNull @WebParam(name = "webApplicationId") String id, @WebParam(name = "nameRegex") final String fileNameRegex, @WebParam(name = "pathRegex") final String pathRegex, @WebParam(name = "includeFragments") Boolean includeFragments) throws IOException {
+		List<FileResult> resources = new ArrayList<>();
 		WebApplication resolved = executionContext.getServiceContext().getResolver(WebApplication.class).resolve(id);
 		if (resolved != null) {
-			resources.addAll(providedFolders(resolved.getRepository(), resolved, regex, new ArrayList<String>(), includeFragments != null && includeFragments));
+			resources.addAll(providedFolders(resolved.getRepository(), resolved, fileNameRegex, new ArrayList<String>(), includeFragments != null && includeFragments, pathRegex));
 		}
 		return resources;
 	}
 	
-	private List<String> providedFolders(Repository repository, WebFragmentProvider provider, String regex, List<String> blacklist, boolean includeFragments) throws IOException {
-		List<String> files = new ArrayList<String>();
+	private List<FileResult> providedFolders(Repository repository, WebFragmentProvider provider, String fileNameRegex, List<String> blacklist, boolean includeFragments, String pathRegex) throws IOException {
+		List<FileResult> files = new ArrayList<>();
 		if (provider.getWebFragments() != null && includeFragments) {
 			for (WebFragment fragment : provider.getWebFragments()) {
 				if (fragment instanceof WebFragmentProvider) {
@@ -505,7 +507,7 @@ public class Services {
 					else {
 						blacklist.add(fragment.getId());
 					}
-					files.addAll(providedFolders(repository, (WebFragmentProvider) fragment, regex, blacklist, includeFragments));
+					files.addAll(providedFolders(repository, (WebFragmentProvider) fragment, fileNameRegex, blacklist, includeFragments, pathRegex));
 				}
 			}
 		}
@@ -516,25 +518,33 @@ public class Services {
 				List<String> find = find(container, new ResourceFilter() {
 					@Override
 					public boolean accept(Resource resource) {
-						return resource.getName().matches(regex);
+						return resource.getName().matches(fileNameRegex);
 					}
-				}, true, null);
+				}, true, null, pathRegex);
 				for (String resource : find) {
-					files.add("repository:" + ((Artifact) provider).getId() + ":/" + resource);
+					FileResult result = new FileResult();
+					result.setPath("repository:" + ((Artifact) provider).getId() + ":/" + resource);
+					result.setSource(((Artifact) provider).getId());
+					files.add(result);
 				}
 			}
 		}
 		return files;
 	}
 	
-	public static List<String> find(ResourceContainer<?> container, ResourceFilter filter, boolean recursive, String path) {
+	public static List<String> find(ResourceContainer<?> container, ResourceFilter filter, boolean recursive, String path, String pathRegex) {
 		List<String> result = new ArrayList<String>();
 		for (Resource child : container) {
 			String childPath = path == null ? child.getName() : path + "/" + child.getName();
+			if (pathRegex != null) {
+				if (!childPath.matches(pathRegex)) {
+					continue;
+				}
+			}
 			if (filter.accept(child))
 				result.add(childPath);
 			if (recursive && child instanceof ResourceContainer)
-				result.addAll(find((ResourceContainer<?>) child, filter, recursive, childPath));
+				result.addAll(find((ResourceContainer<?>) child, filter, recursive, childPath, pathRegex));
 		}
 		return result;
 	}
