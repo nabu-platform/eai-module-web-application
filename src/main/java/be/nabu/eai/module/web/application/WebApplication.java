@@ -206,6 +206,7 @@ import be.nabu.libs.services.api.DefinedService;
 import be.nabu.libs.services.api.Service;
 import be.nabu.libs.services.api.ServiceLevelAgreement;
 import be.nabu.libs.services.api.ServiceLevelAgreementProvider;
+import be.nabu.libs.services.fixed.DefinedFixedInputService;
 import be.nabu.libs.services.fixed.FixedInputService;
 import be.nabu.libs.services.pojo.POJOUtils;
 import be.nabu.libs.types.ComplexContentWrapperFactory;
@@ -2024,7 +2025,9 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 			return service;
 		}
 		else {
-			FixedInputService fixed = new FixedInputService(service);
+			FixedInputService fixed = service instanceof DefinedService
+				? new DefinedFixedInputService((DefinedService) service)
+				: new FixedInputService(service);
 			for (String name : inputs.keySet()) {
 				fixed.setInput(name, inputs.get(name));
 			}
