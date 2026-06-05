@@ -26,11 +26,6 @@ import be.nabu.libs.resources.api.WritableResource;
 import be.nabu.utils.io.IOUtils;
 
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.transform.OutputKeys;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -422,11 +417,8 @@ public class WebApplicationArtifactFragmentManager extends BaseNodeMetadataArtif
 	}
 
 	private String toXml(Document document) throws Exception {
-		Transformer transformer = TransformerFactory.newInstance().newTransformer();
-		transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
-		transformer.setOutputProperty(OutputKeys.INDENT, "yes");
 		ByteArrayOutputStream output = new ByteArrayOutputStream();
-		transformer.transform(new DOMSource(document), new StreamResult(output));
+		EAIRepositoryUtils.prettyPrint(document, output);
 		return new String(output.toByteArray(), StandardCharsets.UTF_8);
 	}
 
