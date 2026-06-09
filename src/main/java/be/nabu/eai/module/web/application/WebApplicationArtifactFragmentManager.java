@@ -201,6 +201,11 @@ public class WebApplicationArtifactFragmentManager extends BaseNodeMetadataArtif
 	}
 
 	@Override
+	public boolean shouldReloadAfterChange(String fragment) {
+		return !isManagedResourcePath(fragment);
+	}
+
+	@Override
 	public List<Validation<?>> createFragment(WebApplication artifact, String path, String initialContent) {
 		List<Validation<?>> validations = new ArrayList<Validation<?>>();
 		if (!isCreatableResourcePath(path)) {
