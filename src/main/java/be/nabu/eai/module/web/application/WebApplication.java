@@ -3227,8 +3227,12 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 	// but for now, we just set a 2s warning limit on all calls
 	// anything longer than that should probably be reported
 	@Override
-	public ServiceLevelAgreement getAgreementFor(Service service) {
-		return service instanceof WebFragment ? new ServiceLevelAgreement() {
+	public List<ServiceLevelAgreement> getAgreementsFor(Service service) {
+		return service instanceof WebFragment ? Collections.singletonList(new ServiceLevelAgreement() {
+			@Override
+			public String getName() {
+				return "web-fragment-default";
+			}
 			@Override
 			public Long getThresholdDuration() {
 				return 2l * 60 * 1000;
@@ -3238,10 +3242,10 @@ public class WebApplication extends JAXBArtifact<WebApplicationConfiguration> im
 				return EventSeverity.WARNING;
 			}
 			@Override
-			public boolean isExplicit() {
+			public Boolean isExplicit() {
 				return false;
 			}
-		} : null; 
+		}) : null; 
 	}
 	
 }
