@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import be.nabu.eai.repository.api.ArtifactFragmentManager.RevisionedArtifactFragment;
 import be.nabu.eai.repository.api.CreatableArtifactFragmentManager;
 import be.nabu.eai.repository.api.DynamicArtifactFragmentManager;
 import be.nabu.eai.repository.api.Entry;
@@ -22,6 +23,7 @@ import be.nabu.libs.resources.api.ManageableContainer;
 import be.nabu.libs.resources.api.ReadableResource;
 import be.nabu.libs.resources.api.Resource;
 import be.nabu.libs.resources.api.ResourceContainer;
+import be.nabu.libs.resources.api.RevisionedResource;
 import be.nabu.libs.resources.api.WritableResource;
 import be.nabu.utils.io.IOUtils;
 
@@ -427,7 +429,7 @@ public class WebApplicationArtifactFragmentManager extends BaseNodeMetadataArtif
 		return new String(output.toByteArray(), StandardCharsets.UTF_8);
 	}
 
-	private class ResourceFragment implements ArtifactFragment {
+	private class ResourceFragment implements RevisionedArtifactFragment {
 
 		private final WebApplication artifact;
 		private final String path;
@@ -503,6 +505,18 @@ public class WebApplicationArtifactFragmentManager extends BaseNodeMetadataArtif
 		@Override
 		public Long getLastModified() {
 			return getFragmentLastModified(artifact.getId(), path);
+		}
+
+		@Override
+		public String getRevision() {
+			Entry entry = EAIResourceRepository.getInstance().getEntry(artifact.getId());
+			try {
+				Resource resource = entry instanceof ResourceEntry ? ResourceUtils.resolve(((ResourceEntry) entry).getContainer(), path) : null;
+				return resource instanceof RevisionedResource ? ((RevisionedResource) resource).getRevision() : null;
+			}
+			catch (java.io.IOException e) {
+				throw new RuntimeException("Could not resolve resource revision: " + path, e);
+			}
 		}
 	}
 
